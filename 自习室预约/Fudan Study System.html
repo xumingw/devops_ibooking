@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>复旦大学自习室预约系统 · 设计稿</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { width: 100%; height: 100%; overflow: hidden; }
+    body { font-family: 'Noto Sans SC', 'Inter', sans-serif; background: #0f1117; }
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" src="design-canvas.jsx"></script>
+  <script type="text/babel" src="fudan-tokens.jsx"></script>
+  <script type="text/babel" src="student-web-a.jsx"></script>
+  <script type="text/babel" src="student-web-b.jsx"></script>
+  <script type="text/babel" src="admin-web.jsx"></script>
+  <script type="text/babel" src="mobile-ui.jsx"></script>
+
+  <script type="text/babel">
+    // ── Tweaks panel integration ──────────────────────
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "accentColor": "#003087",
+      "goldColor": "#C9A840",
+      "showAdminSection": true,
+      "showMobileSection": true,
+      "darkSidebar": true
+    }/*EDITMODE-END*/;
+
+    const { useState, useEffect } = React;
+
+    function TweaksPanel({ tweaks, setTweaks, visible, onClose }) {
+      if (!visible) return null;
+      const update = (key, val) => {
+        const next = { ...tweaks, [key]: val };
+        setTweaks(next);
+        window.parent.postMessage({ type: '__edit_mode_set_keys', edits: next }, '*');
+      };
+      return (
+        <div style={{
+          position: 'fixed', bottom: 20, right: 20, zIndex: 9999,
+          background: '#fff', borderRadius: 14, padding: 20, width: 260,
+          boxShadow: '0 8px 40px rgba(0,0,0,0.18)', border: '1px solid #E2E8F0',
+          fontFamily: "'Noto Sans SC','Inter',sans-serif",
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>Tweaks</span>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', fontSize: 18, lineHeight: 1 }}>×</button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', marginBottom: 6 }}>品牌主色</div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input type="color" value={tweaks.accentColor} onChange={e => update('accentColor', e.target.value)}
+                  style={{ width: 32, height: 32, borderRadius: 6, border: '1px solid #E2E8F0', cursor: 'pointer', padding: 2 }} />
+                <span style={{ fontSize: 12, color: '#4B5563', fontFamily: 'monospace' }}>{tweaks.accentColor}</span>
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', marginBottom: 6 }}>金色点缀</div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input type="color" value={tweaks.goldColor} onChange={e => update('goldColor', e.target.value)}
+                  style={{ width: 32, height: 32, borderRadius: 6, border: '1px solid #E2E8F0', cursor: 'pointer', padding: 2 }} />
+                <span style={{ fontSize: 12, color: '#4B5563', fontFamily: 'monospace' }}>{tweaks.goldColor}</span>
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', marginBottom: 8 }}>显示模块</div>
+              {[['showAdminSection','管理后台'],['showMobileSection','手机端']].map(([key, label]) => (
+                <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, cursor: 'pointer' }}>
+                  <div onClick={() => update(key, !tweaks[key])} style={{
+                    width: 36, height: 20, borderRadius: 10, position: 'relative', cursor: 'pointer',
+                    background: tweaks[key] ? '#003087' : '#D1D5DB', transition: 'background 0.2s',
+                  }}>
+                    <div style={{
+                      position: 'absolute', top: 2, left: tweaks[key] ? 18 : 2, width: 16, height: 16,
+                      borderRadius: '50%', background: '#fff', transition: 'left 0.2s',
+                    }} />
+                  </div>
+                  <span style={{ fontSize: 12, color: '#4B5563' }}>{label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Main App ──────────────────────────────────────
+    function App() {
+      const [tweaks, setTweaks] = useState(TWEAK_DEFAULTS);
+      const [tweaksVisible, setTweaksVisible] = useState(false);
+
+      useEffect(() => {
+        window.addEventListener('message', e => {
+          if (e.data?.type === '__activate_edit_mode') setTweaksVisible(true);
+          if (e.data?.type === '__deactivate_edit_mode') setTweaksVisible(false);
+        });
+        window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+      }, []);
+
+      return (
+        <>
+          <DesignCanvas title="复旦大学 · 自习室预约系统设计稿">
+
+            {/* ── SECTION 1: 学生 Web 端 ── */}
+            <DCSection id="student" title="学生 Web 端（PC）">
+              <DCArtboard id="s01" label="01 登录页" width={1440} height={860}>
+                <StudentLogin />
+              </DCArtboard>
+              <DCArtboard id="s02" label="02 首页概览" width={1440} height={860}>
+                <StudentHome />
+              </DCArtboard>
+              <DCArtboard id="s03" label="03 自习室列表" width={1440} height={860}>
+                <RoomList />
+              </DCArtboard>
+              <DCArtboard id="s04" label="04 选座预约" width={1440} height={860}>
+                <SeatSelector />
+              </DCArtboard>
+              <DCArtboard id="s05" label="05 预约确认" width={1440} height={860}>
+                <BookingConfirm />
+              </DCArtboard>
+              <DCArtboard id="s06" label="06 我的预约" width={1440} height={860}>
+                <MyBookings />
+              </DCArtboard>
+              <DCArtboard id="s07" label="07 签到页" width={1440} height={860}>
+                <CheckIn />
+              </DCArtboard>
+              <DCArtboard id="s08" label="08 智能助手" width={1440} height={860}>
+                <AIAssistant />
+              </DCArtboard>
+              <DCArtboard id="s09" label="09 通知中心" width={1440} height={860}>
+                <NotifyCenter />
+              </DCArtboard>
+              <DCArtboard id="s10" label="10 违约记录" width={1440} height={860}>
+                <ViolationRecord />
+              </DCArtboard>
+            </DCSection>
+
+            {/* ── SECTION 2: 管理后台 ── */}
+            {tweaks.showAdminSection && (
+              <DCSection id="admin" title="管理后台（PC）">
+                <DCArtboard id="a01" label="01 管理仪表盘" width={1440} height={860}>
+                  <AdminDashboard />
+                </DCArtboard>
+                <DCArtboard id="a02" label="02 自习室管理" width={1440} height={860}>
+                  <RoomManagement />
+                </DCArtboard>
+                <DCArtboard id="a03" label="03 平面图编辑器" width={1440} height={860}>
+                  <FloorPlanEditor />
+                </DCArtboard>
+                <DCArtboard id="a04" label="04 预约记录" width={1440} height={860}>
+                  <BookingRecords />
+                </DCArtboard>
+                <DCArtboard id="a05" label="05 角色权限管理" width={1440} height={860}>
+                  <RoleManagement />
+                </DCArtboard>
+                <DCArtboard id="a06" label="06 数据报表" width={1440} height={860}>
+                  <DataReports />
+                </DCArtboard>
+              </DCSection>
+            )}
+
+            {/* ── SECTION 3: 手机端 ── */}
+            {tweaks.showMobileSection && (
+              <DCSection id="mobile" title="手机端（小程序风格）">
+                <DCArtboard id="m00" label="00 登录页" width={390} height={844}>
+                  <MobileLogin />
+                </DCArtboard>
+                <DCArtboard id="m01" label="01 首页" width={390} height={844}>
+                  <MobileHome />
+                </DCArtboard>
+                <DCArtboard id="m02" label="02 选座页" width={390} height={844}>
+                  <MobileSeatMap />
+                </DCArtboard>
+                <DCArtboard id="m03" label="03 快速筛选" width={390} height={844}>
+                  <MobileFilter />
+                </DCArtboard>
+                <DCArtboard id="m04" label="04 我的预约" width={390} height={844}>
+                  <MobileMyBookings />
+                </DCArtboard>
+                <DCArtboard id="m05" label="05 扫码签到" width={390} height={844}>
+                  <MobileCheckIn />
+                </DCArtboard>
+                <DCArtboard id="m06" label="06 智能助手" width={390} height={844}>
+                  <MobileAIAssistant />
+                </DCArtboard>
+                <DCArtboard id="m07" label="07 我的页面" width={390} height={844}>
+                  <MobileProfile />
+                </DCArtboard>
+              </DCSection>
+            )}
+
+          </DesignCanvas>
+
+          <TweaksPanel
+            tweaks={tweaks}
+            setTweaks={setTweaks}
+            visible={tweaksVisible}
+            onClose={() => {
+              setTweaksVisible(false);
+              window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*');
+            }}
+          />
+        </>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
