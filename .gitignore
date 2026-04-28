@@ -1,1 +1,13 @@
+node_modules/
+dist/
+coverage/
+.turbo/
+.vite/
+.env
+.env.*
+!.env.example
 .DS_Store
+*.log
+apps/api/generated/
+apps/api/prisma/dev.db
+apps/api/prisma/dev.db-journal

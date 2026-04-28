@@ -1,0 +1,282 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum RoomScopeType {
+  SCHOOL
+  DEPARTMENT
+}
+
+enum ResourceStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum BookingStatus {
+  PENDING_CHECKIN
+  CHECKED_IN
+  COMPLETED
+  CANCELLED_BY_USER
+  CANCELLED_BY_ADMIN
+  CANCELLED_AUTO_NO_CHECKIN
+}
+
+enum ViolationReason {
+  NO_CHECK_IN
+  MANUAL
+}
+
+model User {
+  id           String       @id @default(cuid()) @db.VarChar(191)
+  studentNo    String       @unique @map("student_no") @db.VarChar(64)
+  name         String       @db.VarChar(128)
+  email        String?      @unique @db.VarChar(191)
+  departmentId String?      @map("department_id") @db.VarChar(191)
+  status       UserStatus   @default(ACTIVE)
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  department   Department?  @relation(fields: [departmentId], references: [id])
+  userRoles    UserRole[]
+  bookings     Booking[]
+  violations   Violation[]
+  auditLogs     AuditLog[]
+
+  @@index([departmentId])
+  @@map("user")
+}
+
+model Department {
+  id        String   @id @default(cuid()) @db.VarChar(191)
+  code      String   @unique @db.VarChar(64)
+  name      String   @unique @db.VarChar(128)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  users     User[]
+  rooms     Room[]
+
+  @@map("department")
+}
+
+model Role {
+  id              String           @id @default(cuid()) @db.VarChar(191)
+  code            String           @unique @db.VarChar(64)
+  name            String           @db.VarChar(128)
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+  rolePermissions RolePermission[]
+  userRoles       UserRole[]
+
+  @@map("role")
+}
+
+model Permission {
+  id              String           @id @default(cuid()) @db.VarChar(191)
+  code            String           @unique @db.VarChar(128)
+  name            String           @db.VarChar(128)
+  menuKey         String?          @map("menu_key") @db.VarChar(128)
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+  rolePermissions RolePermission[]
+
+  @@map("permission")
+}
+
+model RolePermission {
+  roleId       String     @map("role_id") @db.VarChar(191)
+  permissionId String     @map("permission_id") @db.VarChar(191)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  role         Role       @relation(fields: [roleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+  @@map("role_permission")
+}
+
+model UserRole {
+  userId    String   @map("user_id") @db.VarChar(191)
+  roleId    String   @map("role_id") @db.VarChar(191)
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id])
+  role      Role     @relation(fields: [roleId], references: [id])
+
+  @@id([userId, roleId])
+  @@map("user_role")
+}
+
+model Room {
+  id           String          @id @default(cuid()) @db.VarChar(191)
+  name         String          @unique @db.VarChar(128)
+  building     String          @db.VarChar(128)
+  floor        Int
+  capacity     Int
+  scopeType    RoomScopeType   @default(SCHOOL) @map("scope_type")
+  departmentId String?         @map("department_id") @db.VarChar(191)
+  openHour     Int             @default(7) @map("open_hour")
+  closeHour    Int             @default(22) @map("close_hour")
+  overnight    Boolean         @default(false)
+  status       ResourceStatus  @default(ACTIVE)
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+  department   Department?     @relation(fields: [departmentId], references: [id])
+  seats        Seat[]
+  schedules    RoomSchedule[]
+  bookings     Booking[]
+  violations   Violation[]
+  checkInCodes CheckInCode[]
+
+  @@index([departmentId])
+  @@map("room")
+}
+
+model Seat {
+  id          String         @id @default(cuid()) @db.VarChar(191)
+  roomId      String         @map("room_id") @db.VarChar(191)
+  code        String         @db.VarChar(64)
+  x           Int
+  y           Int
+  hasPower    Boolean        @default(false) @map("has_power")
+  nearWindow  Boolean        @default(false) @map("near_window")
+  attributes  Json?
+  status      ResourceStatus @default(ACTIVE)
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+  room        Room           @relation(fields: [roomId], references: [id])
+  bookings    Booking[]
+  slots       BookingSlot[]
+  violations  Violation[]
+
+  @@unique([roomId, code])
+  @@index([roomId])
+  @@map("seat")
+}
+
+model RoomSchedule {
+  id        String   @id @default(cuid()) @db.VarChar(191)
+  roomId    String   @map("room_id") @db.VarChar(191)
+  date      DateTime @db.Date
+  openHour  Int      @map("open_hour")
+  closeHour Int      @map("close_hour")
+  closed    Boolean  @default(false)
+  reason    String?  @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  room      Room     @relation(fields: [roomId], references: [id])
+
+  @@unique([roomId, date])
+  @@map("room_schedule")
+}
+
+model Booking {
+  id          String        @id @default(cuid()) @db.VarChar(191)
+  userId      String        @map("user_id") @db.VarChar(191)
+  roomId      String        @map("room_id") @db.VarChar(191)
+  seatId      String        @map("seat_id") @db.VarChar(191)
+  startAt     DateTime      @map("start_at")
+  endAt       DateTime      @map("end_at")
+  status      BookingStatus @default(PENDING_CHECKIN)
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  user        User          @relation(fields: [userId], references: [id])
+  room        Room          @relation(fields: [roomId], references: [id])
+  seat        Seat          @relation(fields: [seatId], references: [id])
+  slots       BookingSlot[]
+  violation   Violation?
+  reminderLogs ReminderLog[]
+
+  @@index([userId, startAt, endAt])
+  @@index([seatId, startAt, endAt])
+  @@map("booking")
+}
+
+model BookingSlot {
+  id        String   @id @default(cuid()) @db.VarChar(191)
+  bookingId String   @map("booking_id") @db.VarChar(191)
+  seatId    String   @map("seat_id") @db.VarChar(191)
+  slotStart DateTime @map("slot_start")
+  createdAt DateTime @default(now()) @map("created_at")
+  booking   Booking  @relation(fields: [bookingId], references: [id])
+  seat      Seat     @relation(fields: [seatId], references: [id])
+
+  @@unique([seatId, slotStart])
+  @@index([bookingId])
+  @@map("booking_slot")
+}
+
+model Violation {
+  id         String          @id @default(cuid()) @db.VarChar(191)
+  userId     String          @map("user_id") @db.VarChar(191)
+  bookingId  String          @unique @map("booking_id") @db.VarChar(191)
+  roomId     String          @map("room_id") @db.VarChar(191)
+  seatId     String          @map("seat_id") @db.VarChar(191)
+  reason     ViolationReason
+  occurredAt DateTime        @map("occurred_at")
+  createdAt  DateTime        @default(now()) @map("created_at")
+  user       User            @relation(fields: [userId], references: [id])
+  booking    Booking         @relation(fields: [bookingId], references: [id])
+  room       Room            @relation(fields: [roomId], references: [id])
+  seat       Seat            @relation(fields: [seatId], references: [id])
+
+  @@index([userId, occurredAt])
+  @@map("violation")
+}
+
+model CheckInCode {
+  id        String   @id @default(cuid()) @db.VarChar(191)
+  roomId    String   @map("room_id") @db.VarChar(191)
+  code      String   @db.VarChar(32)
+  validAt   DateTime @map("valid_at")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  room      Room     @relation(fields: [roomId], references: [id])
+
+  @@unique([roomId, validAt])
+  @@map("check_in_code")
+}
+
+model ReminderLog {
+  id        String   @id @default(cuid()) @db.VarChar(191)
+  bookingId String   @map("booking_id") @db.VarChar(191)
+  type      String   @db.VarChar(64)
+  channel   String   @db.VarChar(32)
+  sentAt    DateTime @map("sent_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  booking   Booking  @relation(fields: [bookingId], references: [id])
+
+  @@index([bookingId, type])
+  @@map("reminder_log")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid()) @db.VarChar(191)
+  actorId   String?  @map("actor_id") @db.VarChar(191)
+  action    String   @db.VarChar(128)
+  resource  String   @db.VarChar(128)
+  resourceId String? @map("resource_id") @db.VarChar(191)
+  detail    Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  actor     User?    @relation(fields: [actorId], references: [id])
+
+  @@index([actorId, createdAt])
+  @@map("audit_log")
+}
+
+model SystemParam {
+  id        String   @id @default(cuid()) @db.VarChar(191)
+  key       String   @unique @db.VarChar(128)
+  value     String   @db.VarChar(512)
+  valueType String   @default("string") @map("value_type") @db.VarChar(32)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("system_param")
+}

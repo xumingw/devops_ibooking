@@ -1,0 +1,20 @@
+services:
+  api:
+    image: ${API_IMAGE:-ghcr.io/xumingw/devops_ibooking/api:latest}
+    env_file:
+      - ../.env
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  web-student:
+    image: ${WEB_STUDENT_IMAGE:-ghcr.io/xumingw/devops_ibooking/web-student:latest}
+    ports:
+      - "5173:80"
+    restart: unless-stopped
+
+  web-admin:
+    image: ${WEB_ADMIN_IMAGE:-ghcr.io/xumingw/devops_ibooking/web-admin:latest}
+    ports:
+      - "5174:80"
+    restart: unless-stopped

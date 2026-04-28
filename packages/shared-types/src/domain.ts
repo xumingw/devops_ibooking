@@ -1,0 +1,79 @@
+export type UserStatus = 'ACTIVE' | 'DISABLED';
+export type RoomScopeType = 'SCHOOL' | 'DEPARTMENT';
+export type ResourceStatus = 'ACTIVE' | 'INACTIVE';
+export type BookingStatus =
+  | 'PENDING_CHECKIN'
+  | 'CHECKED_IN'
+  | 'COMPLETED'
+  | 'CANCELLED_BY_USER'
+  | 'CANCELLED_BY_ADMIN'
+  | 'CANCELLED_AUTO_NO_CHECKIN';
+
+export interface Department {
+  id: string;
+  name: string;
+  code: string;
+}
+
+export interface User {
+  id: string;
+  studentNo: string;
+  name: string;
+  departmentId: string | null;
+  status: UserStatus;
+}
+
+export interface Role {
+  id: string;
+  code: string;
+  name: string;
+}
+
+export interface Permission {
+  id: string;
+  code: string;
+  name: string;
+}
+
+export interface Room {
+  id: string;
+  name: string;
+  building: string;
+  floor: number;
+  capacity: number;
+  scopeType: RoomScopeType;
+  departmentId: string | null;
+  openHour: number;
+  closeHour: number;
+  overnight: boolean;
+  status: ResourceStatus;
+}
+
+export interface Seat {
+  id: string;
+  roomId: string;
+  code: string;
+  x: number;
+  y: number;
+  hasPower: boolean;
+  nearWindow: boolean;
+  status: ResourceStatus;
+}
+
+export interface Booking {
+  id: string;
+  userId: string;
+  roomId: string;
+  seatId: string;
+  startAt: string;
+  endAt: string;
+  status: BookingStatus;
+}
+
+export interface Violation {
+  id: string;
+  userId: string;
+  bookingId: string;
+  reason: 'NO_CHECK_IN' | 'MANUAL';
+  occurredAt: string;
+}
