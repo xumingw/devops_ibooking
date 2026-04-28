@@ -17,7 +17,7 @@
 
 ## 1. 迭代目标
 
-**本迭代结束时团队应能在本地一键启动前后端工程、在 DevCloud 完成代码托管，并冻结需求基线与 DoD 模板。**
+**本迭代结束时团队应能在本地一键启动前后端工程、在 GitHub 完成代码托管，并冻结需求基线与 DoD 模板。**
 
 ## 2. Story 范围
 
@@ -34,7 +34,7 @@
 | US0.3.1 | P0 | 定义核心领域模型 | 无 |
 | US0.3.2 | P0 | 定义接口与错误码规范 | 无 |
 | US8.1.2 | P0 | 建立验收标准模板 | 无 |
-| US8.4.1 | P0 | DevCloud 代码托管 | 无 |
+| US8.4.1 | P0 | GitHub 代码托管 | 无 |
 
 **故事数：10（10 P0 / 0 P1 / 0 P2）**
 
@@ -94,7 +94,7 @@ I0 全部 story 都不涉及 UI 实现（项目治理与基础架构）。**不�
   - 实施要点：`git init`；建立 `main` + `dev` 分支；分支策略写入 `conventions.md` §3.2（已含）。
   - 验收：仓库存在两条分支。
 
-- [ ] **US0.4.1-T03** 定义提交信息和 MR 模板
+- [ ] **US0.4.1-T03** 定义提交信息和 PR 模板
   - 预估工时：2h
   - 依赖任务：US0.4.1-T02
   - 实施要点：`.github/PULL_REQUEST_TEMPLATE.md` 含「关联 Story」「测试结果」「影响范围」；commitlint 配置 conventional commits。
@@ -106,11 +106,11 @@ I0 全部 story 都不涉及 UI 实现（项目治理与基础架构）。**不�
   - 实施要点：根目录 ESLint + Prettier 配置；husky + lint-staged 提交前自动格式化；CI 失败阻塞合并（在 US8.4.2 接入）。
   - 验收：`pnpm lint` 命令存在且能跑。
 
-- [ ] **US0.4.2-T01** 在 DevCloud/Scrum 看板创建需求条目
+- [ ] **US0.4.2-T01** 在 GitHub Projects 看板创建需求条目
   - 预估工时：4h
   - 依赖任务：US0.1.1-T02
-  - 实施要点：登录 DevCloud → 创建 Scrum 项目 "ibooking" → 导入 Bucket A 全部 Epic/Feature/Story（可手工或脚本）。
-  - 验收：DevCloud 看板显示 ≥118 条 Story 条目。
+  - 实施要点：登录 GitHub → 在仓库或组织下创建 GitHub Projects 项目 "ibooking" → 导入 Bucket A 全部 Epic/Feature/Story（可手工或脚本）。
+  - 验收：GitHub Projects 看板显示 ≥118 条 Story 条目。
 
 - [ ] **US0.4.2-T02** 为 Story 分配负责人和计划迭代
   - 预估工时：2h
@@ -240,25 +240,25 @@ I0 全部 story 都不涉及 UI 实现（项目治理与基础架构）。**不�
   - 实施要点：`@nestjs/swagger` 自动从 controller 装饰器生成 OpenAPI 3 yaml；CI 任务导出 `docs/api/openapi.yaml`。
   - 验收：CI 中 swagger export 任务 green，产物 commit。
 
-### Block C — DevCloud 启用（US8.4.1）
+### Block C — GitHub 启用（US8.4.1）
 
-- [ ] **US8.4.1-T01** 注册并创建 DevCloud Scrum 项目
+- [ ] **US8.4.1-T01** 注册并创建 GitHub Projects 项目
   - 预估工时：1h
   - 依赖任务：无
-  - 实施要点：组长在 `devcloud.huaweicloud.com` 创建 Scrum 项目 "ibooking"；将团队成员加入并赋予 Developer 角色。
+  - 实施要点：组长在 GitHub 仓库或组织下创建 Projects 项目 "ibooking"；将团队成员加入仓库并赋予 Write/Maintain 权限。
   - 验收：所有团队成员可登录看到项目。
 
 - [ ] **US8.4.1-T02** 创建代码仓库并邀请成员
   - 预估工时：1h
   - 依赖任务：US8.4.1-T01, US0.4.1-T02
-  - 实施要点：CodeArts Repo 新建 `ibooking` 仓库；推送本地 monorepo；邀请成员；保护 main 分支。
+  - 实施要点：GitHub Repository 新建 `ibooking` 仓库；推送本地 monorepo；邀请成员；保护 main 分支。
   - 验收：所有成员可 clone 与 push 到 dev/feature 分支。
 
 - [ ] **US8.4.1-T03** 配置分支保护或合并规范
   - 预估工时：1h
   - 依赖任务：US8.4.1-T02
-  - 实施要点：main 分支保护：不允许直推；MR 至少 1 reviewer + CI 全绿才能合并；webhook 触发 build。
-  - 验收：尝试直推 main 被拒；MR 流程能通过。
+  - 实施要点：main 分支保护：不允许直推；PR 至少 1 reviewer + CI 全绿才能合并；webhook 触发 build。
+  - 验收：尝试直推 main 被拒；PR 流程能通过。
 
 ## 5. 实现要点（针对 3 个最易翻车 story）
 
@@ -278,13 +278,13 @@ I0 全部 story 都不涉及 UI 实现（项目治理与基础架构）。**不�
 - `apps/api/prisma/migrations/` 必须 commit；CI / 部署不会 `prisma migrate dev` 而用 `prisma migrate deploy`。
 - DB 名 `ibooking`，charset utf8mb4 / utf8mb4_unicode_ci。
 
-### 5.3 US8.4.1 DevCloud 代码托管
+### 5.3 US8.4.1 GitHub 代码托管
 
 **关键决策：**
-- 在 CodeArts Repo 创建后立即推 main + dev 两条分支；main 直接保护。
+- 在 GitHub Repository 创建后立即推 main + dev 两条分支；main 直接保护。
 - 分支保护策略：main 仅允许 PR 合入；PR 需 ≥ 1 reviewer + CI green。
 - webhook 触发：push 到 dev / 任何 PR → 触发 CI build（在 I1 接入）。
-- 成员权限：Developer 默认；只组长有 Maintainer。
+- 成员权限：普通成员默认 Write；组长或维护者使用 Maintain/Admin。
 
 ## 6. 数据/接口契约变更
 
@@ -371,17 +371,17 @@ I0 全部 story 都不涉及 UI 实现（项目治理与基础架构）。**不�
   - Step 4: `assert docs/api/openapi.yaml 存在且 schema 含 BookingDto 等占位类型`
 - **后置处理**：无。
 
-### TC-US8.4.1-01：验证 DevCloud 代码托管
+### TC-US8.4.1-01：验证 GitHub 代码托管
 
-- **测试目的**：验证代码仓库托管在 DevCloud + 分支保护 + PR 评审流程生效 —— 这是课程"代码仓库管理"评分点。
+- **测试目的**：验证代码仓库托管在 GitHub + 分支保护 + PR 评审流程生效 —— 这是课程"代码仓库管理"评分点。
 - **测试类型**：流程验收 / 文档检查 / 流水线检查
-- **前置条件**：US0.4.1 已完成；DevCloud 项目已创建。
-- **测试数据**：管理员账号、Developer 账号、PR 模板、main 分支保护规则。
+- **前置条件**：US0.4.1 已完成；GitHub Projects 项目已创建。
+- **测试数据**：管理员账号、普通成员账号、PR 模板、main 分支保护规则。
 - **操作步骤**：
-  1. Developer 账号尝试直推 main 分支。
-  2. Developer 创建 feature 分支推送并发起 PR。
+  1. 普通成员账号尝试直推 main 分支。
+  2. 普通成员创建 feature 分支推送并发起 PR。
   3. 团队成员评审 PR 并合并。
-  4. 检查 audit_log（CodeArts 操作记录）。
+  4. 检查 audit_log（GitHub 操作记录）。
 - **Assert 断言**：
   - Step 1: `assert 直推被拒，返回 "Branch is protected"`
   - Step 2: `assert PR 创建成功；assert PR 模板含「关联 Story」字段`
@@ -424,7 +424,7 @@ I0 全部 story 都不涉及 UI 实现（项目治理与基础架构）。**不�
 
 本迭代专属：
 
-- [ ] 首次 CI 在 DevCloud 上 green（lint + 占位 build）
+- [ ] 首次 CI 在 GitHub 上 green（lint + 占位 build）
 - [ ] Bucket A 中 P0 Story 的 `负责人:` 已填实名
 
 ## 9. 演示脚本（用于 Phase 1 第一阶段 Review 的预演）
@@ -437,13 +437,13 @@ I0 全部 story 都不涉及 UI 实现（项目治理与基础架构）。**不�
    - `http://localhost:5173` （web-student 登录页骨架）
    - `http://localhost:5174` （web-admin 登录页骨架）
    - `http://localhost:3000/api/v1/health` （后端健康检查 200）
-3. 切换到 DevCloud 仓库主页：
+3. 切换到 GitHub 仓库主页：
    - 显示 main 分支受保护的截图
    - 显示首次 build 任务 green 的截图
 4. 切换到 Bucket A 文档：
    - 滚动 §0 项目概览，强调 §0.0.3 迭代路线图与 §0.0.6 测试七字段契约
    - 抽样展示 1 条 P0 story 的完整结构（任务 checklist + 关联设计稿 + TC 七字段）
-5. 切换到 DevCloud 看板：展示 118 条 story 已录入并按 P0/P1/P2 分组。
+5. 切换到 GitHub Projects 看板：展示 118 条 story 已录入并按 P0/P1/P2 分组。
 
 **讲解要点**：本迭代不交付业务功能，但已为后续 6 个迭代铺好骨架；任意成员可在 30min 内完成本地启动；流水线已经触发 CI；需求基线已冻结。
 
@@ -469,10 +469,10 @@ I0 全部 story 都不涉及 UI 实现（项目治理与基础架构）。**不�
 - `packages/shared-types/` 含全部 entity 占位接口 + Zod schema
 - `packages/design-tokens/` 含 F + PATHS（从 fudan-tokens.jsx 移植）
 - `infra/docker-compose.yml` 启动 mysql + redis + mailhog
-- `infra/devcloud/pipeline.yml` 模板（占位，I1 接入构建）
+- `.github/workflows/ci.yml` 模板（占位，I1 接入构建）
 - `apps/api/src/common/` 含全局响应 interceptor + ErrorCodes enum
 - `docs/api/openapi.yaml` 自动导出（I0 仅含 health endpoint）
-- DevCloud 仓库 + 分支保护 + 首次 CI green
+- GitHub 仓库 + 分支保护 + 首次 CI green
 
 **已知未做项 → 显式标记到 I1 §0 入口前置**：
 

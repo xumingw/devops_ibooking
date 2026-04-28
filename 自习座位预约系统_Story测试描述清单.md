@@ -1,6 +1,6 @@
 # 自习座位预约系统 Story 测试用例 TODO 清单
 
-> 粒度：每个 `Story` 至少 1 条测试用例；每个 Story 和 Test Case 都带 `- [ ]` checkbox，便于复制到 DevCloud、GitHub Issue 或 Markdown 看板中跟踪。
+> 粒度：每个 `Story` 至少 1 条测试用例；每个 Story 和 Test Case 都带 `- [ ]` checkbox，便于复制到 GitHub Projects、GitHub Issues 或 Markdown 看板中跟踪。
 > 格式：测试用例采用“操作 + Assert 断言”形式；既可作为手工测试步骤，也可改写为接口自动化、E2E 或流水线检查。
 > 来源：课程实践项目要求与四层需求清单。
 > 修订基线：2026-04-25 加入 `## 0. 项目概览` 段、各 Story 任务展开为 `- [ ]` checklist、新增 `关联设计稿` 字段、4 条拉伸 Story 加 `范围标记`。详见 docs/superpowers/specs/2026-04-25-ibooking-requirements-management-design.md。
@@ -91,7 +91,9 @@ ibooking/
 │   ├── docker-compose.yml          # 本地：api + mysql + redis + mailhog
 │   ├── docker-compose.prod.yml     # CI/CD 目标
 │   ├── nginx/                      # 服务静态前端
-│   └── devcloud/                   # CodeArts pipeline yaml + 环境模板
+│   └── github/                     # deploy.sh + GitHub Actions 环境模板
+├── .github/
+│   └── workflows/                  # GitHub Actions CI/CD workflow yaml
 ├── docs/iterations/       # Bucket B（每迭代 brief）
 ├── 自习室预约/             # 原始设计稿（agent 只读基线）
 ├── 自习座位预约系统_Story测试描述清单.md   # 本文件 (Bucket A)
@@ -102,18 +104,18 @@ ibooking/
 
 | ID | 主题 | 预估时长 | 主要 Epic | 故事数 (P0/P1/P2) | 退出准则 |
 |---|---|---|---|---|---|
-| **I0** | 项目治理与骨架 | 1 周 | E0, E8（预热） | ~10 (10/0/0) | 前后端工程可本地启动；DevCloud 代码库托管完成；需求树录入并冻结基线；DoD 模板生效 |
-| **I1** | 账号、RBAC、资源 CRUD | 2 周 | E1, E2（大半） | ~14 (12/2/0) | 学生/管理员可登录；管理员可维护自习室和座位；菜单按角色展示；构建任务在 DevCloud 自动跑单元测试 |
+| **I0** | 项目治理与骨架 | 1 周 | E0, E8（预热） | ~10 (10/0/0) | 前后端工程可本地启动；GitHub 代码库托管完成；需求树录入并冻结基线；DoD 模板生效 |
+| **I1** | 账号、RBAC、资源 CRUD | 2 周 | E1, E2（大半） | ~14 (12/2/0) | 学生/管理员可登录；管理员可维护自习室和座位；菜单按角色展示；构建任务在 GitHub Actions 自动跑单元测试 |
 | **I2** | 规则引擎 + 预约核心 | 2 周 | E3, E4（前半） | ~16 (14/1/1) | 整点 4 小时规则、院系过滤、并发冲突控制全部通过单元/接口测试；学生可在 Web 上提交一个有效预约 |
-| **I3** | 预约闭环 + 签到/违约 + 首次部署 | 2 周 | E4（后半）, E5（核心） | ~16 (14/2/0) | 学生从找座→预约→签到→完成端到端 Web 流程跑通；15 分钟自动取消 + 违约记录生效；自动部署到 DevCloud 测试环境 |
-| **I4** | 管理端运营 + 流水线集成 | 2 周 | E6, E5（尾巴）, E8 | ~17 (10/7/0) | 管理仪表盘、代预约/代取消、违约管理、参数管理上线；DevCloud 流水线含构建+测试+部署+审批；接口自动化覆盖签到与自动取消主链路 |
+| **I3** | 预约闭环 + 签到/违约 + 首次部署 | 2 周 | E4（后半）, E5（核心） | ~16 (14/2/0) | 学生从找座→预约→签到→完成端到端 Web 流程跑通；15 分钟自动取消 + 违约记录生效；通过 GitHub Actions 自动部署到测试环境 |
+| **I4** | 管理端运营 + 流水线集成 | 2 周 | E6, E5（尾巴）, E8 | ~17 (10/7/0) | 管理仪表盘、代预约/代取消、违约管理、参数管理上线；GitHub Actions workflow 含构建+测试+部署+审批；接口自动化覆盖签到与自动取消主链路 |
 | **I5** | AI 助手（规则）+ 报表 + 拉伸 | 2 周 | E7（规则部分）, E6.4–6.6, E4.6 | ~14 (0/9/5) | 学生端聊天框可处理空座/条件找座/我的预约三类意图；预约/违约导出报表可用；微信小程序最小可用版本（如启动了拉伸） |
 | **I6** | LLM 增强 + 最终交付 | 1 周 | E7.6（LLM, 可选）, E8.6 | ~4 (2/0/2) | LLM 开关可一键切换；API/系统文档完整；演示视频 + 课程论文输入材料就绪；最终 Demo 能在 15 分钟内跑完 |
 
 **对齐课程阶段：**
 
 - **第一阶段 Review（第 5 周）：** 完成 I0–I2，主要架构 + 一半 P0 功能。
-- **第二阶段 Review（第 12–13 周）：** 完成 I3–I4，DevOps 流水线在 DevCloud 上跑通 + P0 业务功能闭环。
+- **第二阶段 Review（第 12–13 周）：** 完成 I3–I4，DevOps 流水线在 GitHub 上跑通 + P0 业务功能闭环。
 - **期末展示：** 完成 I5–I6，智能化 + 拉伸 + 最终演示。
 
 **两条全局约束：**
@@ -148,7 +150,7 @@ ibooking/
 - [ ] 仓库级测试行覆盖率 ≥70%
 - [ ] 演示脚本（brief §9）在干净环境上能完整跑过 1 遍
 - [ ] DB schema 在下一迭代不需要破坏性变更（如有，必须列入 brief §12 交接说明）
-- [ ] 已为下迭代准备的产物归档完毕（migration 文件、OpenAPI snapshot、CodeArts pipeline yaml）
+- [ ] 已为下迭代准备的产物归档完毕（migration 文件、OpenAPI snapshot、GitHub Actions workflow yaml）
 
 ### 0.0.6 测试用例描述契约（hard rule，不可妥协）
 
@@ -224,7 +226,7 @@ ibooking/
       - 负责人: TBD
       - 预估工时: TBD
       - 依赖任务: US0.1.1-T01
-      - 实施要点: 把 `实践项目要求(周一班).md` 的基本业务/RBAC/智能化/DevCloud 四块全部映射到 Bucket A 的 Epic/Feature。
+      - 实施要点: 把 `实践项目要求(周一班).md` 的基本业务/RBAC/智能化/平台流程四块全部映射到 Bucket A 的 Epic/Feature。
       - 验收: 四类课程要求条款均能在本文件中找到至少 1 个对应 Story，未命中条款数 = 0。
     - [ ] **US0.1.1-T03** 建立需求变更记录和版本号规则
       - 负责人: TBD
@@ -487,14 +489,14 @@ ibooking/
 - [ ] **US0.4.1 建立代码仓库与分支策略** `优先级:P0` `迭代:I0`
   - 用户故事：作为组长，我要在代码仓库中管理协作，支持评审和合并。
   - Story 依赖：US0.1.2
-  - 验收标准：仓库、分支、合并请求和提交规范可执行。
+  - 验收标准：仓库、分支、Pull Request 和提交规范可执行。
   - 关联设计稿：无（项目治理类，无 UI 需求）
   - 关联开发任务（共 4 项）：
     - [ ] **US0.4.1-T01** 创建代码仓库和目录结构
       - 负责人: TBD
       - 预估工时: TBD
       - 依赖任务: 无
-      - 实施要点: 按 §0.0.2 目录树初始化 `ibooking/` monorepo（apps/api、apps/web-student、apps/web-admin、packages/*）；推到 DevCloud CodeArts Repo。
+      - 实施要点: 按 §0.0.2 目录树初始化 `ibooking/` monorepo（apps/api、apps/web-student、apps/web-admin、packages/*）；推到 GitHub Repository。
       - 验收: 远端仓库存在且 `git clone` 可拉取；目录结构与 §0.0.2 一致。
     - [ ] **US0.4.1-T02** 定义 main/develop/feature 分支策略
       - 负责人: TBD
@@ -502,7 +504,7 @@ ibooking/
       - 依赖任务: US0.4.1-T01
       - 实施要点: main（受保护，不可直推）+ dev + feat/<US-id>-slug；PR 至少 1 reviewer 才可合并。
       - 验收: 仓库分支保护规则上线；尝试直接 push 到 main 被拒绝；PR 缺少 reviewer 时无法合并。
-    - [ ] **US0.4.1-T03** 定义提交信息和 MR 模板
+    - [ ] **US0.4.1-T03** 定义提交信息和 PR 模板
       - 负责人: TBD
       - 预估工时: TBD
       - 依赖任务: US0.4.1-T02
@@ -518,13 +520,13 @@ ibooking/
     - 测试目的：验证仓库分支保护、提交规范与 PR 模板已生效 —— 团队协作中"谁随手合并到 main""commit 信息无追溯"是事故源头，必须靠仓库层面的强制规则而非自觉。
     - 测试类型：流程验收 / 文档检查 / 流水线检查
     - 前置条件：已完成并通过依赖 Story：US0.1.2；公共测试数据已初始化。
-    - 测试数据：代码仓库、分支保护规则、合并请求模板、提交规范。
+    - 测试数据：代码仓库、分支保护规则、Pull Request模板、提交规范。
     - 操作与 Assert：
 
       | Step | 操作 | Assert |
       |---:|---|---|
       | 1 | 打开代码仓库检查默认分支和开发分支。 | `assert main/master 分支受保护，团队成员可从 dev/feature 分支开发。` |
-      | 2 | 创建一个测试合并请求。 | `assert 合并请求模板包含需求编号、测试说明、影响范围。` |
+      | 2 | 创建一个测试 Pull Request。 | `assert Pull Request 模板包含需求编号、测试说明、影响范围。` |
       | 3 | 提交一条不符合规范的 commit message。 | `assert 若配置校验则阻止提交/合并；若未配置则评审规则能发现。` |
       | 4 | 完成一次代码评审后合并。 | `assert 合并记录可追踪到 Story 或 Task。` |
 
@@ -536,11 +538,11 @@ ibooking/
   - 验收标准：每个 Story 有负责人、状态和对应测试用例。
   - 关联设计稿：无（项目治理类，无 UI 需求）
   - 关联开发任务（共 3 项）：
-    - [ ] **US0.4.2-T01** 在 DevCloud/Scrum 看板创建需求条目
+    - [ ] **US0.4.2-T01** 在 GitHub Projects 看板创建需求条目
       - 负责人: TBD
       - 预估工时: TBD
       - 依赖任务: 无
-      - 实施要点: 在 DevCloud Scrum 看板里把 Bucket A 所有 Story 录入，与本文件 ID 一一对应。
+      - 实施要点: 在 GitHub Projects 看板里把 Bucket A 所有 Story 录入，与本文件 ID 一一对应。
       - 验收: 看板内 Story 数量 = 本文件 Story 数量；抽查 5 个 ID 完全一致。
     - [ ] **US0.4.2-T02** 为 Story 分配负责人和计划迭代
       - 负责人: TBD
@@ -558,7 +560,7 @@ ibooking/
     - 测试目的：验证看板、责任人、风险记录三者形成闭环 —— 学生项目最常见的失败模式是"事到了交付才发现没人做某个 P0"，而看板 + 责任人字段能在每日站会中早期暴露漏分配。
     - 测试类型：流程验收 / 文档检查 / 流水线检查
     - 前置条件：已完成并通过依赖 Story：US0.4.1；公共测试数据已初始化。
-    - 测试数据：DevCloud Scrum 看板、成员列表、任务分配记录。
+    - 测试数据：GitHub Projects 看板、成员列表、任务分配记录。
     - 操作与 Assert：
 
       | Step | 操作 | Assert |
@@ -4884,23 +4886,23 @@ ibooking/
       - 依赖任务：US0.1.1-T01
       - 实施要点：本文件已覆盖（每条 P0 story 已有 TC- 条目带七字段）；新增 story 时按 §0.0.6 规范编写。
       - 验收：本文件 grep `^- \[ \] \*\*TC-` 数 ≥ P0 story 数。
-    - [ ] **US8.1.1-T02** 在 DevCloud 中关联需求和测试用例
+    - [ ] **US8.1.1-T02** 在 GitHub 中关联需求和测试用例
       - 负责人：TBD
       - 预估工时：TBD
       - 依赖任务：US8.1.1-T01
-      - 实施要点：把 Bucket A 录入 CodeArts 测试管理；TC ID 与 story ID 通过 `// @story USx.x.x // @tc TC-USx.x.x-NN` 注释关联代码层。
-      - 验收：DevCloud 测试模块每个 P0 story 至少 1 个 TC。
+      - 实施要点：把 Bucket A 录入 GitHub Issues/Projects；TC ID 与 story ID 通过 `// @story USx.x.x // @tc TC-USx.x.x-NN` 注释关联代码层。
+      - 验收：GitHub Issues/Projects 每个 P0 story 至少 1 个 TC。
     - [ ] **US8.1.1-T03** 维护测试用例通过/失败状态
       - 负责人：TBD
       - 预估工时：TBD
       - 依赖任务：US8.1.1-T02
-      - 实施要点：CI 跑测试后用脚本将 jest --json 结果同步到 CodeArts 测试用例状态。
-      - 验收：DevCloud 看板显示当前各 TC 状态。
+      - 实施要点：CI 跑测试后用脚本将 jest --json 结果同步到 GitHub Issues/Projects 状态。
+      - 验收：GitHub Projects 看板显示当前各 TC 状态。
   - [ ] **TC-US8.1.1-01：验证用户故事关联测试用例**
-    - 测试目的：验证每条 P0 story 都有对应的可执行测试用例（手工或自动）、可在 DevCloud 看板上追溯——这是课程评分点之一（自动化部分）。
+    - 测试目的：验证每条 P0 story 都有对应的可执行测试用例（手工或自动）、可在 GitHub Projects 看板上追溯——这是课程评分点之一（自动化部分）。
     - 测试类型：流程验收 / 文档检查 / 流水线检查
     - 前置条件：已完成并通过依赖 Story：E0.1；公共测试数据已初始化。
-    - 测试数据：P0 Story 列表、测试用例清单、DevCloud 测试模块。
+    - 测试数据：P0 Story 列表、测试用例清单、GitHub Issues/Projects。
     - 操作与 Assert：
 
       | Step | 操作 | Assert |
@@ -5138,46 +5140,46 @@ ibooking/
 
     - 后置处理：测试完成后回滚本用例新增/修改的数据，或重新执行种子数据脚本。
 
-### F8.4 DevCloud 构建、部署与流水线
+### F8.4 GitHub 构建、部署与流水线
 
 - Feature 依赖：E0.4
 
-- [ ] **US8.4.1 DevCloud 代码托管** `优先级:P0` `迭代:I0`
-  - 用户故事：作为团队，我要在 DevCloud 托管代码并进行协作管理。
+- [ ] **US8.4.1 GitHub 代码托管** `优先级:P0` `迭代:I0`
+  - 用户故事：作为团队，我要在 GitHub 托管代码并进行协作管理。
   - Story 依赖：US0.4.1
   - 验收标准：代码仓库创建，团队成员可提交、合并、评审。
-  - 关联设计稿：无（DevCloud 流程）
+  - 关联设计稿：无（GitHub/CI 流程）
   - 关联开发任务（共 3 项）：
-    - [ ] **US8.4.1-T01** 注册并创建 DevCloud Scrum 项目
+    - [ ] **US8.4.1-T01** 注册并创建 GitHub Projects 项目
       - 负责人：TBD
       - 预估工时：TBD
       - 依赖任务：无
-      - 实施要点：组长在 devcloud.huaweicloud.com 创建 Scrum 项目 "ibooking"；导入 Bucket A 的 Epic/Feature/Story 到工作项。
+      - 实施要点：组长在 GitHub 仓库或组织下创建 Projects 项目 "ibooking"；导入 Bucket A 的 Epic/Feature/Story 到工作项。
       - 验收：项目创建 + 团队加入 + 需求录入。
     - [ ] **US8.4.1-T02** 创建代码仓库并邀请成员
       - 负责人：TBD
       - 预估工时：TBD
       - 依赖任务：US8.4.1-T01
-      - 实施要点：CodeArts Repo 新建 ibooking 仓库；推送本地 monorepo；邀请所有团队成员为 Developer。
+      - 实施要点：GitHub Repository 新建 ibooking 仓库；推送本地 monorepo；邀请所有团队成员并赋予 Write 权限。
       - 验收：所有成员可 clone 与 push。
     - [ ] **US8.4.1-T03** 配置分支保护或合并规范
       - 负责人：TBD
       - 预估工时：TBD
       - 依赖任务：US8.4.1-T02
-      - 实施要点：main 分支保护：不允许直推；MR 至少 1 reviewer + CI 全绿才能合并。
+      - 实施要点：main 分支保护：不允许直推；PR 至少 1 reviewer + CI 全绿才能合并。
       - 验收：TC-US8.4.1-01 全部 4 步通过。
-  - [ ] **TC-US8.4.1-01：验证DevCloud 代码托管**
-    - 测试目的：验证团队代码统一托管在 DevCloud + 分支保护 + 评审流程——这是课程"代码仓库管理"评分点。
+  - [ ] **TC-US8.4.1-01：验证 GitHub 代码托管**
+    - 测试目的：验证团队代码统一托管在 GitHub + 分支保护 + 评审流程——这是课程"代码仓库管理"评分点。
     - 测试类型：流程验收 / 文档检查 / 流水线检查
     - 前置条件：已完成并通过依赖 Story：US0.4.1；公共测试数据已初始化。
-    - 测试数据：DevCloud 代码仓库、团队成员账号、合并请求。
+    - 测试数据：GitHub 代码仓库、团队成员账号、Pull Request。
     - 操作与 Assert：
 
       | Step | 操作 | Assert |
       |---:|---|---|
-      | 1 | 打开 DevCloud 代码仓库。 | `assert 仓库存在且团队成员有对应权限。` |
+      | 1 | 打开 GitHub 代码仓库。 | `assert 仓库存在且团队成员有对应权限。` |
       | 2 | 成员提交 feature 分支。 | `assert 提交记录可见且关联任务编号。` |
-      | 3 | 发起合并请求。 | `assert 可进行评审、评论和合并。` |
+      | 3 | 发起 Pull Request。 | `assert 可进行评审、评论和合并。` |
       | 4 | 无权限成员尝试直接推送受保护分支。 | `assert 操作被拒绝。` |
 
     - 后置处理：测试完成后回滚本用例新增/修改的数据，或重新执行种子数据脚本。
@@ -5186,14 +5188,14 @@ ibooking/
   - 用户故事：作为团队，我要创建构建任务，自动编译并运行单元测试。
   - Story 依赖：US8.4.1
   - 验收标准：提交或手动触发后能完成构建和测试。
-  - 关联设计稿：无（DevCloud 流程）
+  - 关联设计稿：无（GitHub/CI 流程）
   - 关联开发任务（共 4 项）：
     - [ ] **US8.4.2-T01** 创建后端构建任务
       - 负责人：TBD
       - 预估工时：TBD
       - 依赖任务：US8.4.1-T02
-      - 实施要点：CodeArts Build 创建 task: pnpm install → pnpm --filter api lint → pnpm --filter api test → pnpm --filter api build → docker build → push SWR。
-      - 验收：手动触发成功；产物 docker image 在 SWR 仓库。
+      - 实施要点：GitHub Actions CI 创建 task: pnpm install → pnpm --filter api lint → pnpm --filter api test → pnpm --filter api build → docker build → push GHCR。
+      - 验收：手动触发成功；产物 docker image 在 GHCR 仓库。
     - [ ] **US8.4.2-T02** 创建前端构建任务
       - 负责人：TBD
       - 预估工时：TBD
@@ -5210,13 +5212,13 @@ ibooking/
       - 负责人：TBD
       - 预估工时：TBD
       - 依赖任务：US8.4.2-T01
-      - 实施要点：每次构建打 tag = git short SHA + timestamp；SWR 保留近 30 个版本。
+      - 实施要点：每次构建打 tag = git short SHA + timestamp；GHCR 保留近 30 个版本。
       - 验收：TC-US8.4.2-01 全部 4 步通过。
   - [ ] **TC-US8.4.2-01：验证自动化构建任务**
     - 测试目的：验证 push/PR 自动触发构建 + 单测 + 镜像入库、失败阻断——这是 CI 的核心环节。
     - 测试类型：流程验收 / 文档检查 / 流水线检查
     - 前置条件：已完成并通过依赖 Story：US8.4.1；公共测试数据已初始化。
-    - 测试数据：DevCloud 构建任务、代码提交触发器、测试报告。
+    - 测试数据：GitHub Actions 构建任务、代码提交触发器、测试报告。
     - 操作与 Assert：
 
       | Step | 操作 | Assert |
@@ -5232,25 +5234,25 @@ ibooking/
   - 用户故事：作为团队，我要创建部署任务，将系统部署到演示环境。
   - Story 依赖：US8.4.2
   - 验收标准：演示环境可访问，部署步骤可重复执行。
-  - 关联设计稿：无（DevCloud 流程）
+  - 关联设计稿：无（GitHub/CI 流程）
   - 关联开发任务（共 4 项）：
     - [ ] **US8.4.3-T01** 准备演示服务器或云环境
       - 负责人：TBD
       - 预估工时：TBD
       - 依赖任务：US8.4.1-T02
-      - 实施要点：申请华为云 ECS（2C4G）或 CCE 容器；安装 Docker + docker-compose；配置 SSH key。
+      - 实施要点：准备测试服务器（任意云厂商或校内服务器均可）；安装 Docker + docker-compose；配置 GitHub Actions SSH key。
       - 验收：测试服务器可 ssh，docker info 正常。
     - [ ] **US8.4.3-T02** 编写部署脚本或部署配置
       - 负责人：TBD
       - 预估工时：TBD
       - 依赖任务：US8.4.3-T01
-      - 实施要点：infra/devcloud/deploy.sh 脚本：docker pull SWR 镜像 → docker-compose -f docker-compose.prod.yml up -d → 健康检查；env 从 CodeArts secret 注入。
+      - 实施要点：infra/github/deploy.sh 脚本：docker pull GHCR 镜像 → docker-compose -f docker-compose.prod.yml up -d → 健康检查；env 从 GitHub Actions secrets 注入。
       - 验收：脚本可独立运行成功部署。
     - [ ] **US8.4.3-T03** 创建部署任务并验证访问
       - 负责人：TBD
       - 预估工时：TBD
       - 依赖任务：US8.4.3-T02
-      - 实施要点：CodeArts Deploy 任务串接 build → ssh exec deploy.sh；部署后自动 curl 健康检查 + 等待 60s。
+      - 实施要点：GitHub Actions deploy job 任务串接 build → ssh exec deploy.sh；部署后自动 curl 健康检查 + 等待 60s。
       - 验收：部署完成后浏览器可访问 web-student + web-admin。
     - [ ] **US8.4.3-T04** 记录部署回滚步骤
       - 负责人：TBD
@@ -5267,7 +5269,7 @@ ibooking/
 
       | Step | 操作 | Assert |
       |---:|---|---|
-      | 1 | 执行 DevCloud 部署任务。 | `assert 部署任务成功结束。` |
+      | 1 | 执行 GitHub Actions 部署任务。 | `assert 部署任务成功结束。` |
       | 2 | 访问演示环境前端地址。 | `assert 页面可访问，http_status == 200。` |
       | 3 | 调用后端健康检查接口。 | `assert status == UP。` |
       | 4 | 重复执行部署任务。 | `assert 部署过程可重复，不破坏现有数据或配置。` |
@@ -5278,19 +5280,19 @@ ibooking/
   - 用户故事：作为团队，我要创建包含构建、测试、部署的流水线。
   - Story 依赖：US8.4.2, US8.4.3
   - 验收标准：流水线执行结果可在 Review 中展示。
-  - 关联设计稿：无（DevCloud 流程）
+  - 关联设计稿：无（GitHub/CI 流程）
   - 关联开发任务（共 3 项）：
     - [ ] **US8.4.4-T01** 创建流水线并串联构建、测试、部署任务
       - 负责人：TBD
       - 预估工时：TBD
       - 依赖任务：US8.4.2-T01, US8.4.3-T03
-      - 实施要点：CodeArts Pipeline yaml: 拉代码 → lint → unit test → build → e2e test → deploy-test → 人工审批 → deploy-prod；prod 部署需 admin 审批。
+      - 实施要点：GitHub Actions workflow yaml: 拉代码 → lint → unit test → build → e2e test → deploy-test → 人工审批 → deploy-prod；prod 部署需 admin 审批。
       - 验收：流水线 yaml 串联完整。
     - [ ] **US8.4.4-T02** 配置失败中断和通知
       - 负责人：TBD
       - 预估工时：TBD
       - 依赖任务：US8.4.4-T01
-      - 实施要点：任一阶段失败立即停止；DingTalk/邮件通知到团队群；prod 部署门禁：覆盖率 ≥70% + e2e green + 审批通过。
+      - 实施要点：任一阶段失败立即停止；GitHub Actions 通知/邮件通知到团队群；prod 部署门禁：覆盖率 ≥70% + e2e green + 审批通过。
       - 验收：故意制造失败时正确停止 + 通知。
     - [ ] **US8.4.4-T03** 截图或记录流水线执行结果
       - 负责人：TBD
@@ -5430,7 +5432,7 @@ ibooking/
       - 负责人：TBD
       - 预估工时：TBD
       - 依赖任务：US8.4.3-T04
-      - 实施要点：docs/deployment/local.md + devcloud.md；含 docker-compose、env vars、迁移、种子数据全流程。
+      - 实施要点：docs/deployment/local.md + github-actions.md；含 docker-compose、env vars、迁移、种子数据全流程。
       - 验收：陌生开发者按文档可启动。
     - [ ] **US8.6.1-T03** 整理学生端和管理端用户手册
       - 负责人：TBD
@@ -5476,7 +5478,7 @@ ibooking/
       - 负责人：TBD
       - 预估工时：TBD
       - 依赖任务：US8.4.4-T03
-      - 实施要点：导出 jest --coverage 报告 + DevCloud 流水线截图 + 接口测试报告；放 docs/devops/reports/。
+      - 实施要点：导出 jest --coverage 报告 + GitHub Actions workflow 截图 + 接口测试报告；放 docs/devops/reports/。
       - 验收：报告完整。
     - [ ] **US8.6.2-T04** 整理团队分工和个人贡献说明
       - 负责人：TBD

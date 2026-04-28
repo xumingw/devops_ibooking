@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository nature
 
-This is a **pre-implementation design + planning workspace** for a university study-room seat-booking system (复旦大学自习室预约系统), produced for a DevOps course practical project. It is **not a built/runnable application**: there is no `package.json`, no backend, no test runner, no build system, and no git repo. Treat the contents as three things:
+This is a **pre-implementation design + planning workspace** for a university study-room seat-booking system (复旦大学自习室预约系统), produced for a DevOps course practical project. It is **not a built/runnable application**: there is no `package.json`, no backend, no test runner, and no build system. Treat the contents as three things:
 
 1. **Requirement & planning docs** at the root (Chinese).
 2. **A static HTML/JSX design mockup** under `自习室预约/`.
-3. **A long Story/Test checklist** that drives downstream implementation in DevCloud.
+3. **A long Story/Test checklist** that drives downstream implementation in GitHub Projects, Issues, and Actions.
 
 When asked to "add a feature" or "fix a bug," first confirm with the user whether they want changes to the **design mockup**, to the **planning docs**, or to start scaffolding the actual app — these are different tasks.
 
@@ -49,12 +49,12 @@ These rules come from `实践项目要求(周一班).md` and recur throughout th
 
 When writing code, tests, or planning artifacts, consult these in order:
 
-- `实践项目要求(周一班).md` — authoritative requirement statement, evaluation criteria, DevCloud workflow expectations, phase milestones (5周/12-13周/期末).
+- `实践项目要求(周一班).md` — authoritative requirement statement, evaluation criteria, original course platform expectations, phase milestones (5周/12-13周/期末). Execution docs map those workflow expectations to GitHub.
 - `devops.md` — concrete DevOps targets the project will be graded on: Dockerfile + docker-compose for local; auto-deploy to test on green build; manual approval for prod; **>70% test coverage gate**; unit / API / optional UI tests.
 - `自习座位预约系统_Story测试描述清单.md` — ~118 user stories grouped into Epics **E0–E5+** (项目治理, RBAC, 资源管理, 规则引擎, 学生端, 签到/提醒/违约, …). Each Story carries a `- [ ]` checkbox and operation+assert-style test cases that double as manual steps and API/E2E automation seeds. This is the file to update when adding/closing stories.
 
 ## Conventions to keep
 
 - All user-facing text and most identifiers in design files, requirement docs, and the story list are **simplified Chinese** — keep new content in the same language unless asked otherwise.
-- The story checklist uses tags like `优先级:P0` and `迭代:I0` and a four-level Epic/Feature/Story/Task hierarchy. Mirror these when adding entries so DevCloud import stays consistent.
+- The story checklist uses tags like `优先级:P0` and `迭代:I0` and a four-level Epic/Feature/Story/Task hierarchy. Mirror these when adding entries so GitHub Projects/Issues import stays consistent.
 - The mockup uses a **teal-green + warm-gold** Fudan-leaning palette (`F.navy`, `F.gold`); the HTML's `TWEAK_DEFAULTS` overrides default to a different blue (`#003087`) only because the tweaks panel runs separately. Don't "fix" this drift — the panel is intentionally an override layer.

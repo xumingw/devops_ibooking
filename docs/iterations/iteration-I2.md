@@ -3,7 +3,7 @@
 ## 0. 元信息
 
 - **时长**：2 周
-- **入口前置**：I1 全部 P0 story Done；4 角色 + 4 测试账号 seed；DevCloud CI lint+unit green。
+- **入口前置**：I1 全部 P0 story Done；4 角色 + 4 测试账号 seed；GitHub Actions CI lint+unit green。
 - **出口准则**：见 §8（核心：4 小时规则、整点粒度、院系过滤、并发冲突、状态机全部通过单元 + 接口测试；学生可在 Web 上提交一个有效预约）。
 - **必读共享文档**：`_shared/tech-stack.md` / `_shared/conventions.md` / `_shared/done-definition.md` / `_shared/design-map.md`
 - **设计稿入口**：`自习室预约/Fudan Study System.html`（s02 / s03 / s04 主导）
@@ -531,4 +531,4 @@ GROUP BY s.id
 - 自动取消任务（US5.4.1）尚未实现 — 关键：BullMQ + Redis 还没在 booking 创建时入队 delayed job
 - 提醒邮件（US5.3.x）尚未发送 — MailHog 已就绪但还没 hook
 - s05 / s06 详细 UI（我的预约、取消、签到入口）— I3 完成
-- DevCloud 部署任务尚未接入（CI 仅 build + push 镜像，没 deploy）— I3 接入
+- GitHub Actions 部署任务尚未接入（CI 仅 build + push 镜像，没 deploy）— I3 接入

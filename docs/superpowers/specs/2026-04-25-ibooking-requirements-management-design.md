@@ -10,7 +10,7 @@
 
 仓库根目录已经包含：
 
-- `实践项目要求(周一班).md` — 课程原始需求 (基本业务、RBAC、智能化、DevCloud 流程)。
+- `实践项目要求(周一班).md` — 课程原始需求 (基本业务、RBAC、智能化、原始平台流程)。
 - `devops.md` — DevOps 实践要点（CI/CD、自动化测试、IaC、覆盖率 ≥70% 等门槛）。
 - `自习座位预约系统_Story测试描述清单.md`（173 KB / 2622 行）— **已存在的需求清单**：含 8 个 Epic、~42 Feature、约 100 条 Story（写文件时按实际计数为准）、每条 story 的 P0/P1/P2 优先级 + I0–I6 迭代标签 + `关联开发任务` + 操作-Assert 测试用例 + 验收标准 + Story 依赖。
 - `自习室预约/` — 设计稿目录（HTML + 6 个 JSX 文件，22 个 artboard：学生 Web s01–s10、管理 a01–a06、手机 m00–m07）。
@@ -77,18 +77,18 @@ docs/iterations/
 
 | ID | 主题 | 预估时长 | 主要 Epic | 故事数 (P0/P1/P2) | 退出准则 / 演示 |
 |---|---|---|---|---|---|
-| **I0** | 项目治理与骨架 | 1 周 | E0, E8（预热） | ~10 (10/0/0) | 前后端工程可本地启动；DevCloud 代码库托管完成；需求树录入并冻结基线；DoD 模板生效 |
-| **I1** | 账号、RBAC、资源 CRUD | 2 周 | E1, E2（大半） | ~14 (12/2/0) | 学生/管理员可登录；管理员可维护自习室和座位；菜单按角色展示；构建任务在 DevCloud 自动跑单元测试 |
+| **I0** | 项目治理与骨架 | 1 周 | E0, E8（预热） | ~10 (10/0/0) | 前后端工程可本地启动；GitHub 代码库托管完成；需求树录入并冻结基线；DoD 模板生效 |
+| **I1** | 账号、RBAC、资源 CRUD | 2 周 | E1, E2（大半） | ~14 (12/2/0) | 学生/管理员可登录；管理员可维护自习室和座位；菜单按角色展示；构建任务在 GitHub Actions 自动跑单元测试 |
 | **I2** | 规则引擎 + 预约核心 | 2 周 | E3, E4（前半） | ~16 (14/1/1) | 整点 4 小时规则、院系过滤、并发冲突控制全部通过单元/接口测试；学生可在 Web 上提交一个有效预约 |
-| **I3** | 预约闭环 + 签到/违约 + 首次部署 | 2 周 | E4（后半）, E5（核心） | ~16 (14/2/0) | 学生从「找座→预约→签到→完成」端到端 Web 流程跑通；15 分钟自动取消 + 违约记录生效；自动部署到 DevCloud 测试环境 |
-| **I4** | 管理端运营 + 流水线集成 | 2 周 | E6, E5（尾巴）, E8 | ~17 (10/7/0) | 管理仪表盘、代预约/代取消、违约管理、参数管理上线；DevCloud 流水线含构建+测试+部署+审批；接口自动化覆盖签到与自动取消主链路 |
+| **I3** | 预约闭环 + 签到/违约 + 首次部署 | 2 周 | E4（后半）, E5（核心） | ~16 (14/2/0) | 学生从「找座→预约→签到→完成」端到端 Web 流程跑通；15 分钟自动取消 + 违约记录生效；通过 GitHub Actions 自动部署到测试环境 |
+| **I4** | 管理端运营 + 流水线集成 | 2 周 | E6, E5（尾巴）, E8 | ~17 (10/7/0) | 管理仪表盘、代预约/代取消、违约管理、参数管理上线；GitHub Actions workflow 含构建+测试+部署+审批；接口自动化覆盖签到与自动取消主链路 |
 | **I5** | AI 助手（规则） + 报表 + 拉伸项 | 2 周 | E7（规则部分）, E6.4–6.6, E4.6 | ~14 (0/9/5) | 学生端聊天框可处理空座/条件找座/我的预约三类意图；预约/违约导出报表可用；微信小程序最小可用版本（如启动了拉伸目标） |
 | **I6** | LLM 增强 + 最终交付 | 1 周 | E7.6（LLM, 可选）, E8.6 | ~4 (2/0/2) | LLM 开关可一键切换；API/系统文档完整；演示视频 + 课程论文输入材料就绪；最终 Demo 能在 15 分钟内跑完 |
 
 **对齐课程阶段：**
 
 - **第一阶段 Review（第5周）：** 完成 I0–I2，主要架构 + 一半 P0 功能。
-- **第二阶段 Review（第12–13周）：** 完成 I3–I4，DevOps 流水线在 DevCloud 上跑通 + P0 业务功能闭环。
+- **第二阶段 Review（第12–13周）：** 完成 I3–I4，DevOps 流水线在 GitHub 上跑通 + P0 业务功能闭环。
 - **期末展示：** 完成 I5–I6，智能化 + 拉伸 + 最终演示。
 
 **两条全局约束：**
@@ -158,7 +158,9 @@ ibooking/
 │   ├── docker-compose.yml          # 本地：api + mysql + redis + mailhog
 │   ├── docker-compose.prod.yml     # CI/CD 目标
 │   ├── nginx/                      # 服务静态前端
-│   └── devcloud/                   # CodeArts pipeline yaml + 环境模板
+│   └── github/                     # deploy.sh + GitHub Actions 环境模板
+├── .github/
+│   └── workflows/                  # GitHub Actions CI/CD workflow yaml
 ├── docs/iterations/       # Bucket B
 ├── 自习室预约/             # 原始设计稿（agent 只读基线）
 ├── 自习座位预约系统_Story测试描述清单.md   # Bucket A
@@ -199,7 +201,7 @@ API 3000 · web-student 5173 · web-admin 5174 · MySQL 3306 · Redis 6379 · Ma
 - 数据库表：`snake_case`（user, role, permission, role_permission, user_role, room, seat, booking, violation, check_in_code, reminder_log, audit_log, system_param, ai_chat_session, ai_chat_message）。
 - HTTP 路径：`/api/v1/<resource>`，REST + 复数；分页 `?page&size`；排序 `?sort=field,asc|desc`。
 - DTO：`PascalCase` + 后缀 `…Dto` / `…ResponseDto`；每个 DTO 必须在 `packages/shared-types` 中有 Zod schema。
-- 测试可追溯性：**每个** Jest / Vitest / Playwright 测试文件顶部必须包含 `// @story USx.x.x` `// @tc TC-USx.x.x-NN`；DevCloud 构建任务用 grep 生成 story 覆盖报告。
+- 测试可追溯性：**每个** Jest / Vitest / Playwright 测试文件顶部必须包含 `// @story USx.x.x` `// @tc TC-USx.x.x-NN`；GitHub Actions 构建任务用 grep 生成 story 覆盖报告。
 - 提交：Conventional Commits + story id 前缀，例 `feat(US3.4.1): add seat-time uniqueness constraint`。
 - 分支：`feat/<story-id>-<slug>`，PR 至少一人 review。
 
@@ -364,7 +366,7 @@ API 3000 · web-student 5173 · web-admin 5174 · MySQL 3306 · Redis 6379 · Ma
 - [ ] 仓库级测试行覆盖率 ≥70%
 - [ ] 演示脚本（brief §9）在干净环境上能完整跑过 1 遍
 - [ ] DB schema 在下一迭代不需要破坏性变更（如有，必须列入 §12 交接说明）
-- [ ] 已为下迭代准备的产物归档完毕（migration 文件、OpenAPI snapshot、CodeArts pipeline yaml）
+- [ ] 已为下迭代准备的产物归档完毕（migration 文件、OpenAPI snapshot、GitHub Actions workflow yaml）
 
 ---
 

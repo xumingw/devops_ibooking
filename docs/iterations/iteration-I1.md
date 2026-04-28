@@ -3,7 +3,7 @@
 ## 0. 元信息
 
 - **时长**：2 周
-- **入口前置**：I0 全部 P0 story Done；本地 `pnpm dev` 与 `docker-compose up` 跑通；DevCloud 仓库已托管。
+- **入口前置**：I0 全部 P0 story Done；本地 `pnpm dev` 与 `docker-compose up` 跑通；GitHub 仓库已托管。
 - **出口准则**：见 §8
 - **必读共享文档**：`_shared/tech-stack.md` · `_shared/conventions.md` · `_shared/done-definition.md` · `_shared/design-map.md`
 - **设计稿入口**：`自习室预约/Fudan Study System.html`（s01 / a02 / a03 / a05）
@@ -12,7 +12,7 @@
 
 ## 1. 迭代目标
 
-**本迭代结束时学生与管理员可登录；菜单按角色展示；管理员可维护自习室和座位；DevCloud 自动跑构建 + 单元测试。**
+**本迭代结束时学生与管理员可登录；菜单按角色展示；管理员可维护自习室和座位；GitHub Actions 自动跑构建 + 单元测试。**
 
 ## 2. Story 范围
 
@@ -34,7 +34,7 @@
 | US2.1.3 | P0 | 配置全校/院系开放范围 | a02 |
 | US2.2.1 | P0 | 新增和编辑座位 | a03 |
 | US2.2.2 | P0 | 注销和恢复座位 | a03 |
-| US8.4.2 | P0 | 自动化构建任务 | 无（DevCloud）|
+| US8.4.2 | P0 | 自动化构建任务 | 无（GitHub）|
 
 **故事数：15（13 P0 / 2 P1 / 0 P2）**
 
@@ -119,12 +119,12 @@
 
 ### Block G — CI 接入
 
-- [ ] US8.4.2-T01 CodeArts Build 任务串：pnpm install → lint → test → build → docker push
+- [ ] US8.4.2-T01 GitHub Actions CI 任务串：pnpm install → lint → test → build → docker push
 - [ ] US8.4.2-T02 前端构建任务（web-student + web-admin 两个 dockerfile）
 - [ ] US8.4.2-T03 单元测试在构建中执行（失败 exit 1）
-- [ ] US8.4.2-T04 镜像 tag = git short SHA + timestamp，SWR 保留近 30 个
+- [ ] US8.4.2-T04 镜像 tag = git short SHA + timestamp，GHCR 保留近 30 个
 
-**关于 US8.1.1（迭代:I1-I6 跨迭代 story）：** "用户故事关联测试用例" 是从 I1 起每个迭代都在执行的持续活动 —— 每完成一个 P0 story 就在 DevCloud 测试模块关联其 TC 用例并维护通过 / 失败状态。本迭代起每位 owner 自检；CI 任务用 grep `// @story USx.x.x` 自动生成覆盖报告。
+**关于 US8.1.1（迭代:I1-I6 跨迭代 story）：** "用户故事关联测试用例" 是从 I1 起每个迭代都在执行的持续活动 —— 每完成一个 P0 story 就在 GitHub Issues/Projects 关联其 TC 用例并维护通过 / 失败状态。本迭代起每位 owner 自检；CI 任务用 grep `// @story USx.x.x` 自动生成覆盖报告。
 
 **关于本节任务密度：** 本迭代 15 个 story 共约 50 个 task；本节按依赖序列出 task ID 与标题，每个 task 的「实施要点 / 验收」由 Bucket A 中对应 story 同名 task 提供（与 conventions.md §2 ID 规则一一对应）—— agent 实施时按 Bucket A 任务 checklist 执行，不需要在 brief 中重复展开。
 
@@ -165,13 +165,13 @@
 - 唯一约束（room.name / seat.code in room）：DB 级 UNIQUE INDEX；service 层 try/catch P2002 → 抛 409 含 code=`ROOM_NAME_DUPLICATE` / `SEAT_CODE_DUPLICATE`。
 - 注销资源对未来预约影响：**I1 仅在 service 层返回受影响 booking 数提示，不真正取消**（因为 booking 模块在 I2 才实现）；I3 时回头补完整级联取消逻辑。
 
-### 5.5 US8.4.2 CodeArts Build 任务
+### 5.5 US8.4.2 GitHub Actions CI 任务
 
 **关键决策：**
-- pipeline yaml 在 `infra/devcloud/build.yml`，包含 stages: install → lint → test → build → docker push。
+- workflow yaml 在 `.github/workflows/ci.yml`，包含 jobs/stages: install → lint → test → build → docker push。
 - 后端 docker image 用多阶段构建：`builder` 阶段 pnpm install + build → `runner` 阶段 node:20-alpine + dist + node_modules（仅 prod）。
 - 前端：build 后产物放 nginx:alpine 静态服务镜像。
-- SWR 仓库地址：`swr.cn-east-3.myhuaweicloud.com/<namespace>/ibooking-api:<sha>`。
+- GHCR 镜像地址：`ghcr.io/<owner>/devops_ibooking/api:<sha>`、`ghcr.io/<owner>/devops_ibooking/web-student:<sha>`、`ghcr.io/<owner>/devops_ibooking/web-admin:<sha>`。
 - 单元测试失败 → `pnpm test` exit 1 → CI fail → 不 push 镜像。
 
 ## 6. 数据/接口契约变更
@@ -329,7 +329,7 @@ TC-US1.1.1-01 / TC-US1.1.2-01（已上） / TC-US1.1.3-01 / TC-US1.2.1-01 / TC-U
 3. **角色权限管理（2min）**：admin_full 进入 a05 → 创建测试角色 → 给 audit01 加 ROLE_AUDIT → audit01 重新登录看到新菜单。
 4. **资源 CRUD（2min）**：admin_full 进入 a02 创建 R_TEST → 进入 a03 在 R_TEST 中创建 A_TEST → 注销 A_TEST 看到灰色样式。
 5. **越权防护（1min）**：用 audit01 token（DevTools 复制）curl POST `/api/v1/rooms` → 显示 403 RBAC_FORBIDDEN。
-6. **DevCloud CI（1min）**：展示 main push 触发自动构建截图，单元测试 green，docker image 入 SWR。
+6. **GitHub Actions CI（1min）**：展示 main push 触发自动构建截图，单元测试 green，docker image 入 GHCR。
 
 ## 10. 拉伸 / 可选
 

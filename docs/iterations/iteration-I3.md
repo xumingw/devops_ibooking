@@ -4,7 +4,7 @@
 
 - **时长**：2 周
 - **入口前置**：I2 全部 P0 story Done；BookingService.create / cancel 与 findAvailableSeats 完整可用；fixed-time race 测试 green。
-- **出口准则**：见 §8（核心：学生从"找座→预约→签到→完成"端到端 Web 流程跑通；15min 自动取消 + 违约记录生效；自动部署到 DevCloud 测试环境）。
+- **出口准则**：见 §8（核心：学生从"找座→预约→签到→完成"端到端 Web 流程跑通；15min 自动取消 + 违约记录生效；通过 GitHub Actions 自动部署到测试环境）。
 - **必读共享文档**：`_shared/tech-stack.md` / `_shared/conventions.md` / `_shared/done-definition.md` / `_shared/design-map.md`
 - **设计稿入口**：`自习室预约/Fudan Study System.html`（s04 / s05 / s06 / s07 / s09 / s10 主导；新建教室大屏画板）
 - **数据契约位置**：`packages/shared-types/`
@@ -12,7 +12,7 @@
 
 ## 1. 迭代目标
 
-**本迭代结束时学生从"找座→预约→签到→完成"端到端 Web 流程跑通；BullMQ 处理 +15min/+10min/+15min 三个延时任务；15min 未签到自动取消并生成违约 + 通知；测试环境通过 DevCloud 自动部署。**
+**本迭代结束时学生从"找座→预约→签到→完成"端到端 Web 流程跑通；BullMQ 处理 +15min/+10min/+15min 三个延时任务；15min 未签到自动取消并生成违约 + 通知；测试环境通过 GitHub Actions 自动部署。**
 
 ## 2. Story 范围
 
@@ -146,9 +146,9 @@
 - [ ] US8.3.1-T02 e2e/availability.e2e-spec.ts
 - [ ] US8.3.1-T03 e2e/booking.e2e-spec.ts（含并发、4h 边界、取消释放）
 - [ ] US8.3.1-T04 CI 中 `pnpm --filter api test:e2e` 任一失败阻断 deploy
-- [ ] US8.4.3-T01 申请华为云 ECS / CCE；安装 docker；配 SSH key
-- [ ] US8.4.3-T02 infra/devcloud/deploy.sh 脚本（pull SWR 镜像 + docker-compose up + 健康检查）
-- [ ] US8.4.3-T03 CodeArts Deploy 任务串接 build → ssh exec
+- [ ] US8.4.3-T01 准备测试服务器；安装 docker；配置 GitHub Actions SSH key
+- [ ] US8.4.3-T02 infra/github/deploy.sh 脚本（pull GHCR 镜像 + docker-compose up + 健康检查）
+- [ ] US8.4.3-T03 GitHub Actions deploy job 任务串接 build → ssh exec
 - [ ] US8.4.3-T04 docs/runbooks/rollback.md
 - [ ] US8.5.1-T01 院系 / 用户 / 角色 / 权限 seed
 - [ ] US8.5.1-T02 自习室 / 座位 / 插座 / 开放时间 seed
@@ -247,7 +247,7 @@ async checkIn(user: User, bookingId: string, code: string) {
 
 **测试时间推进：** 用 Jest fake timers + BullMQ 的 `processJobs()` 同步触发。
 
-### 5.5 US8.4.3 DevCloud 自动部署
+### 5.5 US8.4.3 GitHub Actions 自动部署
 
 **deploy.sh 脚本：**
 ```bash
@@ -259,16 +259,16 @@ SSH_HOST=${SSH_HOST}
 ssh ${SSH_USER}@${SSH_HOST} <<EOF
   cd /opt/ibooking
   echo "${IMAGE_TAG}" > .image-tag
-  docker pull swr.cn-east-3.myhuaweicloud.com/ibooking/api:${SHA}
-  docker pull swr.cn-east-3.myhuaweicloud.com/ibooking/web-student:${SHA}
-  docker pull swr.cn-east-3.myhuaweicloud.com/ibooking/web-admin:${SHA}
+  docker pull ghcr.io/${GITHUB_REPOSITORY}/api:${SHA}
+  docker pull ghcr.io/${GITHUB_REPOSITORY}/web-student:${SHA}
+  docker pull ghcr.io/${GITHUB_REPOSITORY}/web-admin:${SHA}
   docker-compose -f docker-compose.prod.yml up -d
   sleep 30
   curl -fs http://localhost:3000/api/v1/health || (docker-compose logs --tail=200; exit 1)
 EOF
 ```
 
-**SSH key 注入：** 在 CodeArts Pipeline 中用 secret manager 注入 `SSH_PRIVATE_KEY` env，pipeline yaml 中 `echo "$SSH_PRIVATE_KEY" > /root/.ssh/id_rsa`。
+**SSH key 注入：** 在 GitHub Actions secrets 中配置 `SSH_PRIVATE_KEY` / `SSH_HOST` / `SSH_USER`，workflow 中 `echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa`。
 
 **回滚：** docs/runbooks/rollback.md 记录人工 ssh 后 `docker tag` 切回上一版本 + restart。
 
@@ -419,7 +419,7 @@ EOF
 - **操作步骤**：
   1. push 通过 build 的代码到 main
   2. 等待 deploy 阶段
-  3. 浏览器访问 `https://test.devcloud.<your-domain>/`
+  3. 浏览器访问 `https://test.<your-domain>/`
   4. curl 健康检查
   5. 查看部署日志（deploy.sh 输出）
   6. 重复部署同一镜像
@@ -466,7 +466,7 @@ EOF
 
 4. **批量导入座位（1min）**：admin_full 在 a03 上传 xlsx → 预校验显示 1 行重复编号 → 确认导入 → 看到新座位。
 
-5. **DevCloud 流水线（3min）**：展示 main push 触发完整流水线 lint → unit → e2e → build → deploy；测试环境 URL 浏览器打开。
+5. **GitHub Actions workflow（3min）**：展示 main push 触发完整流水线 lint → unit → e2e → build → deploy；测试环境 URL 浏览器打开。
 
 ## 10. 拉伸 / 可选
 
@@ -490,7 +490,7 @@ EOF
 - BullMQ 三个 job + 处理器 + 幂等保证 + fake timer 测试
 - 教室大屏画板 room-display.jsx 已新建
 - s04/s05/s06/s07/s09/s10 完整 UI；m00-m07 等手机画板仍仅供拉伸参考
-- DevCloud 部署任务自动跑；测试环境 URL 公开
+- GitHub Actions 部署任务自动跑；测试环境 URL 公开
 - e2e 套件 ≥30 用例覆盖学生主链路 + 签到 + 自动取消
 - seed 脚本初始化完整测试数据集
 
@@ -498,5 +498,5 @@ EOF
 - 管理仪表盘 KPI（US6.1.x）尚未实现 — I4 实现
 - 代预约 / 代取消（US6.2.x）尚未实现 — I4
 - 系统参数管理 UI（US6.5.x）— I4
-- DevCloud 流水线尚未含审批门禁（仅自动 deploy 到 test，prod 还没接）— I4 接入审批
+- GitHub Actions workflow 尚未含审批门禁（仅自动 deploy 到 test，prod 还没接）— I4 接入审批
 - 接口测试覆盖签到自动取消（US8.3.2）— I4

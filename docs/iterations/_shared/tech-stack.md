@@ -61,7 +61,9 @@ ibooking/
 │   ├── docker-compose.yml          # 本地：api + mysql + redis + mailhog
 │   ├── docker-compose.prod.yml     # CI/CD 目标
 │   ├── nginx/                      # 服务静态前端
-│   └── devcloud/                   # CodeArts pipeline yaml + 环境模板
+│   └── github/                     # deploy.sh + GitHub Actions 环境模板
+├── .github/
+│   └── workflows/                  # GitHub Actions CI/CD workflow yaml
 ├── docs/iterations/       # Bucket B（本目录）
 ├── 自习室预约/             # 原始设计稿（agent 只读基线）
 ├── 自习座位预约系统_Story测试描述清单.md   # Bucket A

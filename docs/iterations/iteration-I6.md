@@ -72,7 +72,7 @@
   - 实施要点：CI 自动从 NestJS @nestjs/swagger 导出 docs/api/openapi.yaml；redocly 生成静态 HTML；附错误码完整清单 docs/api/error-codes.md。
   - 验收：CI 中 `pnpm docs:openapi` 生成产物且 commit；docs/api/openapi.yaml 与代码一致（CI 校验）。
 - [ ] US8.6.1-T02 整理部署文档和环境变量说明
-  - 实施要点：docs/deployment/local.md + devcloud.md；含 docker-compose、env vars、迁移、种子数据全流程。
+  - 实施要点：docs/deployment/local.md + github-actions.md；含 docker-compose、env vars、迁移、种子数据全流程。
   - 验收：陌生开发者按文档可启动。
 - [ ] US8.6.1-T03 整理学生端和管理端用户手册
   - 实施要点：docs/user-manual/student.md + admin.md；含 10+ 截屏 + 操作步骤 + 常见问题。
@@ -87,7 +87,7 @@
   - 实施要点：录制 15min 演示视频（按 final-presentation.md storyboard）；制作幻灯片（架构图、关键决策、流水线截图、覆盖率截图）。
   - 验收：视频清晰；幻灯完整。
 - [ ] US8.6.2-T03 汇总测试报告和流水线截图
-  - 实施要点：导出 jest --coverage 报告 + DevCloud 流水线截图 + 接口测试报告；放 docs/devops/reports/。
+  - 实施要点：导出 jest --coverage 报告 + GitHub Actions workflow 截图 + 接口测试报告；放 docs/devops/reports/。
   - 验收：报告完整。
 - [ ] US8.6.2-T04 整理团队分工和个人贡献说明
   - 实施要点：docs/team/contributions.md；按 story id 标记每个成员的 ownership + commit 数（用 `git shortlog -sn` 自动生成）。
@@ -281,7 +281,7 @@ findAvailableSeats / getMyBookings / 二次确认 cancel
    - 安全演示：尝试越权查询 + Prompt 注入 → 助手拒绝
 
 5. **DevOps 与质量（3min）**：
-   - DevCloud 流水线 8 阶段截图 + 审批门禁
+   - GitHub Actions workflow 8 阶段截图 + 审批门禁
    - 测试覆盖率 + e2e 报告
    - prod 环境 URL 实时访问
 
@@ -324,7 +324,7 @@ ibooking/                                  # 仓库根（提交压缩包或 git 
 │   ├── api/openapi.yaml                  # OpenAPI v1.0
 │   ├── api/error-codes.md
 │   ├── architecture/erd.png + booking-state-machine.md + utilization-metrics.md + hot-cold-analytics.md
-│   ├── deployment/local.md + devcloud.md + rollback.md
+│   ├── deployment/local.md + github-actions.md + rollback.md
 │   ├── user-manual/student.md + admin.md + screenshots/
 │   ├── demo/phase1-review.md + final-presentation.md
 │   ├── devops/screenshots/ + reports/
@@ -335,7 +335,7 @@ ibooking/                                  # 仓库根（提交压缩包或 git 
 ├── apps/miniapp/... (拉伸已启用)            # Taro
 ├── packages/shared-types/...
 ├── packages/design-tokens/...
-├── infra/docker-compose.yml + nginx/ + devcloud/
+├── infra/docker-compose.yml + nginx/ + github/
 └── 自习室预约/                              # 原始设计稿（只读基线）
 ```
 

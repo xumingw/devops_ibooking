@@ -22,7 +22,7 @@
 - [ ] 仓库级测试行覆盖率 ≥70%
 - [ ] 演示脚本（brief §9）在干净环境上能完整跑过 1 遍
 - [ ] DB schema 在下一迭代不需要破坏性变更（如有，必须列入 brief §12 交接说明）
-- [ ] 已为下迭代准备的产物归档完毕（migration 文件、OpenAPI snapshot、CodeArts pipeline yaml）
+- [ ] 已为下迭代准备的产物归档完毕（migration 文件、OpenAPI snapshot、GitHub Actions workflow yaml）
 
 ## 测试用例描述七字段契约（hard rule，不可妥协）
 

@@ -59,7 +59,7 @@ Conventional Commits + story id 前缀：
 // @tc TC-USx.x.x-NN
 ```
 
-DevCloud 构建任务用 grep 生成 story 覆盖报告（USx.x.x → 测试文件清单）。
+GitHub Actions 构建任务用 grep 生成 story 覆盖报告（USx.x.x → 测试文件清单）。
 
 测试函数 `describe` / `it` 名字必须含中文用例描述（与 TC 标题一致），不仅是英文方法名：
 

@@ -4,7 +4,7 @@
 
 - **时长**：2 周
 - **入口前置**：I3 全部 P0 story Done；测试环境部署成功；e2e 含主链路；BullMQ 三个 job 稳定运行；CI 含 build + e2e + deploy-test。
-- **出口准则**：见 §8（核心：管理仪表盘、代预约/代取消、违约管理、参数管理上线；DevCloud 流水线含构建+测试+部署+审批门禁；接口自动化覆盖签到与自动取消主链路）。
+- **出口准则**：见 §8（核心：管理仪表盘、代预约/代取消、违约管理、参数管理上线；GitHub Actions workflow 含构建+测试+部署+审批门禁；接口自动化覆盖签到与自动取消主链路）。
 - **必读共享文档**：`_shared/tech-stack.md` / `_shared/conventions.md` / `_shared/done-definition.md` / `_shared/design-map.md`
 - **设计稿入口**：`自习室预约/Fudan Study System.html`（a01-a06 全员上场）
 - **数据契约位置**：`packages/shared-types/`
@@ -12,7 +12,7 @@
 
 ## 1. 迭代目标
 
-**本迭代结束时管理仪表盘、代预约/代取消、违约管理、参数管理全部上线；DevCloud 流水线串接 lint→unit→e2e→build→deploy-test→人工审批→deploy-prod；接口自动化覆盖签到与自动取消主链路。**
+**本迭代结束时管理仪表盘、代预约/代取消、违约管理、参数管理全部上线；GitHub Actions workflow 串接 lint→unit→e2e→build→deploy-test→人工审批→deploy-prod；接口自动化覆盖签到与自动取消主链路。**
 
 ## 2. Story 范围
 
@@ -148,8 +148,8 @@
 - [ ] US8.3.2-T02 BullMQ test util fast-forward 自动取消测试
 - [ ] US8.3.2-T03 违约记录生成测试
 - [ ] US8.3.2-T04 接入流水线（CI 必须 green 才能 deploy）
-- [ ] US8.4.4-T01 CodeArts Pipeline yaml: 拉代码→lint→unit→build→e2e→deploy-test→审批→deploy-prod
-- [ ] US8.4.4-T02 失败中断 + DingTalk/邮件通知；prod 门禁（覆盖率 ≥70% + e2e green + 审批）
+- [ ] US8.4.4-T01 GitHub Actions workflow yaml: 拉代码→lint→unit→build→e2e→deploy-test→审批→deploy-prod
+- [ ] US8.4.4-T02 失败中断 + GitHub Actions 通知/邮件通知；prod 门禁（覆盖率 ≥70% + e2e green + 审批）
 - [ ] US8.4.4-T03 流水线截图归档 docs/devops/screenshots/
 
 ## 5. 实现要点（5 个最易翻车 story）
@@ -184,43 +184,36 @@
 
 ### 5.4 US8.4.4 流水线集成 + 审批门禁
 
-**Pipeline yaml 结构：**
+**GitHub Actions workflow 结构：**
 
 ```yaml
-stages:
-  - lint:
-      script: pnpm lint
-  - unit-test:
-      script: pnpm test --coverage
-      coverage:
-        threshold: 70
-  - build:
-      script:
-        - pnpm build
-        - docker build -t $IMAGE_API:$SHA apps/api
-        - docker build -t $IMAGE_WEB_STUDENT:$SHA apps/web-student
-        - docker build -t $IMAGE_WEB_ADMIN:$SHA apps/web-admin
-        - docker push ...
-  - e2e-test:
-      script: pnpm --filter api test:e2e
-      depends_on: build
-  - deploy-test:
-      script: bash infra/devcloud/deploy.sh test $SHA
-      depends_on: e2e-test
-  - manual-approval:
-      type: manual
-      approvers: [admin_full, project_lead]
-      depends_on: deploy-test
-  - deploy-prod:
-      script: bash infra/devcloud/deploy.sh prod $SHA
-      depends_on: manual-approval
+jobs:
+  lint:
+    run: pnpm lint
+  unit-test:
+    run: pnpm test --coverage
+    coverage-threshold: 70
+  build:
+    needs: [lint, unit-test]
+    run: pnpm build && docker build/push ghcr.io images
+  e2e-test:
+    needs: build
+    run: pnpm --filter api test:e2e
+  deploy-test:
+    needs: e2e-test
+    environment: test
+    run: bash infra/github/deploy.sh test $SHA
+  deploy-prod:
+    needs: deploy-test
+    environment: production  # GitHub Environment required reviewers handle approval
+    run: bash infra/github/deploy.sh prod $SHA
 ```
 
 **门禁规则：**
 - coverage < 70% → unit-test stage fail → 不进 build。
-- 任意 e2e 失败 → deploy-test fail → 不进 manual-approval。
-- manual-approval 默认拒绝；任一 approver 通过即放行。
-- 失败时 DingTalk webhook 发消息到团队群。
+- 任意 e2e 失败 → deploy-test 不执行，production environment 不可审批。
+- production 环境配置 required reviewers；未审批时 deploy-prod 不执行。
+- 失败时使用 GitHub Actions job summary / 邮件通知，必要时接入团队通知 webhook。
 
 ### 5.5 US5.5.3 自动完成任务（第四个 BullMQ job）
 
@@ -347,7 +340,7 @@ stages:
   - Step 2: `lint/unit/build/e2e/deploy-test 全部 green，停在 manual-approval`
   - Step 3: `pipeline status == FAILED；deploy-prod 不执行`
   - Step 4: `deploy-prod 执行成功；prod URL 健康`
-  - Step 5: `e2e fail 后 deploy-test 阻断；流水线 fail；DingTalk 通知`
+  - Step 5: `e2e fail 后 deploy-test 阻断；workflow fail；GitHub Actions 通知触发`
   - Step 6: `unit-test fail（coverage 检查）；不进 build`
 - **后置处理**：还原代码；保留 prod 健康。
 
@@ -389,7 +382,7 @@ stages:
 
 4. **参数管理（1min）**：admin_full 进入系统参数页 → 把 MAX_BOOK_HOURS 从 4 改 6；切到 stu_cse_01 立即试 5 小时预约（成功）；改回 4；试 5 小时（拒）。
 
-5. **完整流水线 + 审批门禁（3min）**：在 DevCloud Pipelines 中展示一次完整流水线执行：lint → unit → build → e2e → deploy-test → 等审批 → admin_full 拒绝 → 流水线终止；重新触发 → 通过 → deploy-prod → prod URL 健康。展示截图。
+5. **完整流水线 + 审批门禁（3min）**：在 GitHub Actions 中展示一次完整 workflow 执行：lint → unit → build → e2e → deploy-test → production environment 等审批 → reviewer 拒绝 → deploy-prod 不执行；重新触发 → 审批通过 → deploy-prod → prod URL 健康。展示截图。
 
 ## 10. 拉伸 / 可选
 
@@ -411,7 +404,7 @@ stages:
 - shared-types 含 SystemParamRule, DashboardKpiDto, AdminBookingDto, ViolationDto 等
 - 完整的 5 个 BullMQ job（reminder-before, reminder-late, auto-cancel, auto-complete + reminder 失败重试）
 - a01-a06 全部页面完整可用
-- 流水线 yaml + DingTalk webhook + 审批配置
+- 流水线 yaml + GitHub Actions 通知 + 审批配置
 - 覆盖率报告 ≥70% 全仓库
 
 **已知未做项 → I5 入口前置：**
