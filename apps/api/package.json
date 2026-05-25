@@ -6,7 +6,7 @@
     "dev": "nest start --watch",
     "build": "nest build",
     "lint": "eslint src test --ext .ts",
-    "test": "jest --config jest.config.ts",
+    "test": "pnpm run prisma:generate && jest --config jest.config.ts",
     "test:e2e": "jest --config jest.config.ts --testRegex '.*\\.e2e-spec\\.ts$'",
     "db:migrate:dev": "DATABASE_URL=${DATABASE_URL:-mysql://root:root@localhost:3306/ibooking} prisma migrate dev",
     "db:seed": "DATABASE_URL=${DATABASE_URL:-mysql://root:root@localhost:3306/ibooking} prisma db seed",
