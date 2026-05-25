@@ -41,6 +41,7 @@ model User {
   studentNo    String       @unique @map("student_no") @db.VarChar(64)
   name         String       @db.VarChar(128)
   email        String?      @unique @db.VarChar(191)
+  passwordHash String       @default("") @map("password_hash") @db.VarChar(255)
   departmentId String?      @map("department_id") @db.VarChar(191)
   status       UserStatus   @default(ACTIVE)
   createdAt    DateTime     @default(now()) @map("created_at")
@@ -50,9 +51,24 @@ model User {
   bookings     Booking[]
   violations   Violation[]
   auditLogs     AuditLog[]
+  refreshTokens RefreshToken[]
 
   @@index([departmentId])
   @@map("user")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid()) @db.VarChar(191)
+  userId    String   @map("user_id") @db.VarChar(191)
+  tokenHash String   @unique @map("token_hash") @db.VarChar(191)
+  expiresAt DateTime @map("expires_at")
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+  revokedAt DateTime? @map("revoked_at")
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, revoked, expiresAt])
+  @@map("refresh_token")
 }
 
 model Department {

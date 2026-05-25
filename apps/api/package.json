@@ -9,6 +9,7 @@
     "test": "jest --config jest.config.ts",
     "test:e2e": "jest --config jest.config.ts --testRegex '.*\\.e2e-spec\\.ts$'",
     "db:migrate:dev": "DATABASE_URL=${DATABASE_URL:-mysql://root:root@localhost:3306/ibooking} prisma migrate dev",
+    "db:seed": "DATABASE_URL=${DATABASE_URL:-mysql://root:root@localhost:3306/ibooking} prisma db seed",
     "prisma:generate": "DATABASE_URL=${DATABASE_URL:-mysql://root:root@localhost:3306/ibooking} prisma generate",
     "openapi:export": "ts-node -r tsconfig-paths/register src/scripts/export-openapi.ts"
   },
@@ -39,5 +40,8 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "5.4.5"
+  },
+  "prisma": {
+    "seed": "ts-node -r tsconfig-paths/register prisma/seed.ts"
   }
 }

@@ -22,7 +22,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
     response.status(status).json({
-      code: this.toErrorCode(status),
+      code: this.toErrorCode(status, exception),
       message: this.toMessage(exception),
       data: null,
       requestId: request.requestId ?? 'unknown',
@@ -30,10 +30,29 @@ export class HttpExceptionFilter implements ExceptionFilter {
     });
   }
 
-  private toErrorCode(status: number): ErrorCode {
+  private toErrorCode(status: number, exception: unknown): ErrorCode {
+    const explicit = this.extractResponseCode(exception);
+    if (explicit) return explicit;
+    if (status === HttpStatus.UNAUTHORIZED) return ErrorCode.AUTH_UNAUTHORIZED;
+    if (status === HttpStatus.FORBIDDEN) return ErrorCode.RBAC_FORBIDDEN;
     if (status === HttpStatus.NOT_FOUND) return ErrorCode.RESOURCE_NOT_FOUND;
     if (status === HttpStatus.BAD_REQUEST) return ErrorCode.VALIDATION_FAILED;
     return ErrorCode.INTERNAL_ERROR;
+  }
+
+  private extractResponseCode(exception: unknown): ErrorCode | null {
+    if (!(exception instanceof HttpException)) return null;
+    const response = exception.getResponse();
+    if (
+      response &&
+      typeof response === 'object' &&
+      'code' in response &&
+      typeof response.code === 'string' &&
+      Object.values(ErrorCode).includes(response.code as ErrorCode)
+    ) {
+      return response.code as ErrorCode;
+    }
+    return null;
   }
 
   private toMessage(exception: unknown): string {
@@ -44,9 +63,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
         response &&
         typeof response === 'object' &&
         'message' in response &&
-        typeof response.message === 'string'
+        (typeof response.message === 'string' || Array.isArray(response.message))
       ) {
-        return response.message;
+        return Array.isArray(response.message) ? response.message.join('; ') : response.message;
       }
     }
 
