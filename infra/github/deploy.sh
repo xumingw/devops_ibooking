@@ -22,7 +22,7 @@ compose_project_name="${COMPOSE_PROJECT_NAME:-devops_ibooking}"
 
 docker compose -p "$compose_project_name" $compose_env_args -f docker-compose.prod.yml pull
 docker compose -p "$compose_project_name" $compose_env_args -f docker-compose.prod.yml up -d mysql
-docker compose -p "$compose_project_name" $compose_env_args -f docker-compose.prod.yml run --rm -T api ./node_modules/.bin/prisma migrate deploy
+docker compose -p "$compose_project_name" $compose_env_args -f docker-compose.prod.yml run --rm -T api ./node_modules/.bin/prisma migrate deploy < /dev/null
 docker compose -p "$compose_project_name" $compose_env_args -f docker-compose.prod.yml up -d --force-recreate
 
 for _ in $(seq 1 60); do

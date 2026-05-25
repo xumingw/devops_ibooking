@@ -344,7 +344,7 @@ jobs:
           compose_env_args="--env-file .env --env-file infra/.deploy-images.env"
           docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml pull
           docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml up -d mysql
-          docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml run --rm -T api ./node_modules/.bin/prisma migrate deploy
+          docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml run --rm -T api ./node_modules/.bin/prisma migrate deploy < /dev/null
           docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml up -d --force-recreate
 
           for _ in $(seq 1 60); do
