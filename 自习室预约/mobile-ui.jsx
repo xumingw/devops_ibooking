@@ -31,6 +31,31 @@ const mobileLoginStyles = `
 
 const MobileLogin = () => {
   const [tab, setTab] = React.useState('id');
+  const [studentId, setStudentId] = React.useState('stu_cse_01');
+  const [password, setPassword] = React.useState('Pass123!');
+  const [loading, setLoading] = React.useState(false);
+  const [message, setMessage] = React.useState(null);
+  const auth = useAuth();
+
+  const handleLogin = async (event) => {
+    event.preventDefault();
+    setLoading(true);
+    setMessage(null);
+    try {
+      const session = await auth.login({
+        kind: 'student',
+        account: studentId.trim(),
+        password,
+        remember: true,
+      });
+      setMessage({ type: 'success', text: `欢迎回来，${session.user.name}` });
+    } catch (error) {
+      setMessage({ type: 'error', text: error.message || '登录失败，请稍后重试' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <MobileShell statusLight>
       <style>{mobileLoginStyles}</style>
@@ -90,31 +115,61 @@ const MobileLogin = () => {
           </div>
 
           {tab === 'id' ?
-          <div>
-              {[['学号', '请输入学号', 'user'], ['密码', '请输入密码', 'eye']].map(([label, ph, icon]) =>
-            <div key={label} style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.55)', marginBottom: 6 }}>{label}</div>
+          <form onSubmit={handleLogin}>
+              <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.55)', marginBottom: 6 }}>学号</div>
                   <div style={{
                 padding: '12px 14px', borderRadius: 11,
                 background: 'rgba(255,255,255,0.08)',
                 border: '1px solid rgba(255,255,255,0.14)',
                 display: 'flex', alignItems: 'center', gap: 10
               }}>
-                    <Icon name={icon} size={15} color="rgba(255,255,255,0.35)" />
-                    <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.3)' }}>{ph}</span>
+                    <Icon name="user" size={15} color="rgba(255,255,255,0.35)" />
+                    <input
+                      value={studentId}
+                      onChange={(e) => setStudentId(e.target.value)}
+                      placeholder="请输入学号"
+                      style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', color: '#fff', font: 'inherit', fontSize: 13 }}
+                    />
                   </div>
                 </div>
-            )}
+              <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.55)', marginBottom: 6 }}>密码</div>
+                  <div style={{
+                padding: '12px 14px', borderRadius: 11,
+                background: 'rgba(255,255,255,0.08)',
+                border: '1px solid rgba(255,255,255,0.14)',
+                display: 'flex', alignItems: 'center', gap: 10
+              }}>
+                    <Icon name="eye" size={15} color="rgba(255,255,255,0.35)" />
+                    <input
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="请输入密码"
+                      type="password"
+                      style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', color: '#fff', font: 'inherit', fontSize: 13 }}
+                    />
+                  </div>
+                </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
                 <span style={{ fontSize: 12, color: F.gold, cursor: 'pointer', fontWeight: 600 }}>忘记密码？</span>
               </div>
+              {message &&
+              <div style={{
+                marginBottom: 12, padding: '8px 10px', borderRadius: 10,
+                color: message.type === 'success' ? '#BBF7D0' : '#FECACA',
+                background: message.type === 'success' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+                border: `1px solid ${message.type === 'success' ? 'rgba(187,247,208,0.22)' : 'rgba(254,202,202,0.22)'}`,
+                fontSize: 12, fontWeight: 700
+              }}>{message.text}</div>}
               <button style={{
               width: '100%', padding: '14px', borderRadius: 12,
               background: `linear-gradient(135deg, ${F.navy}, ${F.navyMid})`,
-              color: '#fff', fontSize: 15, fontWeight: 800, border: 'none', cursor: 'pointer',
+              color: '#fff', fontSize: 15, fontWeight: 800, border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.72 : 1,
               boxShadow: `0 4px 20px ${F.navy}60`, letterSpacing: 2
-            }}>登 录</button>
-            </div> :
+            }}>{loading ? '登录中…' : '登 录'}</button>
+            </form> :
 
           <div style={{ textAlign: 'center', padding: '16px 0' }}>
               <div style={{

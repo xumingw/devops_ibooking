@@ -112,7 +112,7 @@
       }, []);
 
       return (
-        <>
+        <AuthProvider>
           <DesignCanvas title="复旦大学 · 自习室预约系统设计稿">
 
             {/* ── SECTION 1: 学生 Web 端 ── */}
@@ -214,7 +214,7 @@
               window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*');
             }}
           />
-        </>
+        </AuthProvider>
       );
     }
 

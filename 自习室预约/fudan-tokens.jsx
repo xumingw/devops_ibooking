@@ -170,6 +170,100 @@ const Divider = ({ style: sx }) => (
   <div style={{ height: 1, background: F.border, ...sx }} />
 );
 
+// ── Auth state for the static design frontend ─────────
+const AUTH_REMEMBER_KEY = 'ibooking.auth.remember';
+const AuthContext = React.createContext(null);
+
+const getApiBaseUrl = () =>
+  (window.IBOOKING_API_BASE_URL || localStorage.getItem('IBOOKING_API_BASE_URL') || 'http://localhost:3000').replace(/\/$/, '');
+
+const hasAdminRole = (session) =>
+  Boolean(session?.roles?.some((role) => role.code && role.code !== 'ROLE_STUDENT'));
+
+const AuthProvider = ({ children }) => {
+  const [session, setSession] = React.useState(null);
+  const [initializing, setInitializing] = React.useState(true);
+
+  React.useEffect(() => {
+    let alive = true;
+    const shouldRefresh = localStorage.getItem(AUTH_REMEMBER_KEY) === '1';
+    if (!shouldRefresh) {
+      setInitializing(false);
+      return () => { alive = false; };
+    }
+
+    fetch(`${getApiBaseUrl()}/api/v1/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || payload?.code !== 'SUCCESS') throw new Error(payload?.message || '会话已过期');
+        if (alive) setSession(payload.data);
+      })
+      .catch(() => {
+        localStorage.removeItem(AUTH_REMEMBER_KEY);
+        if (alive) setSession(null);
+      })
+      .finally(() => {
+        if (alive) setInitializing(false);
+      });
+
+    return () => { alive = false; };
+  }, []);
+
+  const login = React.useCallback(async ({ kind, account, password, remember }) => {
+    const endpoint = kind === 'admin' ? 'admin-login' : 'student-login';
+    const body = kind === 'admin'
+      ? { username: account, password }
+      : { studentId: account, password };
+
+    const response = await fetch(`${getApiBaseUrl()}/api/v1/auth/${endpoint}`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok || payload?.code !== 'SUCCESS') {
+      throw new Error(payload?.message || '登录失败，请稍后重试');
+    }
+
+    localStorage.setItem(AUTH_REMEMBER_KEY, remember ? '1' : '0');
+    setSession(payload.data);
+    return payload.data;
+  }, []);
+
+  const logout = React.useCallback(async () => {
+    await fetch(`${getApiBaseUrl()}/api/v1/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    }).catch(() => {});
+    localStorage.removeItem(AUTH_REMEMBER_KEY);
+    setSession(null);
+  }, []);
+
+  const value = React.useMemo(() => ({
+    session,
+    initializing,
+    login,
+    logout,
+    hasAdmin: hasAdminRole(session),
+  }), [session, initializing, login, logout]);
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+const useAuth = () => React.useContext(AuthContext) || {
+  session: null,
+  initializing: false,
+  login: async () => { throw new Error('认证上下文未初始化'); },
+  logout: async () => {},
+  hasAdmin: false,
+};
+
+const getDisplayUser = (session, fallback) => session?.user || fallback;
+
 const Avatar = ({ name, size = 32, bg }) => {
   const char = name ? name.charAt(0) : '?';
   return (
@@ -184,6 +278,12 @@ const Avatar = ({ name, size = 32, bg }) => {
 
 // ── Sidebar: Student ──────────────────────────────────
 const StudentSidebar = ({ active = 'home' }) => {
+  const auth = useAuth();
+  const user = getDisplayUser(auth.session, {
+    name: '林晓明',
+    studentNo: '21307001',
+    departmentName: '计算机学院'
+  });
   const items = [
     { id: 'home', label: '首页概览', icon: 'home' },
     { id: 'rooms', label: '自习室列表', icon: 'building' },
@@ -241,10 +341,10 @@ const StudentSidebar = ({ active = 'home' }) => {
         padding: '14px 18px', borderTop: '1px solid rgba(255,255,255,0.07)',
         display: 'flex', alignItems: 'center', gap: 9,
       }}>
-        <Avatar name="林" size={30} bg={F.navyMid} />
+        <Avatar name={user.name} size={30} bg={F.navyMid} />
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 12, color: '#fff', fontWeight: 600 }}>林晓明</div>
-          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.38)', marginTop: 1 }}>21307001 · 计算机学院</div>
+          <div style={{ fontSize: 12, color: '#fff', fontWeight: 600 }}>{user.name}</div>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.38)', marginTop: 1 }}>{user.studentNo} · {user.departmentName || '未分配院系'}</div>
         </div>
       </div>
     </div>
@@ -253,6 +353,13 @@ const StudentSidebar = ({ active = 'home' }) => {
 
 // ── Sidebar: Admin ────────────────────────────────────
 const AdminSidebar = ({ active = 'dashboard' }) => {
+  const auth = useAuth();
+  const user = getDisplayUser(auth.session && hasAdminRole(auth.session) ? auth.session : null, {
+    name: '王建华',
+    studentNo: 'admin_full',
+    departmentName: null
+  });
+  const roleName = auth.session?.roles?.find((role) => role.code !== 'ROLE_STUDENT')?.name || '超级管理员';
   const groups = [
     { label: '概览', items: [{ id: 'dashboard', label: '管理仪表盘', icon: 'chart' }] },
     { label: '空间管理', items: [
@@ -316,10 +423,10 @@ const AdminSidebar = ({ active = 'dashboard' }) => {
         ))}
       </nav>
       <div style={{ padding: '12px 14px', borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Avatar name="王" size={28} bg={F.navy} />
+        <Avatar name={user.name} size={28} bg={F.navy} />
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 11, color: '#fff', fontWeight: 600 }}>王建华</div>
-          <div style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.32)', marginTop: 1 }}>超级管理员</div>
+          <div style={{ fontSize: 11, color: '#fff', fontWeight: 600 }}>{user.name}</div>
+          <div style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.32)', marginTop: 1 }}>{roleName}</div>
         </div>
       </div>
     </div>
@@ -327,8 +434,14 @@ const AdminSidebar = ({ active = 'dashboard' }) => {
 };
 
 // ── TopBar ────────────────────────────────────────────
-const TopBar = ({ title, sub, actions, admin }) => (
-  <div style={{
+const TopBar = ({ title, sub, actions, admin }) => {
+  const auth = useAuth();
+  const fallback = admin
+    ? { name: '王建华', studentNo: 'admin_full', departmentName: null }
+    : { name: '林晓明', studentNo: '21307001', departmentName: '计算机学院' };
+  const user = getDisplayUser(admin && !auth.hasAdmin ? null : auth.session, fallback);
+  return (
+    <div style={{
     height: 58, background: F.white,
     borderBottom: `1px solid ${F.border}`,
     display: 'flex', alignItems: 'center',
@@ -361,10 +474,11 @@ const TopBar = ({ title, sub, actions, admin }) => (
           background: F.red, borderRadius: '50%', border: '1.5px solid #fff',
         }} />
       </div>
-      <Avatar name="林" size={34} bg={admin ? F.navy : F.navyMid} />
+      <Avatar name={user.name} size={34} bg={admin ? F.navy : F.navyMid} />
     </div>
   </div>
-);
+  );
+};
 
 // ── PageLayout ────────────────────────────────────────
 const PageLayout = ({ sidebar, topbar, children, noPad }) => (
@@ -500,6 +614,7 @@ const SparkBar = ({ data, color, height = 40 }) => {
 
 Object.assign(window, {
   F, PATHS, Icon, Badge, Btn, Card, Divider, Avatar,
+  AuthProvider, useAuth,
   StudentSidebar, AdminSidebar, TopBar, PageLayout,
   MobileStatusBar, MobileTabBar,
   SeatCell, SmallSeat, SparkBar,

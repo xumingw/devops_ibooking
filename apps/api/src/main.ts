@@ -5,6 +5,10 @@ import { AppModule } from './app.module';
 import { setupOpenApi } from './common/openapi';
 
 export function configureApp(app: INestApplication): void {
+  app.enableCors({
+    origin: true,
+    credentials: true
+  });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

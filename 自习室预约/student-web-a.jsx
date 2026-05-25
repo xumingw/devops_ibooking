@@ -29,6 +29,50 @@ const loginStyles = `
 // ── 01 Login ─────────────────────────────────────────
 const StudentLogin = () => {
   const [tab, setTab] = React.useState('id');
+  const [entry, setEntry] = React.useState('student');
+  const [account, setAccount] = React.useState('stu_cse_01');
+  const [password, setPassword] = React.useState('Pass123!');
+  const [remember, setRemember] = React.useState(true);
+  const [loading, setLoading] = React.useState(false);
+  const [message, setMessage] = React.useState(null);
+  const auth = useAuth();
+
+  React.useEffect(() => {
+    if (entry === 'admin') {
+      setAccount('admin_full');
+      setPassword('Admin123!');
+    } else {
+      setAccount('stu_cse_01');
+      setPassword('Pass123!');
+    }
+    setMessage(null);
+  }, [entry]);
+
+  const handleLogin = async (event) => {
+    event.preventDefault();
+    setLoading(true);
+    setMessage(null);
+    try {
+      const session = await auth.login({
+        kind: entry,
+        account: account.trim(),
+        password,
+        remember,
+      });
+      setMessage({
+        type: 'success',
+        text: entry === 'admin'
+          ? `已登录管理后台：${session.user.name}`
+          : `欢迎回来，${session.user.name}`,
+      });
+    } catch (error) {
+      setMessage({ type: 'error', text: error.message || '登录失败，请稍后重试' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loggedUser = auth.session?.user;
   return (
     <div style={{
       display: 'flex', width: '100%', height: '100%',
@@ -134,6 +178,20 @@ const StudentLogin = () => {
             <div style={{ fontSize: 24, fontWeight: 800, color: F.t1, marginBottom: 6 }}>欢迎登录</div>
             <div style={{ fontSize: 13, color: F.t3 }}>请使用复旦校园账号登录</div>
           </div>
+          <div style={{
+            display: 'flex', background: F.borderLight, borderRadius: 10, padding: 4,
+            border: `1px solid ${F.border}`, marginBottom: 12,
+          }}>
+            {[['student', '学生入口'], ['admin', '管理入口']].map(([k, l]) => (
+              <div key={k} onClick={() => setEntry(k)} style={{
+                flex: 1, textAlign: 'center', padding: '8px 0', borderRadius: 7,
+                fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                background: entry === k ? F.gold : 'transparent',
+                color: entry === k ? F.navyDeep : F.t2,
+                transition: 'all 0.2s',
+              }}>{l}</div>
+            ))}
+          </div>
           {/* Tab */}
           <div style={{
             display: 'flex', background: F.white, borderRadius: 10, padding: 4,
@@ -151,34 +209,70 @@ const StudentLogin = () => {
           </div>
 
           {tab === 'id' ? (
-            <div>
-              {[['学号', '请输入学号'], ['密码', '请输入密码']].map(([label, ph]) => (
-                <div key={label} style={{ marginBottom: 16 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: F.t2, marginBottom: 6 }}>{label}</div>
-                  <div style={{
-                    padding: '11px 14px', borderRadius: 9, border: `1.5px solid ${F.border}`,
-                    background: F.white, fontSize: 13, color: F.t3, display: 'flex', alignItems: 'center', gap: 10,
-                  }}>
-                    <Icon name={label === '学号' ? 'user' : 'eye'} size={14} color={F.t4} />
-                    <span>{ph}</span>
-                  </div>
+            <form onSubmit={handleLogin}>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: F.t2, marginBottom: 6 }}>{entry === 'admin' ? '账号' : '学号'}</div>
+                <div style={{
+                  padding: '0 14px', borderRadius: 9, border: `1.5px solid ${F.border}`,
+                  background: F.white, fontSize: 13, color: F.t3, display: 'flex', alignItems: 'center', gap: 10,
+                }}>
+                  <Icon name="user" size={14} color={F.t4} />
+                  <input
+                    value={account}
+                    onChange={(e) => setAccount(e.target.value)}
+                    placeholder={entry === 'admin' ? '请输入管理员账号' : '请输入学号'}
+                    style={{ flex: 1, height: 40, border: 'none', outline: 'none', background: 'transparent', color: F.t1, font: 'inherit' }}
+                  />
                 </div>
-              ))}
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: F.t2, marginBottom: 6 }}>密码</div>
+                <div style={{
+                  padding: '0 14px', borderRadius: 9, border: `1.5px solid ${F.border}`,
+                  background: F.white, fontSize: 13, color: F.t3, display: 'flex', alignItems: 'center', gap: 10,
+                }}>
+                  <Icon name="eye" size={14} color={F.t4} />
+                  <input
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="请输入密码"
+                    type="password"
+                    style={{ flex: 1, height: 40, border: 'none', outline: 'none', background: 'transparent', color: F.t1, font: 'inherit' }}
+                  />
+                </div>
+              </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-                <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12, color: F.t3, cursor: 'pointer' }}>
-                  <div style={{ width: 14, height: 14, borderRadius: 3, border: `1.5px solid ${F.border}`, background: F.navy }} />
+                <label onClick={() => setRemember(!remember)} style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12, color: F.t3, cursor: 'pointer' }}>
+                  <div style={{ width: 14, height: 14, borderRadius: 3, border: `1.5px solid ${remember ? F.navy : F.border}`, background: remember ? F.navy : F.white }} />
                   记住登录状态
                 </label>
                 <span style={{ fontSize: 12, color: F.navy, cursor: 'pointer', fontWeight: 600 }}>忘记密码？</span>
               </div>
+              {message && (
+                <div style={{
+                  marginBottom: 14, padding: '9px 12px', borderRadius: 9,
+                  fontSize: 12, fontWeight: 600,
+                  color: message.type === 'success' ? F.green : F.red,
+                  background: message.type === 'success' ? F.greenBg : F.redBg,
+                  border: `1px solid ${message.type === 'success' ? '#BBF7D0' : '#FECACA'}`
+                }}>{message.text}</div>
+              )}
+              {loggedUser && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, fontSize: 12, color: F.t2 }}>
+                  <Avatar name={loggedUser.name} size={24} bg={entry === 'admin' ? F.navy : F.navyMid} />
+                  <span>{loggedUser.name} · {auth.hasAdmin ? '管理后台已授权' : loggedUser.departmentName || '学生'}</span>
+                  <button type="button" onClick={auth.logout} style={{ marginLeft: 'auto', border: 'none', background: 'transparent', color: F.red, cursor: 'pointer', fontSize: 12 }}>退出</button>
+                </div>
+              )}
               <button style={{
                 width: '100%', padding: '13px', borderRadius: 10,
                 background: `linear-gradient(135deg, ${F.navy}, ${F.navyMid})`,
                 color: '#fff', fontSize: 14, fontWeight: 700, border: 'none',
-                cursor: 'pointer', letterSpacing: 2,
+                cursor: loading ? 'not-allowed' : 'pointer', letterSpacing: 2,
+                opacity: loading ? 0.72 : 1,
                 boxShadow: `0 4px 20px ${F.navy}40`,
-              }}>登 录</button>
-            </div>
+              }}>{loading ? '登录中…' : '登 录'}</button>
+            </form>
           ) : (
             <div style={{ textAlign: 'center', padding: '32px 0' }}>
               <div style={{
