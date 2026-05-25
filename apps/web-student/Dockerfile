@@ -11,6 +11,8 @@ COPY apps/web-admin/package.json ./apps/web-admin/package.json
 RUN pnpm install --frozen-lockfile
 
 COPY apps/web-student ./apps/web-student
+ARG VITE_API_BASE_URL=http://localhost:3000
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 RUN pnpm --filter @ibooking/design-tokens build
 RUN pnpm --filter web-student build
 
