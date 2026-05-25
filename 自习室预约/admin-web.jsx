@@ -146,70 +146,368 @@ const AdminDashboard = () => {
 };
 
 // ── Admin 02 Room Management ──────────────────────────
+const ADMIN_ROOM_FALLBACKS = [
+  { id: 'room-gm-301', name: '经管自习室 301', building: '光华楼 A座', floor: 3, capacity: 48, scopeType: 'SCHOOL', departmentId: null, openHour: 8, closeHour: 22, overnight: false, status: 'ACTIVE' },
+  { id: 'room-science-201', name: '理工自习室 201', building: '理科楼', floor: 2, capacity: 36, scopeType: 'SCHOOL', departmentId: null, openHour: 7, closeHour: 24, overnight: false, status: 'ACTIVE' },
+  { id: 'room-humanities-a', name: '文史馆阅览室 A', building: '文史馆', floor: 1, capacity: 72, scopeType: 'SCHOOL', departmentId: null, openHour: 9, closeHour: 21, overnight: false, status: 'ACTIVE' },
+  { id: 'room-cs-lab-b', name: '计算机学院自习室 B', building: '计算机楼', floor: 4, capacity: 24, scopeType: 'DEPARTMENT', departmentId: 'dept-cs', openHour: 22, closeHour: 7, overnight: true, status: 'ACTIVE' },
+];
+
+const formatRoomHour = (hour) => `${String(hour).padStart(2, '0')}:00`;
+
+const formatRoomHours = (room) =>
+  room.overnight
+    ? `${formatRoomHour(room.openHour)}–次日 ${formatRoomHour(room.closeHour)}`
+    : `${formatRoomHour(room.openHour)}–${formatRoomHour(room.closeHour)}`;
+
+const toAdminRoomRow = (room, index) => ({
+  ...room,
+  code: `R${String(index + 1).padStart(3, '0')}`,
+  cap: room.capacity,
+  dept: room.scopeType === 'DEPARTMENT' ? '计算机学院' : '全校',
+  statusKey: room.status === 'ACTIVE' ? 'open' : 'closed',
+  hours: formatRoomHours(room),
+});
+
+const newRoomForm = () => ({
+  name: '',
+  building: '',
+  floor: 1,
+  capacity: 40,
+  scopeType: 'SCHOOL',
+  departmentId: '',
+  openHour: 7,
+  closeHour: 22,
+  overnight: false,
+});
+
+const roomToForm = (room) => ({
+  name: room.name,
+  building: room.building,
+  floor: room.floor,
+  capacity: room.capacity,
+  scopeType: room.scopeType,
+  departmentId: room.departmentId || '',
+  openHour: room.openHour,
+  closeHour: room.closeHour,
+  overnight: room.overnight,
+});
+
+const roomFieldStyle = {
+  width: '100%',
+  height: 34,
+  borderRadius: 7,
+  border: `1px solid ${F.border}`,
+  padding: '0 10px',
+  fontSize: 12,
+  color: F.t1,
+  background: F.white,
+  fontFamily: 'inherit',
+  boxSizing: 'border-box',
+};
+
+const RoomFormField = ({ label, children }) => (
+  <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 11, color: F.t2, fontWeight: 600 }}>
+    {label}
+    {children}
+  </label>
+);
+
 const RoomManagement = () => {
-  const rooms = [
-    { id: 'R001', name: '经管自习室 301', building: '光华楼 A座', floor: 3, cap: 48, dept: '全校', status: 'open', hours: '08:00–22:00' },
-    { id: 'R002', name: '理工自习室 201', building: '逸夫楼', floor: 2, cap: 64, dept: '全校', status: 'open', hours: '全天' },
-    { id: 'R003', name: '文史馆阅览室 A', building: '文史馆', floor: 1, cap: 80, dept: '文理兼容', status: 'open', hours: '08:00–21:00' },
-    { id: 'R004', name: '新闻学院研讨室', building: '新闻学院楼', floor: 4, cap: 20, dept: '新闻学院', status: 'maintenance', hours: '09:00–20:00' },
-    { id: 'R005', name: '理工自习室 403', building: '逸夫楼', floor: 4, cap: 56, dept: '全校', status: 'open', hours: '08:00–23:00' },
-    { id: 'R006', name: '逸夫综合自习区', building: '逸夫楼', floor: 1, cap: 100, dept: '全校', status: 'closed', hours: '08:00–22:00' },
-  ];
+  const auth = useAuth();
+  const [rooms, setRooms] = React.useState(() => ADMIN_ROOM_FALLBACKS.map(toAdminRoomRow));
+  const [query, setQuery] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
+  const [loadError, setLoadError] = React.useState('');
+  const [editor, setEditor] = React.useState(null);
+  const [form, setForm] = React.useState(newRoomForm);
+  const [formError, setFormError] = React.useState('');
+  const [saving, setSaving] = React.useState(false);
+
+  const accessToken = auth.session?.accessToken;
+
+  React.useEffect(() => {
+    if (!accessToken || !auth.hasAdmin) {
+      setRooms(ADMIN_ROOM_FALLBACKS.map(toAdminRoomRow));
+      setLoadError('');
+      return;
+    }
+
+    let alive = true;
+    setLoading(true);
+    fetch(`${getApiBaseUrl()}/api/v1/rooms`, {
+      credentials: 'include',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || payload?.code !== 'SUCCESS') {
+          throw new Error(payload?.message || '自习室列表加载失败');
+        }
+        if (alive) {
+          setRooms((payload.data || []).map(toAdminRoomRow));
+          setLoadError('');
+        }
+      })
+      .catch((error) => {
+        if (alive) {
+          setRooms(ADMIN_ROOM_FALLBACKS.map(toAdminRoomRow));
+          setLoadError(error.message || '自习室列表加载失败，已显示设计稿示例数据');
+        }
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+
+    return () => { alive = false; };
+  }, [accessToken, auth.hasAdmin]);
+
+  const filteredRooms = rooms.filter((room) => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return true;
+    return [room.name, room.building, room.dept].some((field) => field.toLowerCase().includes(needle));
+  });
+
+  const openCreate = () => {
+    setEditor({ mode: 'create', room: null });
+    setForm(newRoomForm());
+    setFormError('');
+  };
+
+  const openEdit = (room) => {
+    setEditor({ mode: 'edit', room });
+    setForm(roomToForm(room));
+    setFormError('');
+  };
+
+  const updateForm = (key, value) => {
+    setForm((current) => {
+      const next = { ...current, [key]: value };
+      if (key === 'scopeType') {
+        next.departmentId = value === 'DEPARTMENT' ? (current.departmentId || 'dept-cs') : '';
+      }
+      return next;
+    });
+  };
+
+  const saveRoom = async (event) => {
+    event.preventDefault();
+    if (!accessToken) {
+      setFormError('请先使用管理账号登录后再保存');
+      return;
+    }
+
+    const payload = {
+      name: form.name,
+      building: form.building,
+      floor: Number(form.floor),
+      capacity: Number(form.capacity),
+      scopeType: form.scopeType,
+      departmentId: form.scopeType === 'DEPARTMENT' ? (form.departmentId || 'dept-cs') : null,
+      openHour: Number(form.openHour),
+      closeHour: Number(form.closeHour),
+      overnight: Boolean(form.overnight),
+    };
+    const isEdit = editor?.mode === 'edit';
+    const url = isEdit
+      ? `${getApiBaseUrl()}/api/v1/rooms/${editor.room.id}`
+      : `${getApiBaseUrl()}/api/v1/rooms`;
+
+    setSaving(true);
+    setFormError('');
+    try {
+      const response = await fetch(url, {
+        method: isEdit ? 'PATCH' : 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || result?.code !== 'SUCCESS') {
+        throw new Error(result?.message || '保存失败');
+      }
+
+      setRooms((current) => {
+        const rawRooms = current.map((room) => ({ ...room }));
+        const nextRoom = result.data;
+        if (isEdit) {
+          return rawRooms.map((room) => (room.id === nextRoom.id ? nextRoom : room)).map(toAdminRoomRow);
+        }
+        return [...rawRooms, nextRoom].map(toAdminRoomRow);
+      });
+      setEditor(null);
+    } catch (error) {
+      setFormError(error.message || '保存失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <PageLayout
       sidebar={<AdminSidebar active="rooms" />}
       topbar={<TopBar title="自习室管理" sub={`共 ${rooms.length} 个自习室`} admin actions={
         <div style={{ display: 'flex', gap: 8 }}>
           <Btn variant="secondary" size="sm" icon="download">导出</Btn>
-          <Btn variant="primary" size="sm" icon="plus">新增自习室</Btn>
+          <Btn variant="primary" size="sm" icon="plus" onClick={openCreate}>新增自习室</Btn>
         </div>
       } />}
     >
-      {/* Search / filter bar */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: 8, flex: 1, background: F.white, borderRadius: 9, border: `1.5px solid ${F.border}`, padding: '8px 14px', alignItems: 'center' }}>
-          <Icon name="search" size={14} color={F.t3} />
-          <span style={{ fontSize: 13, color: F.t3 }}>搜索自习室名称、楼栋…</span>
-        </div>
-        {['全部状态', '全部楼栋', '全校开放'].map((f, i) => (
-          <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, background: F.white, border: `1px solid ${F.border}`, fontSize: 12, color: F.t2, cursor: 'pointer' }}>
-            {f}<Icon name="chevron-down" size={12} color={F.t3} />
+      <div style={{ position: 'relative', minHeight: '100%' }}>
+        {/* Search / filter bar */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 12, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 8, flex: 1, background: F.white, borderRadius: 9, border: `1.5px solid ${F.border}`, padding: '0 14px', alignItems: 'center', height: 38 }}>
+            <Icon name="search" size={14} color={F.t3} />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="搜索自习室名称、楼栋…"
+              style={{ flex: 1, border: 0, outline: 0, background: 'transparent', fontSize: 13, color: F.t1, fontFamily: 'inherit', minWidth: 0 }}
+            />
           </div>
-        ))}
-      </div>
-
-      {/* Table */}
-      <Card p={0} style={{ overflow: 'hidden' }}>
-        <div style={{ display: 'flex', padding: '12px 20px', background: F.bg, borderBottom: `1px solid ${F.border}`, fontSize: 11, color: F.t3, fontWeight: 600 }}>
-          {['编号','自习室名称','楼栋','楼层','容量','开放对象','状态','开放时间','操作'].map((h, i) => (
-            <div key={h} style={{ flex: [0.6,1.8,1.2,0.5,0.5,0.8,0.7,0.9,1][i] || 1 }}>{h}</div>
+          {['全部状态', '全部楼栋', '全校开放'].map((f) => (
+            <div key={f} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, background: F.white, border: `1px solid ${F.border}`, fontSize: 12, color: F.t2, cursor: 'pointer' }}>
+              {f}<Icon name="chevron-down" size={12} color={F.t3} />
+            </div>
           ))}
         </div>
-        {rooms.map((r, i) => {
-          const sv = r.status === 'open' ? 'green' : r.status === 'maintenance' ? 'amber' : 'gray';
-          const sl = r.status === 'open' ? '开放中' : r.status === 'maintenance' ? '维护中' : '已关闭';
-          return (
-            <div key={r.id} style={{
-              display: 'flex', padding: '13px 20px', borderBottom: `1px solid ${F.borderLight}`,
-              alignItems: 'center', background: i % 2 === 0 ? F.white : '#FAFBFD',
-            }}>
-              <div style={{ flex: 0.6, fontSize: 11, color: F.t3, fontFamily: "'Inter'" }}>{r.id}</div>
-              <div style={{ flex: 1.8, fontSize: 13, fontWeight: 600, color: F.t1 }}>{r.name}</div>
-              <div style={{ flex: 1.2, fontSize: 12, color: F.t2 }}>{r.building}</div>
-              <div style={{ flex: 0.5, fontSize: 12, color: F.t2 }}>{r.floor}楼</div>
-              <div style={{ flex: 0.5, fontSize: 12, fontWeight: 700, color: F.t1 }}>{r.cap}</div>
-              <div style={{ flex: 0.8 }}><Badge variant={r.dept === '全校' ? 'navy' : 'purple'}>{r.dept}</Badge></div>
-              <div style={{ flex: 0.7 }}><Badge variant={sv} dot>{sl}</Badge></div>
-              <div style={{ flex: 0.9, fontSize: 11, color: F.t2, fontFamily: "'Inter'" }}>{r.hours}</div>
-              <div style={{ flex: 1, display: 'flex', gap: 6 }}>
-                <Btn variant="secondary" size="xs" icon="edit">编辑</Btn>
-                <Btn variant="secondary" size="xs" icon="move">平面图</Btn>
-                <Btn variant="ghost" size="xs" icon="more-v" />
+
+        {(loading || loadError) && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+            padding: '8px 12px', borderRadius: 8,
+            background: loadError ? F.amberBg : F.navyLight,
+            color: loadError ? F.amber : F.navy,
+            fontSize: 12, border: `1px solid ${loadError ? '#FDE68A' : F.border}`,
+          }}>
+            <Icon name={loadError ? 'alert' : 'refresh'} size={14} color={loadError ? F.amber : F.navy} />
+            {loadError || '正在加载自习室列表…'}
+          </div>
+        )}
+
+        {/* Table */}
+        <Card p={0} style={{ overflow: 'hidden' }}>
+          <div style={{ display: 'flex', padding: '12px 20px', background: F.bg, borderBottom: `1px solid ${F.border}`, fontSize: 11, color: F.t3, fontWeight: 600 }}>
+            {['编号','自习室名称','楼栋','楼层','容量','开放对象','状态','开放时间','操作'].map((h, i) => (
+              <div key={h} style={{ flex: [0.6,1.8,1.2,0.5,0.5,0.8,0.7,1,1][i] || 1 }}>{h}</div>
+            ))}
+          </div>
+          {filteredRooms.map((r, i) => {
+            const sv = r.statusKey === 'open' ? 'green' : 'gray';
+            const sl = r.statusKey === 'open' ? '开放中' : '已停用';
+            return (
+              <div key={r.id} style={{
+                display: 'flex', padding: '13px 20px', borderBottom: `1px solid ${F.borderLight}`,
+                alignItems: 'center', background: i % 2 === 0 ? F.white : '#FAFBFD',
+              }}>
+                <div style={{ flex: 0.6, fontSize: 11, color: F.t3, fontFamily: "'Inter'" }}>{r.code}</div>
+                <div style={{ flex: 1.8, fontSize: 13, fontWeight: 600, color: F.t1 }}>{r.name}</div>
+                <div style={{ flex: 1.2, fontSize: 12, color: F.t2 }}>{r.building}</div>
+                <div style={{ flex: 0.5, fontSize: 12, color: F.t2 }}>{r.floor}楼</div>
+                <div style={{ flex: 0.5, fontSize: 12, fontWeight: 700, color: F.t1 }}>{r.cap}</div>
+                <div style={{ flex: 0.8 }}><Badge variant={r.dept === '全校' ? 'navy' : 'purple'}>{r.dept}</Badge></div>
+                <div style={{ flex: 0.7 }}><Badge variant={sv} dot>{sl}</Badge></div>
+                <div style={{ flex: 1, fontSize: 11, color: F.t2, fontFamily: "'Inter'" }}>{r.hours}</div>
+                <div style={{ flex: 1, display: 'flex', gap: 6 }}>
+                  <Btn variant="secondary" size="xs" icon="edit" onClick={() => openEdit(r)}>编辑</Btn>
+                  <Btn variant="secondary" size="xs" icon="move">平面图</Btn>
+                  <Btn variant="ghost" size="xs" icon="more-v" />
+                </div>
               </div>
+            );
+          })}
+          {filteredRooms.length === 0 && (
+            <div style={{ padding: 28, textAlign: 'center', color: F.t3, fontSize: 12 }}>
+              没有匹配的自习室
             </div>
-          );
-        })}
-      </Card>
+          )}
+        </Card>
+
+        {editor && (
+          <div style={{
+            position: 'absolute', top: 0, right: 0, bottom: 0, width: 380,
+            zIndex: 5, display: 'flex', justifyContent: 'flex-end',
+          }}>
+            <div style={{ position: 'absolute', inset: 0, background: 'rgba(20,46,40,0.10)' }} onClick={() => setEditor(null)} />
+            <form onSubmit={saveRoom} style={{ position: 'relative', width: 360 }}>
+              <Card p={18} style={{ height: '100%', boxShadow: F.shadowLg, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: F.t1 }}>{editor.mode === 'create' ? '新增自习室' : '编辑自习室'}</div>
+                    <div style={{ fontSize: 11, color: F.t3, marginTop: 2 }}>维护名称、楼栋、容量与开放规则</div>
+                  </div>
+                  <Btn variant="ghost" size="xs" icon="x" onClick={() => setEditor(null)} />
+                </div>
+
+                <RoomFormField label="自习室名称">
+                  <input value={form.name} onChange={(event) => updateForm('name', event.target.value)} style={roomFieldStyle} required />
+                </RoomFormField>
+                <RoomFormField label="楼栋">
+                  <input value={form.building} onChange={(event) => updateForm('building', event.target.value)} style={roomFieldStyle} required />
+                </RoomFormField>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <RoomFormField label="楼层">
+                    <input type="number" min="0" max="99" value={form.floor} onChange={(event) => updateForm('floor', Number(event.target.value))} style={roomFieldStyle} required />
+                  </RoomFormField>
+                  <RoomFormField label="容量">
+                    <input type="number" min="1" max="1000" value={form.capacity} onChange={(event) => updateForm('capacity', Number(event.target.value))} style={roomFieldStyle} required />
+                  </RoomFormField>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <RoomFormField label="开放对象">
+                    <select value={form.scopeType} onChange={(event) => updateForm('scopeType', event.target.value)} style={roomFieldStyle}>
+                      <option value="SCHOOL">全校</option>
+                      <option value="DEPARTMENT">院系</option>
+                    </select>
+                  </RoomFormField>
+                  <RoomFormField label="院系">
+                    <select
+                      value={form.scopeType === 'DEPARTMENT' ? (form.departmentId || 'dept-cs') : ''}
+                      onChange={(event) => updateForm('departmentId', event.target.value)}
+                      disabled={form.scopeType !== 'DEPARTMENT'}
+                      style={{ ...roomFieldStyle, color: form.scopeType === 'DEPARTMENT' ? F.t1 : F.t3 }}
+                    >
+                      <option value="">无</option>
+                      <option value="dept-cs">计算机学院</option>
+                    </select>
+                  </RoomFormField>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <RoomFormField label="开始小时">
+                    <input type="number" min="0" max="23" value={form.openHour} onChange={(event) => updateForm('openHour', Number(event.target.value))} style={roomFieldStyle} required />
+                  </RoomFormField>
+                  <RoomFormField label="结束小时">
+                    <input type="number" min="1" max="24" value={form.closeHour} onChange={(event) => updateForm('closeHour', Number(event.target.value))} style={roomFieldStyle} required />
+                  </RoomFormField>
+                </div>
+                <label style={{
+                  display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+                  borderRadius: 8, background: F.bg, border: `1px solid ${F.border}`,
+                  fontSize: 12, color: F.t2, fontWeight: 600,
+                }}>
+                  <input type="checkbox" checked={form.overnight} onChange={(event) => updateForm('overnight', event.target.checked)} />
+                  过夜开放
+                </label>
+
+                {formError && (
+                  <div style={{ fontSize: 11, lineHeight: 1.5, color: F.red, background: F.redBg, border: '1px solid #FECACA', borderRadius: 8, padding: '8px 10px' }}>
+                    {formError}
+                  </div>
+                )}
+
+                <div style={{ flex: 1 }} />
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                  <Btn variant="secondary" size="sm" onClick={() => setEditor(null)}>取消</Btn>
+                  <Btn variant="primary" size="sm" icon="check" type="submit" disabled={saving}>{saving ? '保存中…' : '保存'}</Btn>
+                </div>
+              </Card>
+            </form>
+          </div>
+        )}
+      </div>
     </PageLayout>
   );
 };

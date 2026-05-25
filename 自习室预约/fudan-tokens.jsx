@@ -123,7 +123,7 @@ const Badge = ({ children, variant = 'blue', dot }) => {
   );
 };
 
-const Btn = ({ children, variant = 'primary', size = 'md', icon, iconRight, style: sx }) => {
+const Btn = ({ children, variant = 'primary', size = 'md', icon, iconRight, style: sx, onClick, type = 'button', disabled }) => {
   const vs = {
     primary: { bg: F.navy, color: '#fff', border: F.navy },
     secondary: { bg: F.white, color: F.navy, border: F.border },
@@ -141,13 +141,13 @@ const Btn = ({ children, variant = 'primary', size = 'md', icon, iconRight, styl
   const v = vs[variant] || vs.primary;
   const s = ss[size] || ss.md;
   return (
-    <button style={{
+    <button type={type} disabled={disabled} onClick={onClick} style={{
       display: 'inline-flex', alignItems: 'center', gap: 6,
       padding: s.padding, fontSize: s.fontSize, fontWeight: 600,
       borderRadius: 8, background: v.bg, color: v.color,
-      border: `1.5px solid ${v.border}`, cursor: 'pointer',
+      border: `1.5px solid ${v.border}`, cursor: disabled ? 'not-allowed' : 'pointer',
       fontFamily: 'inherit', letterSpacing: 0.1, whiteSpace: 'nowrap',
-      transition: 'all 0.15s', ...sx,
+      transition: 'all 0.15s', opacity: disabled ? 0.58 : 1, ...sx,
     }}>
       {icon && <Icon name={icon} size={13} color={v.color} />}
       {children}
@@ -635,7 +635,7 @@ const SparkBar = ({ data, color, height = 40 }) => {
 
 Object.assign(window, {
   F, PATHS, Icon, Badge, Btn, Card, Divider, Avatar,
-  AuthProvider, useAuth,
+  AuthProvider, useAuth, getApiBaseUrl,
   StudentSidebar, AdminSidebar, TopBar, PageLayout,
   MobileStatusBar, MobileTabBar,
   SeatCell, SmallSeat, SparkBar,

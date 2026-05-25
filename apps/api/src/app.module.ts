@@ -7,9 +7,10 @@ import { ResponseInterceptor } from './common/response.interceptor';
 import { HealthController } from './health/health.controller';
 import { HealthService } from './health/health.service';
 import { AuthModule } from './auth/auth.module';
+import { RoomsModule } from './rooms/rooms.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule, RoomsModule],
   controllers: [HealthController],
   providers: [
     HealthService,
