@@ -107,25 +107,62 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Login to GHCR
+      - name: Resolve image registry
+        env:
+          DEFAULT_IMAGE_NAMESPACE: ${{ github.repository }}
+          PROD_IMAGE_REGISTRY: ${{ vars.PROD_IMAGE_REGISTRY }}
+          PROD_IMAGE_NAMESPACE: ${{ vars.PROD_IMAGE_NAMESPACE }}
+          PROD_API_IMAGE_REPOSITORY: ${{ vars.PROD_API_IMAGE_REPOSITORY }}
+          PROD_WEB_STUDENT_IMAGE_REPOSITORY: ${{ vars.PROD_WEB_STUDENT_IMAGE_REPOSITORY }}
+          PROD_WEB_ADMIN_IMAGE_REPOSITORY: ${{ vars.PROD_WEB_ADMIN_IMAGE_REPOSITORY }}
+        run: |
+          registry="${PROD_IMAGE_REGISTRY:-ghcr.io}"
+          namespace="${PROD_IMAGE_NAMESPACE:-$DEFAULT_IMAGE_NAMESPACE}"
+          api_repo="${PROD_API_IMAGE_REPOSITORY:-$registry/$namespace/api}"
+          web_student_repo="${PROD_WEB_STUDENT_IMAGE_REPOSITORY:-$registry/$namespace/web-student}"
+          web_admin_repo="${PROD_WEB_ADMIN_IMAGE_REPOSITORY:-$registry/$namespace/web-admin}"
+          registry_host="${api_repo%%/*}"
+          if [ "$registry_host" != "${web_student_repo%%/*}" ] || [ "$registry_host" != "${web_admin_repo%%/*}" ]; then
+            echo "All production image repositories must use the same registry host."
+            exit 1
+          fi
+
+          {
+            echo "REGISTRY_HOST=$registry_host"
+            echo "API_IMAGE_REPOSITORY=$api_repo"
+            echo "WEB_STUDENT_IMAGE_REPOSITORY=$web_student_repo"
+            echo "WEB_ADMIN_IMAGE_REPOSITORY=$web_admin_repo"
+            echo "IMAGE_TAG=${{ github.sha }}"
+          } >> "$GITHUB_ENV"
+
+      - name: Login to image registry
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USERNAME: ${{ secrets.PROD_REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.PROD_REGISTRY_PASSWORD }}
+        run: |
+          if [ "$REGISTRY_HOST" = "ghcr.io" ] && [ -z "$REGISTRY_USERNAME" ] && [ -z "$REGISTRY_PASSWORD" ]; then
+            echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+            exit 0
+          fi
+
+          if [ -z "$REGISTRY_USERNAME" ] || [ -z "$REGISTRY_PASSWORD" ]; then
+            echo "Custom image registry requires PROD_REGISTRY_USERNAME and PROD_REGISTRY_PASSWORD secrets."
+            exit 1
+          fi
+
+          echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY_HOST" -u "$REGISTRY_USERNAME" --password-stdin
 
       - name: Build images
-        env:
-          IMAGE_PREFIX: ghcr.io/${{ github.repository }}
-          IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -f apps/api/Dockerfile -t "$IMAGE_PREFIX/api:$IMAGE_TAG" -t "$IMAGE_PREFIX/api:latest" .
-          docker build -f apps/web-student/Dockerfile -t "$IMAGE_PREFIX/web-student:$IMAGE_TAG" -t "$IMAGE_PREFIX/web-student:latest" .
-          docker build -f apps/web-admin/Dockerfile -t "$IMAGE_PREFIX/web-admin:$IMAGE_TAG" -t "$IMAGE_PREFIX/web-admin:latest" .
+          docker build -f apps/api/Dockerfile -t "$API_IMAGE_REPOSITORY:$IMAGE_TAG" -t "$API_IMAGE_REPOSITORY:latest" .
+          docker build -f apps/web-student/Dockerfile -t "$WEB_STUDENT_IMAGE_REPOSITORY:$IMAGE_TAG" -t "$WEB_STUDENT_IMAGE_REPOSITORY:latest" .
+          docker build -f apps/web-admin/Dockerfile -t "$WEB_ADMIN_IMAGE_REPOSITORY:$IMAGE_TAG" -t "$WEB_ADMIN_IMAGE_REPOSITORY:latest" .
 
       - name: Smoke API image
-        env:
-          IMAGE_PREFIX: ghcr.io/${{ github.repository }}
-          IMAGE_TAG: ${{ github.sha }}
         run: |
-          container_id="$(docker run -d -p 3000:3000 "$IMAGE_PREFIX/api:$IMAGE_TAG")"
+          container_id="$(docker run -d -p 3000:3000 "$API_IMAGE_REPOSITORY:$IMAGE_TAG")"
           trap 'docker rm -f "$container_id" >/dev/null 2>&1 || true' EXIT
 
           for _ in $(seq 1 90); do
@@ -140,16 +177,13 @@ jobs:
 
       - name: Push images
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        env:
-          IMAGE_PREFIX: ghcr.io/${{ github.repository }}
-          IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker push "$IMAGE_PREFIX/api:$IMAGE_TAG"
-          docker push "$IMAGE_PREFIX/api:latest"
-          docker push "$IMAGE_PREFIX/web-student:$IMAGE_TAG"
-          docker push "$IMAGE_PREFIX/web-student:latest"
-          docker push "$IMAGE_PREFIX/web-admin:$IMAGE_TAG"
-          docker push "$IMAGE_PREFIX/web-admin:latest"
+          docker push "$API_IMAGE_REPOSITORY:$IMAGE_TAG"
+          docker push "$API_IMAGE_REPOSITORY:latest"
+          docker push "$WEB_STUDENT_IMAGE_REPOSITORY:$IMAGE_TAG"
+          docker push "$WEB_STUDENT_IMAGE_REPOSITORY:latest"
+          docker push "$WEB_ADMIN_IMAGE_REPOSITORY:$IMAGE_TAG"
+          docker push "$WEB_ADMIN_IMAGE_REPOSITORY:latest"
 
   deploy-production:
     name: deploy-production
@@ -164,6 +198,34 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Resolve image registry
+        env:
+          DEFAULT_IMAGE_NAMESPACE: ${{ github.repository }}
+          PROD_IMAGE_REGISTRY: ${{ vars.PROD_IMAGE_REGISTRY }}
+          PROD_IMAGE_NAMESPACE: ${{ vars.PROD_IMAGE_NAMESPACE }}
+          PROD_API_IMAGE_REPOSITORY: ${{ vars.PROD_API_IMAGE_REPOSITORY }}
+          PROD_WEB_STUDENT_IMAGE_REPOSITORY: ${{ vars.PROD_WEB_STUDENT_IMAGE_REPOSITORY }}
+          PROD_WEB_ADMIN_IMAGE_REPOSITORY: ${{ vars.PROD_WEB_ADMIN_IMAGE_REPOSITORY }}
+        run: |
+          registry="${PROD_IMAGE_REGISTRY:-ghcr.io}"
+          namespace="${PROD_IMAGE_NAMESPACE:-$DEFAULT_IMAGE_NAMESPACE}"
+          api_repo="${PROD_API_IMAGE_REPOSITORY:-$registry/$namespace/api}"
+          web_student_repo="${PROD_WEB_STUDENT_IMAGE_REPOSITORY:-$registry/$namespace/web-student}"
+          web_admin_repo="${PROD_WEB_ADMIN_IMAGE_REPOSITORY:-$registry/$namespace/web-admin}"
+          registry_host="${api_repo%%/*}"
+          if [ "$registry_host" != "${web_student_repo%%/*}" ] || [ "$registry_host" != "${web_admin_repo%%/*}" ]; then
+            echo "All production image repositories must use the same registry host."
+            exit 1
+          fi
+
+          {
+            echo "REGISTRY_HOST=$registry_host"
+            echo "API_IMAGE_REPOSITORY=$api_repo"
+            echo "WEB_STUDENT_IMAGE_REPOSITORY=$web_student_repo"
+            echo "WEB_ADMIN_IMAGE_REPOSITORY=$web_admin_repo"
+            echo "IMAGE_TAG=${{ github.sha }}"
+          } >> "$GITHUB_ENV"
+
       - name: Validate deployment secrets
         env:
           PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
@@ -177,16 +239,59 @@ jobs:
           fi
           echo "Deploy host: ${PROD_SSH_HOST:-cd-server}"
 
-      - name: Deploy over SSH
+      - name: Configure SSH
         env:
           PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
           SSH_USER: ${{ secrets.PROD_SSH_USER }}
           SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
-          DEPLOY_PATH: ${{ secrets.PROD_DEPLOY_PATH }}
         run: |
           SSH_HOST="${PROD_SSH_HOST:-cd-server}"
           install -m 700 -d ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
-          ssh -i ~/.ssh/id_ed25519 "$SSH_USER@$SSH_HOST" "cd '$DEPLOY_PATH' && git pull --ff-only origin main && docker compose -f infra/docker-compose.prod.yml pull && docker compose -f infra/docker-compose.prod.yml up -d"
+
+      - name: Login production registry on server
+        env:
+          PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
+          SSH_USER: ${{ secrets.PROD_SSH_USER }}
+          REGISTRY_USERNAME: ${{ secrets.PROD_REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.PROD_REGISTRY_PASSWORD }}
+        run: |
+          if [ -z "$REGISTRY_USERNAME" ] || [ -z "$REGISTRY_PASSWORD" ]; then
+            if [ "$REGISTRY_HOST" = "ghcr.io" ]; then
+              echo "No production registry credentials provided; assuming public GHCR images or existing server login."
+              exit 0
+            fi
+            echo "Custom image registry requires PROD_REGISTRY_USERNAME and PROD_REGISTRY_PASSWORD secrets for server pull."
+            exit 1
+          fi
+
+          SSH_HOST="${PROD_SSH_HOST:-cd-server}"
+          printf '%s\n' "$REGISTRY_PASSWORD" | ssh -i ~/.ssh/id_ed25519 "$SSH_USER@$SSH_HOST" "docker login '$REGISTRY_HOST' -u '$REGISTRY_USERNAME' --password-stdin"
+
+      - name: Deploy over SSH
+        env:
+          PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
+          SSH_USER: ${{ secrets.PROD_SSH_USER }}
+          DEPLOY_PATH: ${{ secrets.PROD_DEPLOY_PATH }}
+        run: |
+          SSH_HOST="${PROD_SSH_HOST:-cd-server}"
+          API_IMAGE="$API_IMAGE_REPOSITORY:$IMAGE_TAG"
+          WEB_STUDENT_IMAGE="$WEB_STUDENT_IMAGE_REPOSITORY:$IMAGE_TAG"
+          WEB_ADMIN_IMAGE="$WEB_ADMIN_IMAGE_REPOSITORY:$IMAGE_TAG"
+
+          ssh -i ~/.ssh/id_ed25519 "$SSH_USER@$SSH_HOST" \
+            "DEPLOY_PATH='$DEPLOY_PATH' API_IMAGE='$API_IMAGE' WEB_STUDENT_IMAGE='$WEB_STUDENT_IMAGE' WEB_ADMIN_IMAGE='$WEB_ADMIN_IMAGE' bash -s" <<'REMOTE'
+          set -eu
+          cd "$DEPLOY_PATH"
+          git pull --ff-only origin main
+          cat > infra/.deploy-images.env <<EOF
+          API_IMAGE=$API_IMAGE
+          WEB_STUDENT_IMAGE=$WEB_STUDENT_IMAGE
+          WEB_ADMIN_IMAGE=$WEB_ADMIN_IMAGE
+          EOF
+          docker compose --env-file infra/.deploy-images.env -f infra/docker-compose.prod.yml pull
+          docker compose --env-file infra/.deploy-images.env -f infra/docker-compose.prod.yml up -d
+          docker compose --env-file infra/.deploy-images.env -f infra/docker-compose.prod.yml ps
+          REMOTE
