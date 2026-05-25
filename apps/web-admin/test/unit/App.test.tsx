@@ -46,6 +46,12 @@ describe('管理端登录页', () => {
 
     expect(html).toContain('管理仪表盘');
     expect(html).toContain('系统管理员');
+    expect(html).toContain('2026年4月24日 · 实时数据');
+    expect(html).toContain('今日预约总数');
+    expect(html).toContain('本周座位利用率热力图');
+    expect(html).toContain('自习室实时状态');
+    expect(html).toContain('最近预约记录');
+    expect(html).toContain('导出报告');
     expect(html).toContain('自习室运行概览');
     expect(html).toContain('退出登录');
   });
@@ -117,5 +123,17 @@ describe('管理端登录页', () => {
         VITE_API_BASE_URL: 'http://xmwhzl.love:13000/'
       })
     ).toBe('http://xmwhzl.love:13000');
+  });
+
+  it('支持渲染非默认管理菜单模块', () => {
+    const html = renderToStaticMarkup(
+      <AdminDashboard adminName="系统管理员" initialActive="rooms" />
+    );
+
+    expect(html).toContain('自习室管理');
+    expect(html).toContain('共 48 个自习室');
+    expect(html).toContain('新增自习室');
+    expect(html).toContain('资源状态同步');
+    expect(html).not.toContain('本周座位利用率热力图');
   });
 });
