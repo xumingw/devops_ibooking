@@ -155,10 +155,22 @@ jobs:
           echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY_HOST" -u "$REGISTRY_USERNAME" --password-stdin
 
       - name: Build images
+        env:
+          PROD_API_PUBLIC_URL: ${{ vars.PROD_API_PUBLIC_URL }}
         run: |
+          api_public_url="${PROD_API_PUBLIC_URL:-}"
+          if [ -z "$api_public_url" ]; then
+            if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+              echo "PROD_API_PUBLIC_URL repository variable is required for production web image builds."
+              exit 1
+            else
+              api_public_url="http://localhost:3000"
+            fi
+          fi
+
           docker build -f apps/api/Dockerfile -t "$API_IMAGE_REPOSITORY:$IMAGE_TAG" -t "$API_IMAGE_REPOSITORY:latest" .
-          docker build -f apps/web-student/Dockerfile -t "$WEB_STUDENT_IMAGE_REPOSITORY:$IMAGE_TAG" -t "$WEB_STUDENT_IMAGE_REPOSITORY:latest" .
-          docker build -f apps/web-admin/Dockerfile -t "$WEB_ADMIN_IMAGE_REPOSITORY:$IMAGE_TAG" -t "$WEB_ADMIN_IMAGE_REPOSITORY:latest" .
+          docker build --build-arg VITE_API_BASE_URL="$api_public_url" -f apps/web-student/Dockerfile -t "$WEB_STUDENT_IMAGE_REPOSITORY:$IMAGE_TAG" -t "$WEB_STUDENT_IMAGE_REPOSITORY:latest" .
+          docker build --build-arg VITE_API_BASE_URL="$api_public_url" -f apps/web-admin/Dockerfile -t "$WEB_ADMIN_IMAGE_REPOSITORY:$IMAGE_TAG" -t "$WEB_ADMIN_IMAGE_REPOSITORY:latest" .
 
       - name: Smoke API image
         run: |
