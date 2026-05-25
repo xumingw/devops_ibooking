@@ -3,12 +3,35 @@ set -eu
 
 cd "$(dirname "$0")/.."
 
+test -f ../.env || {
+  echo "../.env is required for production deployment"
+  exit 1
+}
+
 if [ -f .deploy-images.env ]; then
-  docker compose --env-file .deploy-images.env -f docker-compose.prod.yml pull
-  docker compose --env-file .deploy-images.env -f docker-compose.prod.yml up -d
-  docker compose --env-file .deploy-images.env -f docker-compose.prod.yml ps
+  set -a
+  . ./.deploy-images.env
+  set +a
+  compose_env_args="--env-file ../.env --env-file .deploy-images.env"
 else
-  docker compose -f docker-compose.prod.yml pull
-  docker compose -f docker-compose.prod.yml up -d
-  docker compose -f docker-compose.prod.yml ps
+  compose_env_args="--env-file ../.env"
 fi
+
+api_port="${API_PORT:-3000}"
+compose_project_name="${COMPOSE_PROJECT_NAME:-devops_ibooking}"
+
+docker compose -p "$compose_project_name" $compose_env_args -f docker-compose.prod.yml pull
+docker compose -p "$compose_project_name" $compose_env_args -f docker-compose.prod.yml up -d mysql
+docker compose -p "$compose_project_name" $compose_env_args -f docker-compose.prod.yml run --rm api ./node_modules/.bin/prisma migrate deploy
+docker compose -p "$compose_project_name" $compose_env_args -f docker-compose.prod.yml up -d
+
+for _ in $(seq 1 60); do
+  if curl -fsS "http://127.0.0.1:${api_port}/api/v1/health" >/dev/null; then
+    docker compose -p "$compose_project_name" $compose_env_args -f docker-compose.prod.yml ps
+    exit 0
+  fi
+  sleep 2
+done
+
+docker compose -p "$compose_project_name" $compose_env_args -f docker-compose.prod.yml logs --tail=120 api
+exit 1
