@@ -2,7 +2,7 @@ import type { CSSProperties, FormEvent } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { F } from '@ibooking/design-tokens';
 
-type EntryKind = 'student' | 'admin';
+export type EntryKind = 'student' | 'admin';
 
 type Feedback = {
   type: 'success' | 'error';
@@ -28,6 +28,17 @@ type LoginPayload = {
   };
 };
 
+type ApiRuntimeEnv = {
+  VITE_API_BASE_URL?: string;
+  PROD?: boolean;
+};
+
+type LoginRequestInput = {
+  entry: EntryKind;
+  account: string;
+  password: string;
+};
+
 const AUTH_REMEMBER_KEY = 'ibooking.auth.remember';
 const ADMIN_ACCESS_TOKEN_KEY = 'ibooking.admin.accessToken';
 const STUDENT_ACCESS_TOKEN_KEY = 'ibooking.student.accessToken';
@@ -38,8 +49,41 @@ const ENTRY_PRESETS: Record<EntryKind, { account: string; password: string }> = 
   admin: { account: 'admin_full', password: 'Admin123!' }
 };
 
-const getApiBaseUrl = () =>
-  (import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
+export const resolveApiBaseUrl = (env: ApiRuntimeEnv = import.meta.env) => {
+  const configuredApiBaseUrl = env.VITE_API_BASE_URL?.trim();
+  if (configuredApiBaseUrl) {
+    return configuredApiBaseUrl.replace(/\/+$/, '');
+  }
+
+  if (env.PROD) {
+    throw new Error('生产构建缺少 VITE_API_BASE_URL，无法连接认证服务');
+  }
+
+  return 'http://localhost:3000';
+};
+
+export const requestLogin = async (
+  input: LoginRequestInput,
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl()
+) => {
+  const response = await fetcher(`${apiBaseUrl}/api/v1/auth/${input.entry}-login`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(
+      input.entry === 'admin'
+        ? { username: input.account.trim(), password: input.password }
+        : { studentId: input.account.trim(), password: input.password }
+    )
+  });
+  const payload = (await response.json().catch(() => null)) as LoginPayload | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
+    throw new Error(payload?.message || '登录失败，请稍后重试');
+  }
+
+  return payload.data;
+};
 
 const pushAppPath = (path: string) => {
   if (typeof window !== 'undefined') {
@@ -117,27 +161,14 @@ export function App() {
     setFeedback(null);
 
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/v1/auth/${entry}-login`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          entry === 'admin'
-            ? { username: account.trim(), password }
-            : { studentId: account.trim(), password }
-        )
-      });
-      const payload = (await response.json().catch(() => null)) as LoginPayload | null;
-      if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
-        throw new Error(payload?.message || '登录失败，请稍后重试');
-      }
+      const loginSession = await requestLogin({ entry, account, password });
 
       localStorage.setItem(AUTH_REMEMBER_KEY, remember ? '1' : '0');
       localStorage.setItem(
         entry === 'admin' ? ADMIN_ACCESS_TOKEN_KEY : STUDENT_ACCESS_TOKEN_KEY,
-        payload.data.accessToken
+        loginSession.accessToken
       );
-      setSession({ kind: entry, name: payload.data.user.name });
+      setSession({ kind: entry, name: loginSession.user.name });
       pushAppPath(entry === 'admin' ? '/dashboard' : '/student');
     } catch (error) {
       setFeedback({
