@@ -3,6 +3,10 @@
   "compilerOptions": {
     "module": "ESNext",
     "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@ibooking/design-tokens": ["../../packages/design-tokens/src/index.ts"]
+    },
     "types": ["vite/client"],
     "noEmit": true
   },
