@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart LR
-  feature["feature/* 或 codex/*"] -->|"PR + CI"| dev
+  feature["feature/*"] -->|"PR + CI"| dev
   dev -->|"发布 PR + CI + 来源检查"| main
   main -->|"push 后自动部署"| production["production 环境"]
 ```
@@ -13,7 +13,7 @@ flowchart LR
 
 ### dev
 
-`dev` 是日常集成分支。所有功能提交都应通过 PR 合入 `dev`，不要直接推送到 `dev`。
+`dev` 是日常集成分支。所有功能提交都应先建 `feature/<story-id>-<slug>` 分支，再通过 PR 合入 `dev`，不要直接推送到 `dev`。PR 合并后删除对应 feature 分支。
 
 Ruleset 建议：
 

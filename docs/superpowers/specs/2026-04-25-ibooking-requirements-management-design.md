@@ -203,7 +203,7 @@ API 3000 · web-student 5173 · web-admin 5174 · MySQL 3306 · Redis 6379 · Ma
 - DTO：`PascalCase` + 后缀 `…Dto` / `…ResponseDto`；每个 DTO 必须在 `packages/shared-types` 中有 Zod schema。
 - 测试可追溯性：**每个** Jest / Vitest / Playwright 测试文件顶部必须包含 `// @story USx.x.x` `// @tc TC-USx.x.x-NN`；GitHub Actions 构建任务用 grep 生成 story 覆盖报告。
 - 提交：Conventional Commits + story id 前缀，例 `feat(US3.4.1): add seat-time uniqueness constraint`。
-- 分支：`feat/<story-id>-<slug>`，PR 至少一人 review。
+- 分支：`feature/<story-id>-<slug>`，PR 至少一人 review，合并后删除 feature 分支。
 
 ---
 
