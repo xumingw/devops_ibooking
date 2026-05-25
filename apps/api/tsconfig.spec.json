@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "../..",
+    "baseUrl": "../..",
+    "paths": {
+      "@ibooking/shared-types": ["packages/shared-types/src/index.ts"]
+    }
+  }
+}
