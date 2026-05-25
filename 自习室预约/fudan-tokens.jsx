@@ -264,6 +264,13 @@ const useAuth = () => React.useContext(AuthContext) || {
 
 const getDisplayUser = (session, fallback) => session?.user || fallback;
 
+const canUseAdminItem = (auth, item) => {
+  if (!auth.session) return true;
+  if (!auth.hasAdmin) return false;
+  if (!item.permission) return true;
+  return auth.session.permissions?.some((permission) => permission.code === item.permission);
+};
+
 const Avatar = ({ name, size = 32, bg }) => {
   const char = name ? name.charAt(0) : '?';
   return (
@@ -363,24 +370,29 @@ const AdminSidebar = ({ active = 'dashboard' }) => {
   const groups = [
     { label: '概览', items: [{ id: 'dashboard', label: '管理仪表盘', icon: 'chart' }] },
     { label: '空间管理', items: [
-      { id: 'rooms', label: '自习室管理', icon: 'building' },
-      { id: 'seats', label: '座位管理', icon: 'grid' },
-      { id: 'editor', label: '平面图编辑器', icon: 'move' },
-      { id: 'schedule', label: '开放时间', icon: 'calendar' },
+      { id: 'rooms', label: '自习室管理', icon: 'building', permission: 'room.read' },
+      { id: 'seats', label: '座位管理', icon: 'grid', permission: 'seat.read' },
+      { id: 'editor', label: '平面图编辑器', icon: 'move', permission: 'seat.write' },
+      { id: 'schedule', label: '开放时间', icon: 'calendar', permission: 'room.write' },
     ]},
     { label: '运营管理', items: [
-      { id: 'bookings', label: '预约记录', icon: 'log' },
-      { id: 'violations', label: '违约记录', icon: 'alert' },
-      { id: 'qrcode', label: '动态码管理', icon: 'qr' },
+      { id: 'bookings', label: '预约记录', icon: 'log', permission: 'booking.read' },
+      { id: 'violations', label: '违约记录', icon: 'alert', permission: 'violation.read' },
+      { id: 'qrcode', label: '动态码管理', icon: 'qr', permission: 'checkin_code.manage' },
     ]},
     { label: '系统与权限', items: [
-      { id: 'users', label: '用户管理', icon: 'users' },
-      { id: 'roles', label: '角色权限', icon: 'shield' },
-      { id: 'params', label: '系统参数', icon: 'settings' },
-      { id: 'audit', label: '审计日志', icon: 'eye' },
-      { id: 'reports', label: '数据报表', icon: 'download' },
+      { id: 'users', label: '用户管理', icon: 'users', permission: 'user.read' },
+      { id: 'roles', label: '角色权限', icon: 'shield', permission: 'role.assign' },
+      { id: 'params', label: '系统参数', icon: 'settings', permission: 'param.write' },
+      { id: 'audit', label: '审计日志', icon: 'eye', permission: 'audit.read' },
+      { id: 'reports', label: '数据报表', icon: 'download', permission: 'report.read' },
     ]},
-  ];
+  ]
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => canUseAdminItem(auth, item))
+    }))
+    .filter((group) => group.items.length > 0);
   return (
     <div style={{ width: 224, background: '#142E28', height: '100%', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
       <div style={{ padding: '18px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
@@ -402,6 +414,15 @@ const AdminSidebar = ({ active = 'dashboard' }) => {
         </div>
       </div>
       <nav style={{ flex: 1, padding: '6px 8px', overflowY: 'auto' }}>
+        {groups.length === 0 && (
+          <div style={{
+            margin: '18px 8px', padding: 12, borderRadius: 8,
+            background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.48)',
+            fontSize: 11, lineHeight: 1.6,
+          }}>
+            当前账号暂无后台菜单权限
+          </div>
+        )}
         {groups.map(g => (
           <div key={g.label} style={{ marginBottom: 2 }}>
             <div style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.22)', fontWeight: 700, letterSpacing: 1.2, padding: '8px 6px 3px', textTransform: 'uppercase' }}>{g.label}</div>

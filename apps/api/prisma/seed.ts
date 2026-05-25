@@ -20,19 +20,41 @@ async function main() {
 
   const permissions = await Promise.all([
     upsertPermission('perm-booking-create', 'booking.create', '创建预约', 'bookings'),
+    upsertPermission('perm-booking-read', 'booking.read', '查看预约', 'bookings'),
     upsertPermission('perm-room-read', 'room.read', '查看自习室', 'rooms'),
     upsertPermission('perm-room-write', 'room.write', '维护自习室', 'rooms'),
+    upsertPermission('perm-seat-read', 'seat.read', '查看座位', 'seats'),
     upsertPermission('perm-seat-write', 'seat.write', '维护座位', 'seats'),
+    upsertPermission('perm-violation-read', 'violation.read', '查看违约', 'violations'),
+    upsertPermission('perm-checkin-code-manage', 'checkin_code.manage', '管理动态码', 'qrcode'),
+    upsertPermission('perm-user-read', 'user.read', '查看用户', 'users'),
+    upsertPermission('perm-role-assign', 'role.assign', '分配角色', 'roles'),
+    upsertPermission('perm-param-write', 'param.write', '维护系统参数', 'params'),
+    upsertPermission('perm-audit-read', 'audit.read', '查看审计日志', 'audit'),
     upsertPermission('perm-report-read', 'report.read', '查看报表', 'reports')
   ]);
 
   const [studentRole, fullAdminRole, roomAdminRole, auditRole] = roles;
-  const [bookingCreate, roomRead, roomWrite, seatWrite, reportRead] = permissions;
+  const permissionByCode = Object.fromEntries(
+    permissions.map((permission) => [permission.code, permission])
+  );
 
-  await linkRolePermissions(studentRole.id, [bookingCreate.id]);
+  await linkRolePermissions(studentRole.id, [permissionByCode['booking.create'].id]);
   await linkRolePermissions(fullAdminRole.id, permissions.map((permission) => permission.id));
-  await linkRolePermissions(roomAdminRole.id, [roomRead.id, roomWrite.id, seatWrite.id]);
-  await linkRolePermissions(auditRole.id, [roomRead.id, reportRead.id]);
+  await linkRolePermissions(roomAdminRole.id, [
+    permissionByCode['room.read'].id,
+    permissionByCode['room.write'].id,
+    permissionByCode['seat.read'].id,
+    permissionByCode['seat.write'].id,
+    permissionByCode['checkin_code.manage'].id
+  ]);
+  await linkRolePermissions(auditRole.id, [
+    permissionByCode['booking.read'].id,
+    permissionByCode['room.read'].id,
+    permissionByCode['violation.read'].id,
+    permissionByCode['audit.read'].id,
+    permissionByCode['report.read'].id
+  ]);
 
   await upsertUser({
     id: 'user-stu-cse-01',
@@ -65,6 +87,39 @@ async function main() {
     departmentId: null,
     status: 'ACTIVE',
     roleIds: [fullAdminRole.id]
+  });
+
+  await upsertUser({
+    id: 'user-room-admin-01',
+    studentNo: 'roomAdmin01',
+    name: '李思源',
+    email: 'roomAdmin01@fudan.edu.cn',
+    password: 'Admin123!',
+    departmentId: null,
+    status: 'ACTIVE',
+    roleIds: [roomAdminRole.id]
+  });
+
+  await upsertUser({
+    id: 'user-audit-01',
+    studentNo: 'audit01',
+    name: '周明',
+    email: 'audit01@fudan.edu.cn',
+    password: 'Admin123!',
+    departmentId: null,
+    status: 'ACTIVE',
+    roleIds: [auditRole.id]
+  });
+
+  await upsertUser({
+    id: 'user-no-perm-01',
+    studentNo: 'noPerm01',
+    name: '无权限账号',
+    email: 'noPerm01@fudan.edu.cn',
+    password: 'Admin123!',
+    departmentId: null,
+    status: 'ACTIVE',
+    roleIds: []
   });
 }
 
