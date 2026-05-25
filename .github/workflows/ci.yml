@@ -1,13 +1,18 @@
 name: CI
 
+permissions:
+  contents: read
+  packages: write
+
 on:
   push:
-    branches: [main, dev, "codex/**"]
+    branches: [main, dev]
   pull_request:
     branches: [main, dev]
 
 jobs:
-  build-test:
+  lint:
+    name: lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -27,14 +32,29 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Story trace
-        run: pnpm story:trace
-
       - name: Lint
         run: pnpm lint
 
-      - name: Test
-        run: pnpm test
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
 
       - name: Prisma generate
         run: pnpm --filter api prisma:generate
@@ -42,5 +62,113 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Export OpenAPI
-        run: pnpm openapi:export
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Test
+        run: pnpm test
+
+  release-source-guard:
+    name: release-source-guard
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    steps:
+      - name: Only allow dev to release into main
+        run: |
+          if [ "${{ github.head_ref }}" != "dev" ]; then
+            echo "main 只能接受 dev -> main 的发布 PR。当前来源分支: ${{ github.head_ref }}"
+            exit 1
+          fi
+
+  docker-build:
+    name: docker-build
+    runs-on: ubuntu-latest
+    if: (github.event_name == 'pull_request' && github.base_ref == 'main') || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    needs: [lint, build, test]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build images
+        env:
+          IMAGE_PREFIX: ghcr.io/${{ github.repository }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -f apps/api/Dockerfile -t "$IMAGE_PREFIX/api:$IMAGE_TAG" -t "$IMAGE_PREFIX/api:latest" .
+          docker build -f apps/web-student/Dockerfile -t "$IMAGE_PREFIX/web-student:$IMAGE_TAG" -t "$IMAGE_PREFIX/web-student:latest" .
+          docker build -f apps/web-admin/Dockerfile -t "$IMAGE_PREFIX/web-admin:$IMAGE_TAG" -t "$IMAGE_PREFIX/web-admin:latest" .
+
+      - name: Push images
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          IMAGE_PREFIX: ghcr.io/${{ github.repository }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker push "$IMAGE_PREFIX/api:$IMAGE_TAG"
+          docker push "$IMAGE_PREFIX/api:latest"
+          docker push "$IMAGE_PREFIX/web-student:$IMAGE_TAG"
+          docker push "$IMAGE_PREFIX/web-student:latest"
+          docker push "$IMAGE_PREFIX/web-admin:$IMAGE_TAG"
+          docker push "$IMAGE_PREFIX/web-admin:latest"
+
+  deploy-production:
+    name: deploy-production
+    runs-on: ubuntu-latest
+    needs: docker-build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production
+    concurrency:
+      group: production
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate deployment secrets
+        env:
+          PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
+          SSH_USER: ${{ secrets.PROD_SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          DEPLOY_PATH: ${{ secrets.PROD_DEPLOY_PATH }}
+        run: |
+          if [ -z "$SSH_USER" ] || [ -z "$SSH_PRIVATE_KEY" ] || [ -z "$DEPLOY_PATH" ]; then
+            echo "Missing one or more required production secrets: PROD_SSH_USER, PROD_SSH_PRIVATE_KEY, PROD_DEPLOY_PATH"
+            exit 1
+          fi
+          echo "Deploy host: ${PROD_SSH_HOST:-cd-server}"
+
+      - name: Deploy over SSH
+        env:
+          PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
+          SSH_USER: ${{ secrets.PROD_SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          DEPLOY_PATH: ${{ secrets.PROD_DEPLOY_PATH }}
+        run: |
+          SSH_HOST="${PROD_SSH_HOST:-cd-server}"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+          ssh -i ~/.ssh/id_ed25519 "$SSH_USER@$SSH_HOST" "cd '$DEPLOY_PATH' && git pull --ff-only origin main && docker compose -f infra/docker-compose.prod.yml pull && docker compose -f infra/docker-compose.prod.yml up -d"

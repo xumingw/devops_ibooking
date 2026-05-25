@@ -37,9 +37,10 @@ Conventional Commits + story id 前缀：
 
 ### 3.2 分支命名
 
-- 格式：`feat/<story-id>-<slug>`
-- 示例：`feat/US3.4.1-seat-time-unique`
+- 格式：`feature/<story-id>-<slug>`
+- 示例：`feature/US3.4.1-seat-time-unique`
 - 主分支：`main`（受保护，不允许直推）+ `dev`（集成分支）。
+- Feature 分支合并后立即删除本地与远端分支。
 
 ### 3.3 PR 流程
 

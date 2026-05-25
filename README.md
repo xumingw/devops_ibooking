@@ -39,8 +39,10 @@ pnpm openapi:export
 ## GitHub 协作
 
 - `main` 分支应开启保护：禁止直推，PR 至少 1 人 review，CI 全绿后合并。
+- `dev` 是日常集成分支，所有 `feature/<story-id>-<slug>` 分支通过 PR 合入 `dev`，合并后删除 feature 分支。
+- `main` 是发布分支，只允许 `dev -> main` 的发布 PR。
 - Story 和测试用例在 GitHub Projects / GitHub Issues 中跟踪。
-- CI 使用 `.github/workflows/ci.yml`。
+- CI/CD 使用 `.github/workflows/ci.yml`，详细规则见 `docs/deployment/github-actions.md`。
 
 ## 演示账号
 
