@@ -73,7 +73,7 @@ VITE_API_BASE_URL=, VITE_WS_URL=
 - DTO：`PascalCase` + 后缀 `…Dto` / `…ResponseDto`；每个 DTO 必须在 `packages/shared-types` 中有 Zod schema。
 - 测试可追溯性：每个 Jest / Vitest / Playwright 测试文件顶部必须含 `// @story USx.x.x` `// @tc TC-USx.x.x-NN`；构建任务 grep 生成 story 覆盖报告。
 - 提交：Conventional Commits + story id 前缀，例 `feat(US3.4.1): add seat-time uniqueness constraint`。
-- 分支：`feat/<story-id>-<slug>`，PR 至少 1 人 review。
+- 分支：`feature/<story-id>-<slug>`，PR 至少 1 人 review，合并后删除 feature 分支。
 
 ### 0.0.2 项目骨架目录树
 
@@ -502,7 +502,7 @@ ibooking/
       - 负责人: TBD
       - 预估工时: TBD
       - 依赖任务: US0.4.1-T01
-      - 实施要点: main（受保护，不可直推）+ dev + feat/<US-id>-slug；PR 至少 1 reviewer 才可合并。
+      - 实施要点: main（受保护，不可直推）+ dev + feature/<US-id>-slug；PR 至少 1 reviewer 才可合并，合并后删除 feature 分支。
       - 验收: 仓库分支保护规则上线；尝试直接 push 到 main 被拒绝；PR 缺少 reviewer 时无法合并。
     - [ ] **US0.4.1-T03** 定义提交信息和 PR 模板
       - 负责人: TBD

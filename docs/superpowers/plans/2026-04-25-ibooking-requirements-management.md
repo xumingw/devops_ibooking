@@ -147,7 +147,7 @@ E0 stories are governance-flavored. 关联设计稿 field for ALL E0 stories: `�
 - US0.2.1-T01 (创建后端工程): `apps/api 目录用 \`pnpm create nest-cli\`；引入 @nestjs/config、@nestjs/swagger；暴露 GET /api/v1/health`
 - US0.2.2-T01 (建立数据库迁移机制): `Prisma migrate；prisma/schema.prisma 占位 User 模型；package.json 添加 db:migrate:dev / db:migrate:deploy 脚本`
 - US0.3.1-T01 (定义核心领域模型): `在 packages/shared-types 定义 Zod schema 与 TS 类型；entities: User, Role, Permission, Room, Seat, Booking, Violation`
-- US0.4.1-T01 (代码仓库与分支策略): `main + dev + feat/<US-id>-slug；PR 至少 1 人 review；commit 用 conventional commits + story id 前缀`
+- US0.4.1-T01 (代码仓库与分支策略): `main + dev + feature/<US-id>-slug；PR 至少 1 人 review；commit 用 conventional commits + story id 前缀`
 
 - [ ] **Step 3: Validate E0 region**
 
@@ -494,7 +494,7 @@ Run: `grep "测试目的\|测试类型\|前置条件\|测试数据\|操作步骤
 - 提交格式: Conventional Commits + story id 前缀
   - 示例: `feat(US3.4.1): add seat-time uniqueness constraint`
   - 类型: feat / fix / docs / refactor / test / chore / build / ci
-- 分支命名: `feat/<story-id>-<slug>` (例 `feat/US3.4.1-seat-time-unique`)
+- 分支命名: `feature/<story-id>-<slug>` (例 `feature/US3.4.1-seat-time-unique`)，PR 合并后删除 feature 分支
 - PR 流程: 关联 story id → 至少 1 人 review → CI 全绿 → squash merge 到 main
 
 ## 测试可追溯性
@@ -512,7 +512,7 @@ GitHub Actions 构建任务用 grep 生成 story 覆盖报告（USx.x.x → 测�
 - [ ] **Step 3: Validate**
 
 Run: `grep -c "^## " docs/iterations/_shared/conventions.md` — expected: ≥ 4.
-Run: `grep "@story\|@tc\|Conventional Commits\|feat/<" docs/iterations/_shared/conventions.md` — expected: 全部命中.
+Run: `grep "@story\|@tc\|Conventional Commits\|feature/<" docs/iterations/_shared/conventions.md` — expected: 全部命中.
 
 - [ ] **Step 4: Save**
 
