@@ -20,6 +20,7 @@ export interface User {
   studentNo: string;
   name: string;
   departmentId: string | null;
+  departmentName?: string | null;
   status: UserStatus;
 }
 
@@ -33,6 +34,30 @@ export interface Permission {
   id: string;
   code: string;
   name: string;
+  menuKey?: string | null;
+}
+
+export interface AuthUser {
+  id: string;
+  studentNo: string;
+  name: string;
+  departmentId: string | null;
+  departmentName: string | null;
+  status: UserStatus;
+}
+
+export interface LoginResponse {
+  accessToken: string;
+  expiresAt: string;
+  user: AuthUser;
+  roles: Role[];
+  permissions: Permission[];
+}
+
+export interface MeResponse {
+  user: AuthUser;
+  roles: Role[];
+  permissions: Permission[];
 }
 
 export interface Room {

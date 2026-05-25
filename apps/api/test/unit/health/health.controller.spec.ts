@@ -1,8 +1,8 @@
 // @story US0.2.1
 // @tc TC-US0.2.1-01
 import { Test } from '@nestjs/testing';
-import { HealthController } from './health.controller';
-import { HealthService } from './health.service';
+import { HealthController } from '../../../src/health/health.controller';
+import { HealthService } from '../../../src/health/health.service';
 
 describe('HealthController', () => {
   it('返回 I0 健康检查数据，不在 controller 内包装统一响应', () => {

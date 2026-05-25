@@ -6,9 +6,10 @@ import { RequestContextMiddleware } from './common/request-context.middleware';
 import { ResponseInterceptor } from './common/response.interceptor';
 import { HealthController } from './health/health.controller';
 import { HealthService } from './health/health.service';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true })],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule],
   controllers: [HealthController],
   providers: [
     HealthService,
