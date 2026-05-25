@@ -1,19 +1,19 @@
 export const F = {
-  navy: '#0f4c4c',
-  navy2: '#083b3b',
-  teal: '#1f8a83',
-  mint: '#e9f6f2',
-  gold: '#c99a2e',
-  goldLight: '#fff4d6',
-  ink: '#172033',
-  muted: '#667085',
-  line: '#d9e4df',
-  bg: '#f5f7f6',
-  white: '#ffffff',
-  danger: '#c2410c',
-  success: '#15803d',
+  navy: '#2D7A6E',
+  navy2: '#1A3830',
+  teal: '#3D8C7E',
+  mint: '#EBF6F4',
+  gold: '#D4A843',
+  goldLight: '#FDF6E0',
+  ink: '#1A2E2A',
+  muted: '#8AAAA4',
+  line: '#D8E8E5',
+  bg: '#F2F7F6',
+  white: '#FAFEFE',
+  danger: '#C84040',
+  success: '#2D9A5C',
   radius: 8,
-  shadow: '0 12px 32px rgba(15, 76, 76, 0.12)'
+  shadow: '0 1px 4px rgba(26,56,48,0.07), 0 4px 16px rgba(26,56,48,0.05)'
 } as const;
 
 export const PATHS = {
