@@ -1,6 +1,7 @@
 FROM node:20-alpine AS build
 
 WORKDIR /app
+RUN apk add --no-cache openssl
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
@@ -19,6 +20,7 @@ FROM node:20-alpine AS runtime
 
 WORKDIR /app
 ENV NODE_ENV=production
+RUN apk add --no-cache openssl
 
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages/shared-types/package.json ./packages/shared-types/package.json
