@@ -121,6 +121,58 @@ async function main() {
     status: 'ACTIVE',
     roleIds: []
   });
+
+  await upsertRoom({
+    id: 'room-gm-301',
+    name: '经管自习室 301',
+    building: '光华楼 A座',
+    floor: 3,
+    capacity: 48,
+    scopeType: 'SCHOOL',
+    departmentId: null,
+    openHour: 8,
+    closeHour: 22,
+    overnight: false
+  });
+
+  await upsertRoom({
+    id: 'room-science-201',
+    name: '理工自习室 201',
+    building: '理科楼',
+    floor: 2,
+    capacity: 36,
+    scopeType: 'SCHOOL',
+    departmentId: null,
+    openHour: 7,
+    closeHour: 24,
+    overnight: false
+  });
+
+  await upsertRoom({
+    id: 'room-humanities-a',
+    name: '文史馆阅览室 A',
+    building: '文史馆',
+    floor: 1,
+    capacity: 72,
+    scopeType: 'SCHOOL',
+    departmentId: null,
+    openHour: 9,
+    closeHour: 21,
+    overnight: false
+  });
+
+  await upsertRoom({
+    id: 'room-cs-lab-b',
+    name: '计算机学院自习室 B',
+    building: '计算机楼',
+    floor: 4,
+    capacity: 24,
+    scopeType: 'DEPARTMENT',
+    departmentId: cs.id,
+    openHour: 22,
+    closeHour: 7,
+    overnight: true
+  });
 }
 
 async function upsertRole(id: string, code: string, name: string) {
@@ -181,6 +233,38 @@ async function upsertUser(input: {
   await prisma.userRole.createMany({
     data: input.roleIds.map((roleId) => ({ userId: user.id, roleId })),
     skipDuplicates: true
+  });
+}
+
+async function upsertRoom(input: {
+  id: string;
+  name: string;
+  building: string;
+  floor: number;
+  capacity: number;
+  scopeType: 'SCHOOL' | 'DEPARTMENT';
+  departmentId: string | null;
+  openHour: number;
+  closeHour: number;
+  overnight: boolean;
+}) {
+  await prisma.room.upsert({
+    where: { name: input.name },
+    update: {
+      building: input.building,
+      floor: input.floor,
+      capacity: input.capacity,
+      scopeType: input.scopeType,
+      departmentId: input.departmentId,
+      openHour: input.openHour,
+      closeHour: input.closeHour,
+      overnight: input.overnight,
+      status: 'ACTIVE'
+    },
+    create: {
+      ...input,
+      status: 'ACTIVE'
+    }
   });
 }
 

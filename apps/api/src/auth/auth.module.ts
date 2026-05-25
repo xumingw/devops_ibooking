@@ -41,7 +41,7 @@ import { PermissionsGuard } from './permissions.guard';
       })
     }
   ],
-  exports: [AuthGuard, PermissionsGuard]
+  exports: [AuthService, AuthGuard, PermissionsGuard]
 })
 export class AuthModule {}
 
