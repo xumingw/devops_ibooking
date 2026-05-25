@@ -311,23 +311,50 @@ jobs:
           PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
           SSH_USER: ${{ secrets.PROD_SSH_USER }}
           DEPLOY_PATH: ${{ secrets.PROD_DEPLOY_PATH }}
+          PROD_API_PORT: ${{ vars.PROD_API_PORT }}
+          PROD_WEB_STUDENT_PORT: ${{ vars.PROD_WEB_STUDENT_PORT }}
+          PROD_WEB_ADMIN_PORT: ${{ vars.PROD_WEB_ADMIN_PORT }}
         run: |
           SSH_HOST="${PROD_SSH_HOST:-cd-server}"
           API_IMAGE="$API_IMAGE_REPOSITORY:$IMAGE_TAG"
           WEB_STUDENT_IMAGE="$WEB_STUDENT_IMAGE_REPOSITORY:$IMAGE_TAG"
           WEB_ADMIN_IMAGE="$WEB_ADMIN_IMAGE_REPOSITORY:$IMAGE_TAG"
+          API_PORT="${PROD_API_PORT:-3000}"
+          WEB_STUDENT_PORT="${PROD_WEB_STUDENT_PORT:-5173}"
+          WEB_ADMIN_PORT="${PROD_WEB_ADMIN_PORT:-5174}"
 
           ssh -i ~/.ssh/id_ed25519 "$SSH_USER@$SSH_HOST" \
-            "DEPLOY_PATH='$DEPLOY_PATH' API_IMAGE='$API_IMAGE' WEB_STUDENT_IMAGE='$WEB_STUDENT_IMAGE' WEB_ADMIN_IMAGE='$WEB_ADMIN_IMAGE' bash -s" <<'REMOTE'
+            "DEPLOY_PATH='$DEPLOY_PATH' API_IMAGE='$API_IMAGE' WEB_STUDENT_IMAGE='$WEB_STUDENT_IMAGE' WEB_ADMIN_IMAGE='$WEB_ADMIN_IMAGE' API_PORT='$API_PORT' WEB_STUDENT_PORT='$WEB_STUDENT_PORT' WEB_ADMIN_PORT='$WEB_ADMIN_PORT' bash -s" <<'REMOTE'
           set -eu
           cd "$DEPLOY_PATH"
           git pull --ff-only origin main
+          test -f .env || {
+            echo "$DEPLOY_PATH/.env is required for production deployment"
+            exit 1
+          }
           cat > infra/.deploy-images.env <<EOF
           API_IMAGE=$API_IMAGE
           WEB_STUDENT_IMAGE=$WEB_STUDENT_IMAGE
           WEB_ADMIN_IMAGE=$WEB_ADMIN_IMAGE
+          API_PORT=$API_PORT
+          WEB_STUDENT_PORT=$WEB_STUDENT_PORT
+          WEB_ADMIN_PORT=$WEB_ADMIN_PORT
           EOF
-          docker compose --env-file infra/.deploy-images.env -f infra/docker-compose.prod.yml pull
-          docker compose --env-file infra/.deploy-images.env -f infra/docker-compose.prod.yml up -d
-          docker compose --env-file infra/.deploy-images.env -f infra/docker-compose.prod.yml ps
+          compose_project_name="devops_ibooking"
+          compose_env_args="--env-file .env --env-file infra/.deploy-images.env"
+          docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml pull
+          docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml up -d mysql
+          docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml run --rm api ./node_modules/.bin/prisma migrate deploy
+          docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml up -d
+
+          for _ in $(seq 1 60); do
+            if curl -fsS "http://127.0.0.1:${API_PORT}/api/v1/health" >/dev/null; then
+              docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml ps
+              exit 0
+            fi
+            sleep 2
+          done
+
+          docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml logs --tail=120 api
+          exit 1
           REMOTE
