@@ -6,6 +6,8 @@ import { AUTH_OPTIONS, AUTH_REPOSITORY, AuthService } from './auth.service';
 import { PasswordHasher } from './password-hasher';
 import { PrismaAuthRepository } from './prisma-auth.repository';
 import { TokenService } from './token.service';
+import { AuthGuard } from './auth.guard';
+import { PermissionsGuard } from './permissions.guard';
 
 @Module({
   controllers: [AuthController],
@@ -13,6 +15,8 @@ import { TokenService } from './token.service';
     PrismaService,
     PasswordHasher,
     AuthService,
+    AuthGuard,
+    PermissionsGuard,
     PrismaAuthRepository,
     {
       provide: AUTH_REPOSITORY,
@@ -36,7 +40,8 @@ import { TokenService } from './token.service';
         )
       })
     }
-  ]
+  ],
+  exports: [AuthGuard, PermissionsGuard]
 })
 export class AuthModule {}
 
