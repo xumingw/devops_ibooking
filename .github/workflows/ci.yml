@@ -120,6 +120,24 @@ jobs:
           docker build -f apps/web-student/Dockerfile -t "$IMAGE_PREFIX/web-student:$IMAGE_TAG" -t "$IMAGE_PREFIX/web-student:latest" .
           docker build -f apps/web-admin/Dockerfile -t "$IMAGE_PREFIX/web-admin:$IMAGE_TAG" -t "$IMAGE_PREFIX/web-admin:latest" .
 
+      - name: Smoke API image
+        env:
+          IMAGE_PREFIX: ghcr.io/${{ github.repository }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          container_id="$(docker run -d -p 3000:3000 "$IMAGE_PREFIX/api:$IMAGE_TAG")"
+          trap 'docker rm -f "$container_id" >/dev/null 2>&1 || true' EXIT
+
+          for _ in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:3000/api/v1/health; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          docker logs "$container_id"
+          exit 1
+
       - name: Push images
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
