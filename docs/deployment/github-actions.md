@@ -4,9 +4,9 @@
 
 ```mermaid
 flowchart LR
-  feature["feature/*"] -->|"PR + CI"| dev
-  dev -->|"发布 PR + CI + 来源检查"| main
-  main -->|"push 后自动部署"| production["production 环境"]
+  feature["feature/*"] -->|"PR: lint + build + test"| dev
+  dev -->|"发布 PR: lint + build + test + release-source-guard + docker-build"| main
+  main -->|"push: docker-build + deploy-production"| production["production 环境"]
 ```
 
 ## 分支规则
@@ -22,7 +22,10 @@ Ruleset 建议：
 - Block force pushes
 - Require a pull request before merging
 - Required approvals: `1`
-- Require status checks to pass: `build-test`
+- Require status checks to pass:
+  - `lint`
+  - `build`
+  - `test`
 
 ### main
 
@@ -36,10 +39,13 @@ Ruleset 建议：
 - Require a pull request before merging
 - Required approvals: `1`
 - Require status checks to pass:
-  - `build-test`
+  - `lint`
+  - `build`
+  - `test`
   - `release-source-guard`
+  - `docker-build`
 
-`release-source-guard` 会拒绝任何不是从 `dev` 发起到 `main` 的 PR。
+`release-source-guard` 会拒绝任何不是从 `dev` 发起到 `main` 的 PR。`docker-build` 会构建 API、学生端、管理端三个镜像；PR 阶段只构建验证，`main` push 阶段会推送到 GHCR。
 
 ## 自动部署
 
@@ -49,7 +55,7 @@ Ruleset 建议：
 
 | Secret | 说明 |
 |---|---|
-| `PROD_SSH_HOST` | 生产服务器地址 |
+| `PROD_SSH_HOST` | 生产服务器地址；未配置时默认使用 `cd-server` |
 | `PROD_SSH_USER` | SSH 用户 |
 | `PROD_SSH_PRIVATE_KEY` | 部署私钥 |
 | `PROD_DEPLOY_PATH` | 服务器上的仓库目录 |
@@ -62,4 +68,4 @@ docker compose -f infra/docker-compose.prod.yml pull
 docker compose -f infra/docker-compose.prod.yml up -d
 ```
 
-如果还没有生产服务器，可以先不要把 `deploy-production` 设为 required check；等 secrets 和服务器准备好后再启用。
+如果 GHCR package 是私有的，`cd-server` 需要提前 `docker login ghcr.io`。如果还没有生产服务器，可以先不要把 `deploy-production` 设为 required check；等 secrets 和服务器准备好后再启用。
