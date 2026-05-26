@@ -5658,6 +5658,203 @@ button {
   font-size: 9px;
 }
 
+.student-rooms-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.student-rooms-filterbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.student-rooms-filterbar > span {
+  color: #8aaaa4;
+  font-size: 12px;
+}
+
+.student-rooms-filterchips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.student-rooms-filterchips button {
+  height: 30px;
+  border: 1px solid #d8e8e5;
+  border-radius: 999px;
+  padding: 0 14px;
+  background: #fafefe;
+  color: #4a6b64;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.student-rooms-filterchips button.is-active {
+  border-color: #2d7a6e;
+  background: #2d7a6e;
+  color: #ffffff;
+}
+
+.student-rooms-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.student-room-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+}
+
+.student-room-card header,
+.student-room-card footer,
+.student-room-seat-meter > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.student-room-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #ecf4f2;
+  color: #2d7a6e;
+}
+
+.student-room-card mark {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #d8e8e5;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: #ecf4f2;
+  color: #4a6b64;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.student-room-card mark[data-variant="green"] {
+  border-color: #bbf7d0;
+  background: #f0faf4;
+  color: #2d9a5c;
+}
+
+.student-room-card mark[data-variant="gold"] {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #c8820a;
+}
+
+.student-room-card mark[data-variant="red"] {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #c84040;
+}
+
+.student-room-card > strong {
+  color: #1a2e2a;
+  font-size: 14px;
+}
+
+.student-room-card > small,
+.student-room-card footer > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #8aaaa4;
+  font-size: 11px;
+}
+
+.student-room-seat-meter {
+  display: grid;
+  gap: 6px;
+}
+
+.student-room-seat-meter span {
+  color: #8aaaa4;
+  font-size: 11px;
+}
+
+.student-room-seat-meter strong {
+  color: #2d9a5c;
+  font-size: 11px;
+}
+
+.student-room-seat-meter i {
+  height: 6px;
+  display: block;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #ecf4f2;
+}
+
+.student-room-seat-meter b {
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  background: #2d9a5c;
+}
+
+.student-room-seat-meter b[data-variant="gold"] {
+  background: #c8820a;
+}
+
+.student-room-seat-meter b[data-variant="red"] {
+  background: #c84040;
+}
+
+.student-room-tags {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.student-room-tags span {
+  border: 1px solid #d8e8e5;
+  border-radius: 999px;
+  padding: 2px 7px;
+  background: #ecf4f2;
+  color: #4a6b64;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.student-room-card footer {
+  margin-top: auto;
+  border-top: 1px solid #ecf4f2;
+  padding-top: 12px;
+}
+
+.student-room-card footer button {
+  height: 31px;
+  border: 1.5px solid #2d7a6e;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #2d7a6e;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.student-room-card footer button.is-waitlist {
+  border-color: #d8e8e5;
+  background: #fafefe;
+  color: #2d7a6e;
+}
+
 @media (max-width: 860px) {
   .admin-login-page {
     grid-template-columns: 1fr;
@@ -5773,6 +5970,10 @@ button {
     text-align: left;
   }
 
+  .student-rooms-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .admin-brand-panel {
     min-height: 320px;
     padding: 32px 28px;
@@ -5873,6 +6074,15 @@ button {
 
   .student-home-quick-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .student-rooms-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .student-rooms-filterbar {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .login-card {
