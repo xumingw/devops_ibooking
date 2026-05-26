@@ -862,6 +862,95 @@ const FLOOR_STATUS_LABELS: Record<FloorSeatStatus, string> = {
   disabled: '停用'
 };
 
+const SCHEDULE_SUMMARY = [
+  {
+    label: '全校默认时段',
+    value: '07:00–22:00',
+    note: '未配置时回退默认',
+    icon: 'calendar',
+    tone: F.navy
+  },
+  {
+    label: '整点时段',
+    value: '1 小时粒度',
+    note: '选座与预约统一按整点计算',
+    icon: 'grid',
+    tone: '#3A6FA8'
+  },
+  {
+    label: '跨天开放',
+    value: '4 间',
+    note: '支持 22:00–次日 07:00',
+    icon: 'refresh',
+    tone: F.gold
+  },
+  {
+    label: '特殊日期优先',
+    value: '2 条',
+    note: '节假日、考试周、维修日覆盖默认',
+    icon: 'alert',
+    tone: '#C84040'
+  }
+] satisfies Array<{
+  label: string;
+  value: string;
+  note: string;
+  icon: DashboardIconName;
+  tone: string;
+}>;
+
+const SCHEDULE_RULES = [
+  {
+    room: '经管自习室 301',
+    scope: '工作日',
+    time: '08:00–22:00',
+    type: '常规开放',
+    status: '生效中',
+    note: '全校开放'
+  },
+  {
+    room: '计算机学院自习室 B',
+    scope: '每日',
+    time: '22:00–次日 07:00',
+    type: '跨天开放',
+    status: '生效中',
+    note: '院系夜间'
+  },
+  {
+    room: '逸夫综合区',
+    scope: '5月25日',
+    time: '暂停开放',
+    type: '闭馆维护',
+    status: '待生效',
+    note: '特殊日期优先'
+  },
+  {
+    room: '图书馆自习区',
+    scope: '考试周',
+    time: '07:00–23:00',
+    type: '考试周延长',
+    status: '待发布',
+    note: '延长开放'
+  }
+] as const;
+
+const SCHEDULE_SPECIAL_RULES = [
+  {
+    date: '5月25日',
+    title: '闭馆维护',
+    target: '逸夫综合区',
+    time: '暂停开放',
+    desc: '维修日规则覆盖默认开放时间'
+  },
+  {
+    date: '6月10日–6月23日',
+    title: '考试周延长',
+    target: '图书馆自习区',
+    time: '07:00–23:00',
+    desc: '考试周特殊规则优先于全校默认'
+  }
+] as const;
+
 const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
   dashboard: {
     title: '管理仪表盘',
@@ -947,7 +1036,7 @@ const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
     ]
   },
   schedule: {
-    title: '开放时间',
+    title: '开放时间管理',
     sub: '默认开放 07:00–22:00',
     description: '配置普通开放、夜间开放、节假日调整和临时闭馆规则。',
     actions: [
@@ -1320,6 +1409,8 @@ export function AdminDashboard({ accessToken, adminName, initialActive, onLogout
           <SeatManagementPanel createSignal={seatCreateSignal} />
         ) : activeMenu === 'editor' ? (
           <FloorEditorPanel />
+        ) : activeMenu === 'schedule' ? (
+          <ScheduleManagementPanel />
         ) : (
           <AdminModulePanel meta={activeMeta} />
         )}
@@ -2238,6 +2329,164 @@ function FloorSeatCell({ code, status }: { code: string; status: FloorSeatStatus
     >
       {code}
     </button>
+  );
+}
+
+function ScheduleManagementPanel() {
+  return (
+    <section className="schedule-management-panel" aria-label="开放时间管理">
+      <div className="schedule-summary-grid" aria-label="开放时间关键指标">
+        {SCHEDULE_SUMMARY.map((item) => (
+          <article className="dashboard-card schedule-summary-card" key={item.label}>
+            <span className="schedule-summary-icon" style={{ color: item.tone }}>
+              <DashboardIcon name={item.icon} size={16} />
+            </span>
+            <strong>{item.value}</strong>
+            <small>{item.label}</small>
+            <p>{item.note}</p>
+          </article>
+        ))}
+      </div>
+
+      <div className="schedule-workspace">
+        <section className="dashboard-card schedule-editor-card">
+          <header className="schedule-section-head">
+            <div>
+              <span>规则编辑</span>
+              <h2>开放时间管理</h2>
+            </div>
+            <button className="schedule-primary-action" type="button">
+              <DashboardIcon name="check" size={13} />
+              保存开放时间
+            </button>
+          </header>
+
+          <div className="schedule-form-grid">
+            <RoomFormField label="自习室">
+              <select defaultValue="经管自习室 301">
+                <option>经管自习室 301</option>
+                <option>计算机学院自习室 B</option>
+                <option>图书馆自习区</option>
+                <option>逸夫综合区</option>
+              </select>
+            </RoomFormField>
+            <RoomFormField label="适用日期">
+              <select defaultValue="工作日">
+                <option>工作日</option>
+                <option>每日</option>
+                <option>考试周</option>
+                <option>指定日期</option>
+              </select>
+            </RoomFormField>
+            <RoomFormField label="开始小时">
+              <input defaultValue="07:00" />
+            </RoomFormField>
+            <RoomFormField label="结束小时">
+              <input defaultValue="22:00" />
+            </RoomFormField>
+          </div>
+
+          <div className="schedule-option-list">
+            {[
+              ['整点时段', '只允许选择 07:00、08:00 这类整点小时'],
+              ['跨天开放', '结束时间早于开始时间时按次日计算'],
+              ['未配置时回退默认', '房间没有独立规则时使用全校默认 07:00–22:00']
+            ].map(([label, desc], index) => (
+              <label className="schedule-option" key={label}>
+                <input defaultChecked={index !== 1} type="checkbox" />
+                <span>
+                  <strong>{label}</strong>
+                  <small>{desc}</small>
+                </span>
+              </label>
+            ))}
+          </div>
+        </section>
+
+        <section className="dashboard-card schedule-priority-card">
+          <header className="schedule-section-head">
+            <div>
+              <span>规则优先级</span>
+              <h2>特殊日期优先</h2>
+            </div>
+          </header>
+          <div className="schedule-priority-list">
+            {[
+              ['1', '节假日特殊规则', '闭馆维护、考试周延长等特殊日期优先匹配'],
+              ['2', '自习室独立规则', '单个房间的开放时段覆盖全校默认'],
+              ['3', '全校默认时段', '未配置时回退默认 07:00–22:00']
+            ].map(([order, title, desc]) => (
+              <div className="schedule-priority-item" key={title}>
+                <span>{order}</span>
+                <div>
+                  <strong>{title}</strong>
+                  <small>{desc}</small>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <div className="schedule-grid-row">
+        <section className="dashboard-card schedule-table-card">
+          <header className="schedule-section-head">
+            <div>
+              <span>开放规则</span>
+              <h2>房间时段配置</h2>
+            </div>
+            <button type="button">
+              <DashboardIcon name="plus" size={13} />
+              新增开放规则
+            </button>
+          </header>
+          <div className="schedule-table">
+            <div className="schedule-table-head">
+              {['自习室', '适用日期', '开放时段', '规则类型', '状态', '说明'].map((head) => (
+                <span key={head}>{head}</span>
+              ))}
+            </div>
+            {SCHEDULE_RULES.map((rule) => (
+              <div className="schedule-table-row" key={`${rule.room}-${rule.scope}`}>
+                <strong>{rule.room}</strong>
+                <span>{rule.scope}</span>
+                <span>{rule.time}</span>
+                <span>
+                  <mark data-variant={rule.type === '闭馆维护' ? 'red' : rule.type === '跨天开放' ? 'blue' : 'green'}>
+                    {rule.type}
+                  </mark>
+                </span>
+                <span>{rule.status}</span>
+                <span>{rule.note}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="dashboard-card schedule-special-card">
+          <header className="schedule-section-head">
+            <div>
+              <span>特殊日期</span>
+              <h2>节假日特殊规则</h2>
+            </div>
+            <button type="button">
+              <DashboardIcon name="refresh" size={13} />
+              同步节假日
+            </button>
+          </header>
+          {SCHEDULE_SPECIAL_RULES.map((rule) => (
+            <article className="schedule-special-item" key={rule.title}>
+              <div>
+                <strong>{rule.title}</strong>
+                <span>{rule.date}</span>
+              </div>
+              <p>{rule.target} · {rule.time}</p>
+              <small>{rule.desc}</small>
+            </article>
+          ))}
+        </section>
+      </div>
+    </section>
   );
 }
 
