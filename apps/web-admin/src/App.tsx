@@ -85,6 +85,34 @@ type SaveRoomOptions = {
   roomId?: string;
 };
 
+type AdminSeat = {
+  id: string;
+  roomName: string;
+  code: string;
+  x: number;
+  y: number;
+  hasPower: boolean;
+  nearWindow: boolean;
+  quietZone: boolean;
+  status: RoomStatus;
+  updatedAt: string;
+};
+
+type AdminSeatFormState = {
+  roomName: string;
+  code: string;
+  x: number;
+  y: number;
+  hasPower: boolean;
+  nearWindow: boolean;
+  quietZone: boolean;
+  status: RoomStatus;
+};
+
+type AdminSeatEditor =
+  | { mode: 'create'; seat: null }
+  | { mode: 'edit'; seat: AdminSeat };
+
 const AUTH_REMEMBER_KEY = 'ibooking.auth.remember';
 const ADMIN_ACCESS_TOKEN_KEY = 'ibooking.admin.accessToken';
 const STUDENT_ACCESS_TOKEN_KEY = 'ibooking.student.accessToken';
@@ -562,7 +590,7 @@ const ADMIN_MENU_IDS = [
 type AdminMenuId = (typeof ADMIN_MENU_IDS)[number];
 
 type AdminMenuAction = {
-  id?: 'create-room' | 'refresh-rooms';
+  id?: 'create-room' | 'refresh-rooms' | 'create-seat';
   label: string;
   icon: DashboardIconName;
 };
@@ -719,6 +747,100 @@ const roomToForm = (room: AdminRoom): AdminRoomFormState => ({
   overnight: room.overnight
 });
 
+const ADMIN_SEAT_FALLBACKS: AdminSeat[] = [
+  {
+    id: 'seat-gm-301-a012',
+    roomName: '经管自习室 301',
+    code: 'A-012',
+    x: 118,
+    y: 84,
+    hasPower: true,
+    nearWindow: true,
+    quietZone: false,
+    status: 'ACTIVE',
+    updatedAt: '10:24'
+  },
+  {
+    id: 'seat-science-201-c018',
+    roomName: '理工自习室 201',
+    code: 'C-018',
+    x: 214,
+    y: 132,
+    hasPower: false,
+    nearWindow: false,
+    quietZone: true,
+    status: 'INACTIVE',
+    updatedAt: '09:58'
+  },
+  {
+    id: 'seat-humanities-a-f006',
+    roomName: '文史馆阅览室 A',
+    code: 'F-006',
+    x: 326,
+    y: 210,
+    hasPower: false,
+    nearWindow: true,
+    quietZone: true,
+    status: 'ACTIVE',
+    updatedAt: '09:40'
+  },
+  {
+    id: 'seat-library-b022',
+    roomName: '图书馆自习区',
+    code: 'B-022',
+    x: 168,
+    y: 156,
+    hasPower: true,
+    nearWindow: false,
+    quietZone: false,
+    status: 'ACTIVE',
+    updatedAt: '09:12'
+  },
+  {
+    id: 'seat-gm-301-g002',
+    roomName: '经管自习室 301',
+    code: 'G-002',
+    x: 402,
+    y: 268,
+    hasPower: true,
+    nearWindow: false,
+    quietZone: true,
+    status: 'INACTIVE',
+    updatedAt: '昨天'
+  }
+];
+
+const newSeatForm = (): AdminSeatFormState => ({
+  roomName: '经管自习室 301',
+  code: '',
+  x: 100,
+  y: 100,
+  hasPower: false,
+  nearWindow: false,
+  quietZone: false,
+  status: 'ACTIVE'
+});
+
+const seatToForm = (seat: AdminSeat): AdminSeatFormState => ({
+  roomName: seat.roomName,
+  code: seat.code,
+  x: seat.x,
+  y: seat.y,
+  hasPower: seat.hasPower,
+  nearWindow: seat.nearWindow,
+  quietZone: seat.quietZone,
+  status: seat.status
+});
+
+const getSeatTags = (seat: Pick<AdminSeat, 'hasPower' | 'nearWindow' | 'quietZone'>) => {
+  const tags = [
+    seat.hasPower ? '带插座' : '',
+    seat.nearWindow ? '靠窗' : '',
+    seat.quietZone ? '安静区' : ''
+  ].filter(Boolean);
+  return tags.length > 0 ? tags : ['普通座'];
+};
+
 const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
   dashboard: {
     title: '管理仪表盘',
@@ -762,7 +884,7 @@ const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
     sub: '共 2,840 个座位',
     description: '维护座位编号、插座标记、禁用状态与可预约区域。',
     actions: [
-      { label: '新增座位', icon: 'grid' },
+      { id: 'create-seat', label: '新增座位', icon: 'plus' },
       { label: '批量导入', icon: 'download' }
     ],
     metrics: [
@@ -1079,6 +1201,7 @@ export function AdminDashboard({ accessToken, adminName, initialActive, onLogout
   );
   const [roomCreateSignal, setRoomCreateSignal] = useState(0);
   const [roomRefreshSignal, setRoomRefreshSignal] = useState(0);
+  const [seatCreateSignal, setSeatCreateSignal] = useState(0);
   const activeMeta = ADMIN_MENU_META[activeMenu];
 
   const handleMenuChange = (nextMenu: AdminMenuId) => {
@@ -1092,6 +1215,9 @@ export function AdminDashboard({ accessToken, adminName, initialActive, onLogout
     }
     if (action.id === 'refresh-rooms') {
       setRoomRefreshSignal((current) => current + 1);
+    }
+    if (action.id === 'create-seat') {
+      setSeatCreateSignal((current) => current + 1);
     }
   };
 
@@ -1169,6 +1295,8 @@ export function AdminDashboard({ accessToken, adminName, initialActive, onLogout
             createSignal={roomCreateSignal}
             refreshSignal={roomRefreshSignal}
           />
+        ) : activeMenu === 'seats' ? (
+          <SeatManagementPanel createSignal={seatCreateSignal} />
         ) : (
           <AdminModulePanel meta={activeMeta} />
         )}
@@ -1691,6 +1819,264 @@ function RoomFormField({
       <span>{label}</span>
       {children}
     </label>
+  );
+}
+
+function SeatManagementPanel({ createSignal }: { createSignal: number }) {
+  const [seats, setSeats] = useState<AdminSeat[]>(ADMIN_SEAT_FALLBACKS);
+  const [query, setQuery] = useState('');
+  const [editor, setEditor] = useState<AdminSeatEditor | null>(null);
+  const [form, setForm] = useState<AdminSeatFormState>(() => newSeatForm());
+
+  useEffect(() => {
+    if (createSignal === 0) return;
+    setEditor({ mode: 'create', seat: null });
+    setForm(newSeatForm());
+  }, [createSignal]);
+
+  const filteredSeats = seats.filter((seat) => {
+    const keyword = query.trim().toLowerCase();
+    if (!keyword) return true;
+    return [seat.code, seat.roomName, ...getSeatTags(seat)].some((field) =>
+      field.toLowerCase().includes(keyword)
+    );
+  });
+
+  const openCreate = () => {
+    setEditor({ mode: 'create', seat: null });
+    setForm(newSeatForm());
+  };
+
+  const openEdit = (seat: AdminSeat) => {
+    setEditor({ mode: 'edit', seat });
+    setForm(seatToForm(seat));
+  };
+
+  const updateForm = <Key extends keyof AdminSeatFormState>(
+    key: Key,
+    value: AdminSeatFormState[Key]
+  ) => {
+    setForm((current) => ({ ...current, [key]: value }));
+  };
+
+  const handleSaveSeat = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const isEdit = editor?.mode === 'edit';
+    const savedSeat: AdminSeat = {
+      id: isEdit ? editor.seat.id : `seat-local-${Date.now()}`,
+      roomName: form.roomName,
+      code: form.code.trim() || 'NEW-001',
+      x: Number(form.x),
+      y: Number(form.y),
+      hasPower: form.hasPower,
+      nearWindow: form.nearWindow,
+      quietZone: form.quietZone,
+      status: form.status,
+      updatedAt: '刚刚'
+    };
+
+    setSeats((currentSeats) =>
+      isEdit
+        ? currentSeats.map((seat) => (seat.id === savedSeat.id ? savedSeat : seat))
+        : [...currentSeats, savedSeat]
+    );
+    setEditor(null);
+  };
+
+  const totalCount = seats.length;
+  const powerCount = seats.filter((seat) => seat.hasPower).length;
+  const windowCount = seats.filter((seat) => seat.nearWindow).length;
+  const disabledCount = seats.filter((seat) => seat.status === 'INACTIVE').length;
+
+  return (
+    <section className="seat-management-panel" aria-label="座位管理">
+      <div className="seat-summary-grid" aria-label="座位关键指标">
+        {[
+          { label: '座位总数', value: `${totalCount}`, tone: F.navy },
+          { label: '带插座', value: `${powerCount}`, tone: F.gold },
+          { label: '靠窗', value: `${windowCount}`, tone: '#3A6FA8' },
+          { label: '禁用', value: `${disabledCount}`, tone: '#C84040' }
+        ].map((metric) => (
+          <article className="dashboard-card seat-summary-card" key={metric.label}>
+            <span style={{ color: metric.tone }} />
+            <strong>{metric.value}</strong>
+            <small>{metric.label}</small>
+          </article>
+        ))}
+      </div>
+
+      <div className="seat-toolbar">
+        <label className="seat-search">
+          <DashboardIcon name="search" size={14} />
+          <input
+            aria-label="搜索座位"
+            placeholder="搜索座位编号、自习室"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+        <button type="button">
+          全部自习室
+          <DashboardIcon name="chevron-down" size={12} />
+        </button>
+        <button type="button">
+          全部标签
+          <DashboardIcon name="chevron-down" size={12} />
+        </button>
+        <button type="button">
+          全部状态
+          <DashboardIcon name="chevron-down" size={12} />
+        </button>
+        <button className="seat-primary-action" type="button" onClick={openCreate}>
+          <DashboardIcon name="plus" size={13} />
+          新增座位
+        </button>
+        <button type="button">
+          <DashboardIcon name="settings" size={13} />
+          批量维护
+        </button>
+      </div>
+
+      <div className="dashboard-card seat-table-card">
+        <div className="seat-table-head">
+          {['座位编号', '自习室', '坐标', '标签', '状态', '最近更新', '操作'].map((head) => (
+            <span key={head}>{head}</span>
+          ))}
+        </div>
+        {filteredSeats.map((seat) => (
+          <div className="seat-table-row" key={seat.id}>
+            <strong>{seat.code}</strong>
+            <span>{seat.roomName}</span>
+            <span>
+              X {seat.x} / Y {seat.y}
+            </span>
+            <span className="seat-tag-list">
+              {getSeatTags(seat).map((tag) => (
+                <mark data-variant={tag === '带插座' ? 'gold' : tag === '靠窗' ? 'blue' : 'gray'} key={tag}>
+                  {tag}
+                </mark>
+              ))}
+            </span>
+            <span>
+              <mark data-variant={seat.status === 'ACTIVE' ? 'green' : 'red'}>
+                {seat.status === 'ACTIVE' ? '可预约' : '禁用'}
+              </mark>
+            </span>
+            <span>{seat.updatedAt}</span>
+            <span className="seat-row-actions">
+              <button type="button" onClick={() => openEdit(seat)}>
+                <DashboardIcon name="edit" size={12} />
+                编辑
+              </button>
+              <button type="button">
+                <DashboardIcon name="move" size={12} />
+                定位
+              </button>
+            </span>
+          </div>
+        ))}
+        {filteredSeats.length === 0 && <div className="seat-empty">没有匹配的座位</div>}
+      </div>
+
+      {editor && (
+        <div className="seat-editor-layer">
+          <button
+            aria-label="关闭座位编辑面板"
+            className="seat-editor-backdrop"
+            type="button"
+            onClick={() => setEditor(null)}
+          />
+          <form className="dashboard-card seat-editor" onSubmit={handleSaveSeat}>
+            <header className="seat-editor-head">
+              <div>
+                <h2>{editor.mode === 'create' ? '新增座位' : '编辑座位'}</h2>
+                <p>维护座位编号、坐标、插座与靠窗标记</p>
+              </div>
+              <button aria-label="关闭" type="button" onClick={() => setEditor(null)}>
+                <DashboardIcon name="x" size={14} />
+              </button>
+            </header>
+
+            <RoomFormField label="座位编号">
+              <input
+                required
+                value={form.code}
+                onChange={(event) => updateForm('code', event.target.value)}
+              />
+            </RoomFormField>
+            <RoomFormField label="所属自习室">
+              <select
+                value={form.roomName}
+                onChange={(event) => updateForm('roomName', event.target.value)}
+              >
+                {Array.from(new Set(ADMIN_SEAT_FALLBACKS.map((seat) => seat.roomName))).map(
+                  (roomName) => (
+                    <option key={roomName} value={roomName}>
+                      {roomName}
+                    </option>
+                  )
+                )}
+              </select>
+            </RoomFormField>
+            <div className="seat-form-grid">
+              <RoomFormField label="X 坐标">
+                <input
+                  min="0"
+                  required
+                  type="number"
+                  value={form.x}
+                  onChange={(event) => updateForm('x', Number(event.target.value))}
+                />
+              </RoomFormField>
+              <RoomFormField label="Y 坐标">
+                <input
+                  min="0"
+                  required
+                  type="number"
+                  value={form.y}
+                  onChange={(event) => updateForm('y', Number(event.target.value))}
+                />
+              </RoomFormField>
+            </div>
+            <RoomFormField label="状态">
+              <select
+                value={form.status}
+                onChange={(event) => updateForm('status', event.target.value as RoomStatus)}
+              >
+                <option value="ACTIVE">可预约</option>
+                <option value="INACTIVE">禁用</option>
+              </select>
+            </RoomFormField>
+            {[
+              ['hasPower', '带插座'],
+              ['nearWindow', '靠窗'],
+              ['quietZone', '安静区']
+            ].map(([key, label]) => (
+              <label className="seat-checkbox" key={key}>
+                <input
+                  checked={Boolean(form[key as keyof AdminSeatFormState])}
+                  type="checkbox"
+                  onChange={(event) =>
+                    updateForm(key as keyof AdminSeatFormState, event.target.checked as never)
+                  }
+                />
+                {label}
+              </label>
+            ))}
+
+            <div className="seat-editor-actions">
+              <button type="button" onClick={() => setEditor(null)}>
+                取消
+              </button>
+              <button className="seat-primary-action" type="submit">
+                <DashboardIcon name="check" size={13} />
+                保存
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </section>
   );
 }
 
