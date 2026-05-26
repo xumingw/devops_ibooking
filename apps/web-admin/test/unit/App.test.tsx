@@ -318,6 +318,25 @@ describe('统一登录页', () => {
     expect(html).not.toContain('管理模块');
   });
 
+  it('渲染开放时间管理页面', () => {
+    const html = renderToStaticMarkup(
+      <AdminDashboard adminName="系统管理员" initialActive="schedule" />
+    );
+
+    expect(html).toContain('开放时间管理');
+    expect(html).toContain('全校默认时段');
+    expect(html).toContain('07:00–22:00');
+    expect(html).toContain('整点时段');
+    expect(html).toContain('跨天开放');
+    expect(html).toContain('特殊日期优先');
+    expect(html).toContain('节假日特殊规则');
+    expect(html).toContain('考试周延长');
+    expect(html).toContain('闭馆维护');
+    expect(html).toContain('未配置时回退默认');
+    expect(html).toContain('保存开放时间');
+    expect(html).not.toContain('管理模块');
+  });
+
   it('生产 CI/CD 只构建和部署统一 Web 入口', () => {
     const workflow = readFileSync(resolve(repoRoot, '.github/workflows/ci.yml'), 'utf8');
     const compose = readFileSync(resolve(repoRoot, 'infra/docker-compose.prod.yml'), 'utf8');
