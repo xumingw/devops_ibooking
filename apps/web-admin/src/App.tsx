@@ -1641,6 +1641,81 @@ const ADMIN_AUDIT_RULES = [
 
 const ADMIN_AUDIT_FILTERS = ['全部模块', '全部结果', '最近 24 小时'] as const;
 
+const ADMIN_REPORT_SUMMARY = [
+  {
+    label: '本月预约总量',
+    value: '24,831',
+    note: '较上月增长 9.4%',
+    icon: 'calendar',
+    tone: F.navy
+  },
+  {
+    label: '平均签到率',
+    value: '86.4%',
+    note: '未签到违约持续下降',
+    icon: 'check-circle',
+    tone: F.success
+  },
+  {
+    label: '平均座位利用率',
+    value: '73.2%',
+    note: '晚间时段达到峰值',
+    icon: 'chart',
+    tone: '#3A6FA8'
+  },
+  {
+    label: '本月违约总次数',
+    value: '312',
+    note: '含未签到与超时取消',
+    icon: 'alert',
+    tone: '#C8820A'
+  }
+] satisfies Array<{
+  label: string;
+  value: string;
+  note: string;
+  icon: DashboardIconName;
+  tone: string;
+}>;
+
+const ADMIN_REPORT_WEEKLY_BOOKINGS = [
+  ['周一', 842],
+  ['周二', 1103],
+  ['周三', 987],
+  ['周四', 1247],
+  ['周五', 0],
+  ['周六', 0],
+  ['周日', 0]
+] as const;
+
+const ADMIN_REPORT_TOP_ROOMS = [
+  { name: '理工自习室 201', count: 1832, pct: 94 },
+  { name: '经管自习室 301', count: 1644, pct: 87 },
+  { name: '图书馆自习区', count: 1520, pct: 81 },
+  { name: '理工自习室 403', count: 1398, pct: 76 },
+  { name: '文史馆阅览室 A', count: 1201, pct: 68 }
+] as const;
+
+const ADMIN_REPORT_TOP_SEATS = [
+  ['A-018', '理工自习室 201', '126 次', '靠窗 · 插座'],
+  ['C-003', '经管自习室 301', '112 次', '四人桌'],
+  ['B-022', '图书馆自习区', '108 次', '静音区']
+] as const;
+
+const ADMIN_REPORT_LOW_PERIODS = [
+  ['07:00-09:00', '41.2%', '低利用率时段'],
+  ['12:00-13:00', '38.6%', '午间空档'],
+  ['21:00-22:00', '44.8%', '闭馆前回落']
+] as const;
+
+const ADMIN_REPORT_RULES = [
+  ['统计口径', '预约总量按有效预约计数，取消与违约分别进入趋势统计'],
+  ['热门座位', '按使用次数和实际使用时长综合排序'],
+  ['空状态', '周末暂无数据时以空柱和短横展示']
+] as const;
+
+const ADMIN_REPORT_FILTERS = ['2026年4月', '全校范围', '按月统计'] as const;
+
 const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
   dashboard: {
     title: '管理仪表盘',
@@ -1914,8 +1989,8 @@ const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
     sub: '2026年4月 · 月度分析',
     description: '查看座位利用率、违约趋势、热门时段和院系统计。',
     actions: [
-      { label: '生成报表', icon: 'chart' },
-      { label: '下载月报', icon: 'download' }
+      { label: '导出 CSV', icon: 'download' },
+      { label: '导出 Excel', icon: 'download' }
     ],
     metrics: [
       { label: '平均利用率', value: '72.4%', tone: F.success },
@@ -2115,6 +2190,8 @@ export function AdminDashboard({ accessToken, adminName, initialActive, onLogout
           <SystemParameterPanel />
         ) : activeMenu === 'audit' ? (
           <AuditLogPanel />
+        ) : activeMenu === 'reports' ? (
+          <DataReportsPanel />
         ) : (
           <AdminModulePanel meta={activeMeta} />
         )}
@@ -4050,6 +4127,148 @@ function AuditLogPanel() {
 
           {ADMIN_AUDIT_RULES.map(([title, desc], index) => (
             <div className="audit-log-rule" key={title}>
+              <span>{index + 1}</span>
+              <div>
+                <strong>{title}</strong>
+                <small>{desc}</small>
+              </div>
+            </div>
+          ))}
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function DataReportsPanel() {
+  const maxWeeklyBookings = Math.max(...ADMIN_REPORT_WEEKLY_BOOKINGS.map(([, value]) => value), 1);
+
+  return (
+    <section className="data-reports-panel" aria-label="数据报表">
+      <div className="data-reports-summary-grid" aria-label="数据报表关键指标">
+        {ADMIN_REPORT_SUMMARY.map((item) => (
+          <article className="dashboard-card data-reports-summary-card" key={item.label}>
+            <span className="data-reports-summary-icon" style={{ color: item.tone }}>
+              <DashboardIcon name={item.icon} size={15} />
+            </span>
+            <div>
+              <strong>{item.value}</strong>
+              <span>{item.label}</span>
+              <small>{item.note}</small>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="data-reports-toolbar">
+        {ADMIN_REPORT_FILTERS.map((filter) => (
+          <button key={filter} type="button">
+            {filter}
+            <DashboardIcon name="chevron-down" size={12} />
+          </button>
+        ))}
+        <button className="data-reports-primary" type="button">
+          <DashboardIcon name="download" size={13} />
+          导出 CSV
+        </button>
+        <button type="button">
+          <DashboardIcon name="download" size={13} />
+          导出 Excel
+        </button>
+      </div>
+
+      <div className="data-reports-layout">
+        <section className="dashboard-card data-reports-chart-card">
+          <header className="data-reports-head">
+            <div>
+              <span>近一周趋势</span>
+              <h2>本周每日预约量</h2>
+            </div>
+            <small>按有效预约统计，暂无数据的日期显示为空柱。</small>
+          </header>
+
+          <div className="data-reports-bar-chart" aria-label="本周每日预约量柱状图">
+            {ADMIN_REPORT_WEEKLY_BOOKINGS.map(([day, value]) => {
+              const height = value > 0 ? Math.max(12, Math.round((value / maxWeeklyBookings) * 132)) : 4;
+              return (
+                <div className="data-reports-bar-item" key={day}>
+                  <strong>{value > 0 ? value.toLocaleString('zh-CN') : '—'}</strong>
+                  <span className={value === maxWeeklyBookings ? 'is-peak' : ''} style={{ height }} />
+                  <small>{day}</small>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="dashboard-card data-reports-room-card">
+          <header className="data-reports-head">
+            <div>
+              <span>空间排行</span>
+              <h2>热门自习室 Top 5</h2>
+            </div>
+          </header>
+          <div className="data-reports-room-list">
+            {ADMIN_REPORT_TOP_ROOMS.map((room, index) => (
+              <div className="data-reports-room-item" key={room.name}>
+                <div>
+                  <mark>{index + 1}</mark>
+                  <strong>{room.name}</strong>
+                  <small>{room.count.toLocaleString('zh-CN')} 次</small>
+                </div>
+                <span>
+                  <i style={{ width: `${room.pct}%` }} />
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <div className="data-reports-detail-grid">
+        <section className="dashboard-card data-reports-table-card">
+          <header className="data-reports-head">
+            <div>
+              <span>座位分析</span>
+              <h2>热门座位</h2>
+            </div>
+            <small>按使用次数和实际使用时长综合排序。</small>
+          </header>
+          <div className="data-reports-table">
+            <div className="data-reports-table-head">
+              {['座位', '自习室', '使用次数', '特征'].map((head) => (
+                <span key={head}>{head}</span>
+              ))}
+            </div>
+            {ADMIN_REPORT_TOP_SEATS.map(([seat, room, count, feature]) => (
+              <div className="data-reports-table-row" key={seat}>
+                <strong>{seat}</strong>
+                <span>{room}</span>
+                <code>{count}</code>
+                <span>{feature}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <aside className="dashboard-card data-reports-side-card">
+          <header className="data-reports-head">
+            <div>
+              <span>资源调整</span>
+              <h2>低利用率时段</h2>
+            </div>
+          </header>
+          <div className="data-reports-low-list">
+            {ADMIN_REPORT_LOW_PERIODS.map(([period, pct, label]) => (
+              <div className="data-reports-low-item" key={period}>
+                <strong>{period}</strong>
+                <span>{pct}</span>
+                <small>{label}</small>
+              </div>
+            ))}
+          </div>
+          {ADMIN_REPORT_RULES.map(([title, desc], index) => (
+            <div className="data-reports-rule" key={title}>
               <span>{index + 1}</span>
               <div>
                 <strong>{title}</strong>
