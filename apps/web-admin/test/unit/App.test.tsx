@@ -299,6 +299,25 @@ describe('统一登录页', () => {
     expect(html).not.toContain('管理模块');
   });
 
+  it('渲染平面图编辑器页面', () => {
+    const html = renderToStaticMarkup(
+      <AdminDashboard adminName="系统管理员" initialActive="editor" />
+    );
+
+    expect(html).toContain('座位平面图编辑器');
+    expect(html).toContain('经管自习室 301 · 光华楼 A座 3楼');
+    expect(html).toContain('保存布局');
+    expect(html).toContain('预览');
+    expect(html).toContain('选择');
+    expect(html).toContain('添加座位');
+    expect(html).toContain('吸附网格');
+    expect(html).toContain('入 口');
+    expect(html).toContain('C4');
+    expect(html).toContain('属性面板');
+    expect(html).toContain('应用更改');
+    expect(html).not.toContain('管理模块');
+  });
+
   it('生产 CI/CD 只构建和部署统一 Web 入口', () => {
     const workflow = readFileSync(resolve(repoRoot, '.github/workflows/ci.yml'), 'utf8');
     const compose = readFileSync(resolve(repoRoot, 'infra/docker-compose.prod.yml'), 'utf8');
