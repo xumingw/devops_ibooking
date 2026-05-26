@@ -1305,6 +1305,128 @@ const ADMIN_USER_STATUS_META = {
 
 const ADMIN_USER_FILTERS = ['全部院系', '全部角色', '账号状态'] as const;
 
+const ADMIN_ROLE_SUMMARY = [
+  {
+    label: '角色数',
+    value: '5',
+    note: '覆盖管理员与观察员',
+    icon: 'shield',
+    tone: F.success
+  },
+  {
+    label: '权限点',
+    value: '42',
+    note: '按模块与操作拆分',
+    icon: 'settings',
+    tone: '#3A6FA8'
+  },
+  {
+    label: '待审变更',
+    value: '3',
+    note: '审批后生效',
+    icon: 'alert',
+    tone: '#C8820A'
+  },
+  {
+    label: '菜单级权限',
+    value: '13',
+    note: '后台菜单按角色过滤',
+    icon: 'grid',
+    tone: F.gold
+  }
+] satisfies Array<{
+  label: string;
+  value: string;
+  note: string;
+  icon: DashboardIconName;
+  tone: string;
+}>;
+
+const ADMIN_ROLE_RECORDS = [
+  {
+    name: '超级管理员',
+    users: '3',
+    scope: '全部院系',
+    spaceAccess: '全部',
+    operationAccess: '全部',
+    menuAccess: '13/13',
+    updatedAt: '今天 08:50',
+    status: 'active'
+  },
+  {
+    name: '自习室管理员',
+    users: '14',
+    scope: '全校空间',
+    spaceAccess: '可编辑',
+    operationAccess: '可处理',
+    menuAccess: '8/13',
+    updatedAt: '昨天 19:21',
+    status: 'active'
+  },
+  {
+    name: '院系管理员',
+    users: '9',
+    scope: '院系范围',
+    spaceAccess: '院系编辑',
+    operationAccess: '只读',
+    menuAccess: '6/13',
+    updatedAt: '昨天',
+    status: 'active'
+  },
+  {
+    name: '只读观察员',
+    users: '10',
+    scope: '全校只读',
+    spaceAccess: '只读',
+    operationAccess: '只读',
+    menuAccess: '5/13',
+    updatedAt: '04-23',
+    status: 'active'
+  },
+  {
+    name: '临时审计员',
+    users: '0',
+    scope: '审计范围',
+    spaceAccess: '无',
+    operationAccess: '只读',
+    menuAccess: '2/13',
+    updatedAt: '待审批',
+    status: 'pending'
+  }
+] as const;
+
+const ADMIN_ROLE_STATUS_META = {
+  active: { label: '启用', variant: 'green' },
+  pending: { label: '待审批', variant: 'gold' },
+  disabled: { label: '禁用', variant: 'gray' }
+} as const;
+
+const ADMIN_ROLE_PERMISSION_GROUPS = [
+  { group: '空间管理', permissions: ['自习室管理', '座位管理', '平面图编辑器', '开放时间'] },
+  { group: '运营管理', permissions: ['预约记录', '违约记录', '动态码管理'] },
+  { group: '系统与权限', permissions: ['用户管理', '角色权限', '系统参数', '审计日志', '数据报表'] }
+] as const;
+
+const ADMIN_ROLE_PERMISSION_MATRIX = [
+  {
+    title: '空间管理 / 座位管理 / 平面图编辑器',
+    scope: '可编辑',
+    checked: '全选'
+  },
+  {
+    title: '运营管理 / 签到动态码 / 违约记录',
+    scope: '可处理',
+    checked: '部分'
+  },
+  {
+    title: '系统与权限 / 用户管理 / 角色权限',
+    scope: '审批后生效',
+    checked: '复核'
+  }
+] as const;
+
+const ADMIN_ROLE_FILTERS = ['全部角色', '权限范围', '审批状态'] as const;
+
 const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
   dashboard: {
     title: '管理仪表盘',
@@ -1505,7 +1627,7 @@ const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
     ]
   },
   roles: {
-    title: '角色权限',
+    title: '角色权限管理',
     sub: '5 个角色 · 菜单级权限',
     description: '配置管理员角色、权限边界和菜单可见范围，符合 RBAC 要求。',
     actions: [
@@ -1773,6 +1895,8 @@ export function AdminDashboard({ accessToken, adminName, initialActive, onLogout
           <DynamicCodePanel />
         ) : activeMenu === 'users' ? (
           <UserManagementPanel />
+        ) : activeMenu === 'roles' ? (
+          <RoleManagementPanel />
         ) : (
           <AdminModulePanel meta={activeMeta} />
         )}
@@ -3341,6 +3465,144 @@ function UserManagementPanel() {
             ['停用账号会阻止登录与预约', '停用后保留历史预约、签到和审计记录']
           ].map(([title, desc], index) => (
             <div className="user-management-rule" key={title}>
+              <span>{index + 1}</span>
+              <div>
+                <strong>{title}</strong>
+                <small>{desc}</small>
+              </div>
+            </div>
+          ))}
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function RoleManagementPanel() {
+  return (
+    <section className="role-management-panel" aria-label="角色权限管理">
+      <div className="role-management-summary-grid" aria-label="角色权限关键指标">
+        {ADMIN_ROLE_SUMMARY.map((item) => (
+          <article className="dashboard-card role-management-summary-card" key={item.label}>
+            <span className="role-management-summary-icon" style={{ color: item.tone }}>
+              <DashboardIcon name={item.icon} size={15} />
+            </span>
+            <div>
+              <strong>{item.value}</strong>
+              <span>{item.label}</span>
+              <small>{item.note}</small>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="role-management-toolbar">
+        <label className="role-management-search">
+          <DashboardIcon name="search" size={14} />
+          <input aria-label="搜索角色权限" placeholder="角色名称、权限点、菜单" />
+        </label>
+        {ADMIN_ROLE_FILTERS.map((filter) => (
+          <button key={filter} type="button">
+            {filter}
+            <DashboardIcon name="chevron-down" size={12} />
+          </button>
+        ))}
+        <button className="role-management-primary" type="button">
+          <DashboardIcon name="shield" size={13} />
+          新建角色
+        </button>
+        <button type="button">
+          <DashboardIcon name="settings" size={13} />
+          分配权限
+        </button>
+      </div>
+
+      <div className="role-management-layout">
+        <section className="dashboard-card role-management-table-card">
+          <header className="role-management-head">
+            <div>
+              <span>按权限范围展示</span>
+              <h2>角色列表</h2>
+            </div>
+            <small>RBAC 角色权限模型控制后台菜单与操作范围</small>
+          </header>
+
+          <div className="role-management-table">
+            <div className="role-management-table-head">
+              {['角色', '用户数', '数据范围', '空间管理', '运营管理', '菜单权限', '最近更新', '状态', '操作'].map((head) => (
+                <span key={head}>{head}</span>
+              ))}
+            </div>
+            {ADMIN_ROLE_RECORDS.map((role) => {
+              const status = ADMIN_ROLE_STATUS_META[role.status];
+              return (
+                <div className="role-management-table-row" key={role.name}>
+                  <strong>{role.name}</strong>
+                  <span>{role.users}</span>
+                  <span>{role.scope}</span>
+                  <span>{role.spaceAccess}</span>
+                  <span>{role.operationAccess}</span>
+                  <code>{role.menuAccess}</code>
+                  <span>{role.updatedAt}</span>
+                  <span>
+                    <mark data-variant={status.variant}>{status.label}</mark>
+                  </span>
+                  <span className="role-management-actions">
+                    <button type="button">
+                      <DashboardIcon name="edit" size={12} />
+                      编辑权限
+                    </button>
+                    <button type="button">
+                      <DashboardIcon name="plus" size={12} />
+                      复制角色
+                    </button>
+                    <button className="is-disable" type="button">
+                      <DashboardIcon name="x" size={12} />
+                      禁用
+                    </button>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <aside className="dashboard-card role-management-side-card">
+          <header className="role-management-head">
+            <div>
+              <span>菜单级过滤</span>
+              <h2>权限分组</h2>
+            </div>
+          </header>
+          {ADMIN_ROLE_PERMISSION_GROUPS.map((group) => (
+            <div className="role-permission-group" key={group.group}>
+              <strong>{group.group}</strong>
+              <div>
+                {group.permissions.map((permission) => (
+                  <span key={permission}>{permission}</span>
+                ))}
+              </div>
+            </div>
+          ))}
+          <section className="role-permission-matrix" aria-label="菜单权限矩阵">
+            <strong>菜单权限矩阵</strong>
+            {ADMIN_ROLE_PERMISSION_MATRIX.map((item) => (
+              <div className="role-permission-matrix-row" key={item.title}>
+                <span>{item.title}</span>
+                <mark>{item.scope}</mark>
+                <button type="button">{item.checked}</button>
+              </div>
+            ))}
+          </section>
+          {[
+            ['RBAC 角色权限模型', '用户只绑定角色，权限点由角色集中维护'],
+            ['菜单级过滤', '侧边栏与接口权限同时按角色过滤'],
+            ['最小权限原则', '新增角色默认无权限，需逐项勾选'],
+            ['审批后生效', '高风险权限调整需复核后发布'],
+            ['权限变更需审计留痕', '每次授权、复制、禁用都进入审计日志'],
+            ['高风险角色变更需要二次复核', '超级管理员与角色权限调整必须双人确认']
+          ].map(([title, desc], index) => (
+            <div className="role-management-rule" key={title}>
               <span>{index + 1}</span>
               <div>
                 <strong>{title}</strong>
