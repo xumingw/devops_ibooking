@@ -1138,6 +1138,90 @@ const ADMIN_VIOLATION_STATUS_META = {
 
 const ADMIN_VIOLATION_FILTERS = ['今日', '全部原因', '全部状态'] as const;
 
+const ADMIN_DYNAMIC_CODE_SUMMARY = [
+  {
+    label: '今日已生成',
+    value: '48',
+    note: '覆盖全部开放自习室',
+    icon: 'qr',
+    tone: F.success
+  },
+  {
+    label: '异常上报',
+    value: '2',
+    note: '疑似截图复用拦截',
+    icon: 'alert',
+    tone: '#C84040'
+  },
+  {
+    label: '平均刷新',
+    value: '60s',
+    note: '网页动态码滚动刷新',
+    icon: 'refresh',
+    tone: '#3A6FA8'
+  },
+  {
+    label: '待打印',
+    value: '3',
+    note: '小程序二维码需线下张贴',
+    icon: 'download',
+    tone: F.gold
+  }
+] satisfies Array<{
+  label: string;
+  value: string;
+  note: string;
+  icon: DashboardIconName;
+  tone: string;
+}>;
+
+const ADMIN_DYNAMIC_CODE_RECORDS = [
+  {
+    room: '经管自习室 301',
+    building: '光华楼 A座',
+    webCode: 'FD-301-7K2',
+    qrStatus: '已生成',
+    refresh: '60 秒刷新',
+    updatedAt: '10:24',
+    status: 'active'
+  },
+  {
+    room: '理工自习室 201',
+    building: '理科楼',
+    webCode: 'FD-201-QP9',
+    qrStatus: '已生成',
+    refresh: '60 秒刷新',
+    updatedAt: '10:20',
+    status: 'active'
+  },
+  {
+    room: '文史馆阅览室 A',
+    building: '文史馆',
+    webCode: 'FD-HIS-22A',
+    qrStatus: '待打印',
+    refresh: '90 秒刷新',
+    updatedAt: '09:58',
+    status: 'pending'
+  },
+  {
+    room: '逸夫综合区',
+    building: '逸夫楼',
+    webCode: '暂停',
+    qrStatus: '暂停',
+    refresh: '关闭',
+    updatedAt: '昨天',
+    status: 'closed'
+  }
+] as const;
+
+const ADMIN_DYNAMIC_CODE_STATUS_META = {
+  active: { label: '正常', variant: 'green' },
+  pending: { label: '待处理', variant: 'gold' },
+  closed: { label: '维护中', variant: 'gray' }
+} as const;
+
+const ADMIN_DYNAMIC_CODE_FILTERS = ['全部楼栋', '全部状态', '刷新策略'] as const;
+
 const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
   dashboard: {
     title: '管理仪表盘',
@@ -1602,6 +1686,8 @@ export function AdminDashboard({ accessToken, adminName, initialActive, onLogout
           <BookingRecordsPanel />
         ) : activeMenu === 'violations' ? (
           <ViolationRecordsPanel />
+        ) : activeMenu === 'qrcode' ? (
+          <DynamicCodePanel />
         ) : (
           <AdminModulePanel meta={activeMeta} />
         )}
@@ -2923,6 +3009,139 @@ function ViolationRecordsPanel() {
           ].map(([title, desc], index) => (
             <div className="violation-rule-item" key={title}>
               <span>{index + 1}</span>
+              <div>
+                <strong>{title}</strong>
+                <small>{desc}</small>
+              </div>
+            </div>
+          ))}
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function DynamicCodePanel() {
+  return (
+    <section className="dynamic-code-panel" aria-label="动态码管理">
+      <div className="dynamic-code-summary-grid" aria-label="动态码关键指标">
+        {ADMIN_DYNAMIC_CODE_SUMMARY.map((item) => (
+          <article className="dashboard-card dynamic-code-summary-card" key={item.label}>
+            <span className="dynamic-code-summary-icon" style={{ color: item.tone }}>
+              <DashboardIcon name={item.icon} size={15} />
+            </span>
+            <div>
+              <strong>{item.value}</strong>
+              <span>{item.label}</span>
+              <small>{item.note}</small>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="dynamic-code-toolbar">
+        <label className="dynamic-code-search">
+          <DashboardIcon name="search" size={14} />
+          <input aria-label="搜索动态码" placeholder="自习室、签到码、楼栋" />
+        </label>
+        {ADMIN_DYNAMIC_CODE_FILTERS.map((filter) => (
+          <button key={filter} type="button">
+            {filter}
+            <DashboardIcon name="chevron-down" size={12} />
+          </button>
+        ))}
+        <button className="dynamic-code-primary" type="button">
+          <DashboardIcon name="qr" size={13} />
+          生成动态码
+        </button>
+        <button type="button">
+          <DashboardIcon name="download" size={13} />
+          打印签到码
+        </button>
+      </div>
+
+      <div className="dynamic-code-layout">
+        <section className="dashboard-card dynamic-code-table-card">
+          <header className="dynamic-code-head">
+            <div>
+              <span>按自习室展示</span>
+              <h2>动态码管理</h2>
+            </div>
+            <small>网页动态码与小程序二维码统一生成、打印和审计</small>
+          </header>
+
+          <div className="dynamic-code-table">
+            <div className="dynamic-code-table-head">
+              {[
+                '自习室',
+                '楼栋',
+                '网页动态码',
+                '小程序二维码',
+                '刷新策略',
+                '更新状态',
+                '最近更新',
+                '操作'
+              ].map((head) => (
+                <span key={head}>{head}</span>
+              ))}
+            </div>
+            {ADMIN_DYNAMIC_CODE_RECORDS.map((record) => {
+              const status = ADMIN_DYNAMIC_CODE_STATUS_META[record.status];
+              return (
+                <div className="dynamic-code-table-row" key={record.room}>
+                  <strong>{record.room}</strong>
+                  <span>{record.building}</span>
+                  <code>{record.webCode}</code>
+                  <span>{record.qrStatus}</span>
+                  <span>{record.refresh}</span>
+                  <span>
+                    <mark data-variant={status.variant}>{status.label}</mark>
+                  </span>
+                  <span>{record.updatedAt}</span>
+                  <span className="dynamic-code-actions">
+                    <button type="button">
+                      <DashboardIcon name="refresh" size={12} />
+                      重新生成
+                    </button>
+                    <button type="button">
+                      <DashboardIcon name="download" size={12} />
+                      打印
+                    </button>
+                    <button type="button">
+                      <DashboardIcon name="eye" size={12} />
+                      查看日志
+                    </button>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <aside className="dashboard-card dynamic-code-side-card">
+          <header className="dynamic-code-head">
+            <div>
+              <span>签到码预览</span>
+              <h2>经管自习室 301</h2>
+            </div>
+          </header>
+          <div className="dynamic-code-preview">
+            <div className="dynamic-code-qr" aria-hidden="true">
+              {Array.from({ length: 25 }).map((_, index) => (
+                <i key={index} data-on={index % 3 !== 1 || index === 12 ? 'true' : 'false'} />
+              ))}
+            </div>
+            <strong>FD-301-7K2</strong>
+            <span>网页动态码 · 小程序二维码</span>
+          </div>
+          {[
+            ['每日 00:00 自动更新', '每间自习室生成当日签到凭证'],
+            ['60 秒刷新', '网页动态码按刷新窗口滚动失效'],
+            ['截图复用拦截', '同一图片重复提交会进入异常上报'],
+            ['操作留痕', '重新生成、打印、查看日志均写入审计']
+          ].map(([title, desc]) => (
+            <div className="dynamic-code-rule" key={title}>
+              <span />
               <div>
                 <strong>{title}</strong>
                 <small>{desc}</small>
