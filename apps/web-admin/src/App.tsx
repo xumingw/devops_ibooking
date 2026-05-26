@@ -287,6 +287,9 @@ const DASHBOARD_ICON_PATHS = {
   eye: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 9a3 3 0 100 6 3 3 0 000-6z',
   download: 'M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4 M7 10l5 5 5-5 M12 15V3',
   refresh: 'M23 4v6h-6 M1 20v-6h6 M3.51 9a9 9 0 0114.85-3.36L23 10 M1 14l4.64 4.36A9 9 0 0020.49 15',
+  trash:
+    'M3 6h18 M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2 M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6 M10 11v6 M14 11v6',
+  info: 'M12 22a10 10 0 100-20 10 10 0 000 20z M12 16v-4 M12 8h.01',
   'check-circle': 'M22 11.08V12a10 10 0 11-5.93-9.14 M22 4L12 14.01l-3-3',
   'arrow-right': 'M5 12h14 M12 5l7 7-7 7',
   plus: 'M12 5v14 M5 12h14',
@@ -822,6 +825,43 @@ const getSeatTags = (seat: Pick<AdminSeat, 'hasPower' | 'nearWindow' | 'quietZon
   return tags.length > 0 ? tags : ['普通座'];
 };
 
+type FloorSeatStatus = 'available' | 'window' | 'taken' | 'selected' | 'disabled';
+
+const FLOOR_EDITOR_TOOLS: Array<{
+  icon: DashboardIconName;
+  label: string;
+  active?: boolean;
+}> = [
+  { icon: 'move', label: '选择', active: true },
+  { icon: 'plus', label: '添加座位' },
+  { icon: 'trash', label: '删除' },
+  { icon: 'edit', label: '标注属性' },
+  { icon: 'grid', label: '吸附网格' },
+  { icon: 'refresh', label: '撤销' }
+];
+
+const FLOOR_EDITOR_SUPPORT_TOOLS: Array<{ icon: DashboardIconName; label: string }> = [
+  { icon: 'info', label: '说明' },
+  { icon: 'download', label: '导出' }
+];
+
+const FLOOR_EDITOR_ROWS: FloorSeatStatus[][] = [
+  ['available', 'window', 'window', 'window', 'window', 'window', 'window', 'available'],
+  ['available', 'taken', 'available', 'taken', 'available', 'taken', 'available', 'available'],
+  ['available', 'available', 'taken', 'selected', 'available', 'taken', 'available', 'taken'],
+  ['taken', 'available', 'available', 'available', 'taken', 'available', 'available', 'taken'],
+  ['available', 'taken', 'available', 'taken', 'available', 'available', 'taken', 'available'],
+  ['taken', 'available', 'available', 'available', 'taken', 'available', 'available', 'taken']
+];
+
+const FLOOR_STATUS_LABELS: Record<FloorSeatStatus, string> = {
+  available: '可预约',
+  window: '靠窗',
+  taken: '已预约',
+  selected: '已选择',
+  disabled: '停用'
+};
+
 const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
   dashboard: {
     title: '管理仪表盘',
@@ -884,12 +924,12 @@ const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
     ]
   },
   editor: {
-    title: '平面图编辑器',
-    sub: '3 个楼层草稿待发布',
+    title: '座位平面图编辑器',
+    sub: '经管自习室 301 · 光华楼 A座 3楼',
     description: '调整座位坐标、通道、门窗和插座图层，发布后同步到学生端选座图。',
     actions: [
-      { label: '保存草稿', icon: 'download' },
-      { label: '发布平面图', icon: 'move' }
+      { label: '预览', icon: 'eye' },
+      { label: '保存布局', icon: 'check' }
     ],
     metrics: [
       { label: '已发布图层', value: '42', tone: F.success },
@@ -1278,6 +1318,8 @@ export function AdminDashboard({ accessToken, adminName, initialActive, onLogout
           />
         ) : activeMenu === 'seats' ? (
           <SeatManagementPanel createSignal={seatCreateSignal} />
+        ) : activeMenu === 'editor' ? (
+          <FloorEditorPanel />
         ) : (
           <AdminModulePanel meta={activeMeta} />
         )}
@@ -2058,6 +2100,144 @@ function SeatManagementPanel({ createSignal }: { createSignal: number }) {
         </div>
       )}
     </section>
+  );
+}
+
+function FloorEditorPanel() {
+  return (
+    <section className="floor-editor-panel" aria-label="座位平面图编辑器">
+      <div className="floor-editor-head">
+        <div>
+          <span>光华楼空间草稿</span>
+          <h2>座位平面图编辑器</h2>
+          <p>经管自习室 301 · 光华楼 A座 3楼</p>
+        </div>
+        <div className="floor-editor-head-actions">
+          <button type="button">
+            <DashboardIcon name="eye" size={13} />
+            预览
+          </button>
+          <button className="floor-primary-action" type="button">
+            <DashboardIcon name="check" size={13} />
+            保存布局
+          </button>
+        </div>
+      </div>
+
+      <div className="floor-editor-workbench">
+        <aside className="floor-toolbar" aria-label="编辑工具">
+          {FLOOR_EDITOR_TOOLS.map((tool) => (
+            <button
+              aria-label={tool.label}
+              className={tool.active ? 'is-active' : ''}
+              key={tool.label}
+              title={tool.label}
+              type="button"
+            >
+              <DashboardIcon name={tool.icon} size={16} />
+            </button>
+          ))}
+          <div className="floor-toolbar-spacer" />
+          {FLOOR_EDITOR_SUPPORT_TOOLS.map((tool) => (
+            <button aria-label={tool.label} key={tool.label} title={tool.label} type="button">
+              <DashboardIcon name={tool.icon} size={15} />
+            </button>
+          ))}
+        </aside>
+
+        <div className="floor-canvas" aria-label="座位平面图画布">
+          <div className="floor-canvas-card">
+            <div className="floor-entry-label">入 口</div>
+            <div className="floor-seat-map">
+              {FLOOR_EDITOR_ROWS.map((row, rowIndex) => {
+                const rowLabel = String.fromCharCode(65 + rowIndex);
+                return (
+                  <div className="floor-row-wrap" key={rowLabel}>
+                    {rowIndex === 3 && <span className="floor-aisle" aria-label="主通道" />}
+                    <div className="floor-row">
+                      <span className="floor-row-label">{rowLabel}</span>
+                      <div className="floor-seat-group">
+                        {row.slice(0, 4).map((status, columnIndex) => (
+                          <FloorSeatCell
+                            code={`${rowLabel}${columnIndex + 1}`}
+                            key={`${rowLabel}-${columnIndex + 1}`}
+                            status={status}
+                          />
+                        ))}
+                      </div>
+                      <span className="floor-seat-gap" />
+                      <div className="floor-seat-group">
+                        {row.slice(4).map((status, columnOffset) => (
+                          <FloorSeatCell
+                            code={`${rowLabel}${columnOffset + 5}`}
+                            key={`${rowLabel}-${columnOffset + 5}`}
+                            status={status}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="floor-window-line" aria-label="靠窗区域">
+              靠窗座位
+            </div>
+          </div>
+        </div>
+
+        <aside className="floor-properties" aria-label="属性面板">
+          <h3>属性面板</h3>
+          <div className="floor-selected-card">
+            <span>已选座位</span>
+            <strong>C4</strong>
+          </div>
+          {[
+            ['行', 'C（第3行）'],
+            ['列', '4（第4列）'],
+            ['朝向', '背窗'],
+            ['状态', '正常']
+          ].map(([label, value]) => (
+            <div className="floor-prop-row" key={label}>
+              <span>{label}</span>
+              <strong>{value}</strong>
+            </div>
+          ))}
+          <div className="floor-tag-section">
+            <span>标签</span>
+            <div className="floor-tag-list">
+              {['插座', '安静区', '靠窗', '白板附近'].map((tag, index) => (
+                <button className={index < 2 ? 'is-active' : ''} key={tag} type="button">
+                  {tag}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="floor-property-actions">
+            <button className="floor-primary-action" type="button">
+              应用更改
+            </button>
+            <button className="floor-danger-action" type="button">
+              <DashboardIcon name="trash" size={13} />
+              删除座位
+            </button>
+          </div>
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function FloorSeatCell({ code, status }: { code: string; status: FloorSeatStatus }) {
+  return (
+    <button
+      aria-label={`${code} ${FLOOR_STATUS_LABELS[status]}`}
+      className="floor-seat-cell"
+      data-status={status}
+      type="button"
+    >
+      {code}
+    </button>
   );
 }
 
