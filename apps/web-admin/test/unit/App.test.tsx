@@ -262,4 +262,21 @@ describe('管理端登录页', () => {
     expect(html).not.toContain('管理模块');
     expect(html).not.toContain('本周座位利用率热力图');
   });
+
+  it('渲染座位管理页面', () => {
+    const html = renderToStaticMarkup(
+      <AdminDashboard adminName="系统管理员" initialActive="seats" />
+    );
+
+    expect(html).toContain('座位管理');
+    expect(html).toContain('搜索座位编号、自习室');
+    expect(html).toContain('座位编号');
+    expect(html).toContain('经管自习室 301');
+    expect(html).toContain('带插座');
+    expect(html).toContain('靠窗');
+    expect(html).toContain('禁用');
+    expect(html).toContain('批量维护');
+    expect(html).toContain('定位');
+    expect(html).not.toContain('管理模块');
+  });
 });
