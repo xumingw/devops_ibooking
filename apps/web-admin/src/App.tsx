@@ -266,6 +266,7 @@ function FieldIcon({ type }: { type: 'account' | 'password' }) {
 }
 
 const DASHBOARD_ICON_PATHS = {
+  home: 'M3 11l9-8 9 8 M5 10v10a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1V10',
   chart: 'M18 20V10 M12 20V4 M6 20v-6',
   building:
     'M6 22V4a2 2 0 012-2h8a2 2 0 012 2v18 M6 12H4a2 2 0 00-2 2v6a2 2 0 002 2h2 M18 9h2a2 2 0 012 2v9a2 2 0 01-2 2h-2 M10 6h4 M10 10h4 M10 14h4 M10 18h4',
@@ -279,6 +280,7 @@ const DASHBOARD_ICON_PATHS = {
   alert:
     'M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z M12 9v4 M12 17h.01',
   qr: 'M3 3h6v6H3z M15 3h6v6h-6z M3 15h6v6H3z M15 15h.01 M19 15h.01 M15 19h.01 M19 19h.01 M17 15v4',
+  scan: 'M3 7V5a2 2 0 012-2h2 M17 3h2a2 2 0 012 2v2 M21 17v2a2 2 0 01-2 2h-2 M7 21H5a2 2 0 01-2-2v-2 M7 12h10',
   users:
     'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75 M9 7a4 4 0 100 8 4 4 0 000-8z',
   shield: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
@@ -294,6 +296,12 @@ const DASHBOARD_ICON_PATHS = {
   'arrow-right': 'M5 12h14 M12 5l7 7-7 7',
   plus: 'M12 5v14 M5 12h14',
   search: 'M21 21l-4.35-4.35 M10.5 18a7.5 7.5 0 100-15 7.5 7.5 0 000 15z',
+  pin: 'M21 10c0 7-9 12-9 12S3 17 3 10a9 9 0 1118 0z M12 13a3 3 0 100-6 3 3 0 000 6z',
+  star:
+    'M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.77 5.82 21 7 14.14l-5-4.87 6.91-1.01L12 2z',
+  clock: 'M12 22a10 10 0 100-20 10 10 0 000 20z M12 6v6l4 2',
+  zap: 'M13 2L3 14h7l-1 8 10-12h-7l1-8z',
+  bell: 'M18 8a6 6 0 00-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9 M13.73 21a2 2 0 01-3.46 0',
   edit: 'M12 20h9 M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z',
   x: 'M18 6L6 18 M6 6l12 12',
   check: 'M20 6L9 17l-5-5',
@@ -577,6 +585,13 @@ type AdminMenuAction = {
   id?: 'create-room' | 'refresh-rooms' | 'create-seat';
   label: string;
   icon: DashboardIconName;
+};
+
+type StudentMenuItem = {
+  id: string;
+  label: string;
+  icon: DashboardIconName;
+  badge?: string;
 };
 
 type AdminModuleMetric = {
@@ -1715,6 +1730,117 @@ const ADMIN_REPORT_RULES = [
 ] as const;
 
 const ADMIN_REPORT_FILTERS = ['2026年4月', '全校范围', '按月统计'] as const;
+
+const STUDENT_MENU_GROUPS: Array<{ label: string; items: StudentMenuItem[] }> = [
+  {
+    label: '学习空间',
+    items: [
+      { id: 'home', label: '首页概览', icon: 'home' },
+      { id: 'rooms', label: '自习室列表', icon: 'building' },
+      { id: 'select', label: '选座预约', icon: 'grid' }
+    ]
+  },
+  {
+    label: '个人服务',
+    items: [
+      { id: 'bookings', label: '我的预约', icon: 'calendar' },
+      { id: 'checkin', label: '签到', icon: 'check-circle' },
+      { id: 'assistant', label: '智能助手', icon: 'zap' },
+      { id: 'notify', label: '通知中心', icon: 'bell', badge: '3' },
+      { id: 'violation', label: '违约记录', icon: 'alert' }
+    ]
+  }
+];
+
+const STUDENT_HOME_STATS = [
+  {
+    label: '今日全校空座',
+    value: '284',
+    note: '共 2,840 个座位',
+    icon: 'grid',
+    tone: F.navy,
+    trend: '较昨日 +12%'
+  },
+  {
+    label: '今日我的预约',
+    value: '1',
+    note: '还有 2 次可用',
+    icon: 'calendar',
+    tone: '#3A6FA8',
+    trend: '14:00 开始'
+  },
+  {
+    label: '常用自习室',
+    value: '3',
+    note: '光华楼 · 文史馆 · 图书馆',
+    icon: 'star',
+    tone: F.gold,
+    trend: '已收藏'
+  },
+  {
+    label: '本周学习时长',
+    value: '12h',
+    note: '较上周 +2.5h',
+    icon: 'clock',
+    tone: F.success,
+    trend: '持续提升'
+  }
+] satisfies Array<{
+  label: string;
+  value: string;
+  note: string;
+  icon: DashboardIconName;
+  tone: string;
+  trend: string;
+}>;
+
+const STUDENT_RECOMMENDED_ROOMS = [
+  {
+    name: '经管自习室 301',
+    location: '光华楼 A座 3楼',
+    seats: '12 / 48',
+    status: '空余充足',
+    tags: ['插座', '靠窗', '安静区'],
+    tone: F.navy
+  },
+  {
+    name: '理工自习室 201',
+    location: '逸夫楼 2楼',
+    seats: '31 / 64',
+    status: '24小时',
+    tags: ['通宵开放', '插座'],
+    tone: '#3A6FA8'
+  },
+  {
+    name: '文史馆阅览室',
+    location: '文史馆 1楼',
+    seats: '5 / 80',
+    status: '较繁忙',
+    tags: ['靠窗', '低噪音'],
+    tone: '#C8820A'
+  }
+] as const;
+
+const STUDENT_QUICK_ACTIONS = [
+  { label: '立即找座', icon: 'search', tone: F.navy },
+  { label: '扫码签到', icon: 'scan', tone: F.success },
+  { label: '我的收藏', icon: 'star', tone: F.gold },
+  { label: '智能推荐', icon: 'zap', tone: '#7A52A8' }
+] satisfies Array<{
+  label: string;
+  icon: DashboardIconName;
+  tone: string;
+}>;
+
+const STUDENT_WEEK_RECORDS = [
+  ['一', 2],
+  ['二', 3.5],
+  ['三', 1.5],
+  ['四', 4],
+  ['五', 2.5],
+  ['六', 0],
+  ['日', 1]
+] as const;
 
 const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
   dashboard: {
@@ -4282,7 +4408,7 @@ function DataReportsPanel() {
   );
 }
 
-function StudentHomePreview({
+export function StudentHomePreview({
   studentName,
   onLogout
 }: {
@@ -4290,17 +4416,161 @@ function StudentHomePreview({
   onLogout?: () => void;
 }) {
   return (
-    <main className="student-preview-page">
-      <section className="student-preview-card">
-        <div className="brand-seal">旦</div>
-        <h1>学生首页</h1>
-        <p>{studentName}，欢迎使用复旦大学自习室预约系统。</p>
-        <div className="student-actions">
-          <button type="button">查看自习室</button>
-          <button type="button">我的预约</button>
-          <button type="button" onClick={onLogout}>
-            退出登录
-          </button>
+    <main className="student-home-page">
+      <aside className="student-home-sidebar">
+        <div className="student-home-brand">
+          <div className="brand-seal">旦</div>
+          <div>
+            <strong>复旦大学</strong>
+            <span>自习预约系统</span>
+          </div>
+        </div>
+        <nav className="student-home-nav" aria-label="学生菜单">
+          {STUDENT_MENU_GROUPS.map((group) => (
+            <div className="student-home-nav-group" key={group.label}>
+              <div className="student-home-nav-label">{group.label}</div>
+              {group.items.map((item) => (
+                <button
+                  aria-current={item.id === 'home' ? 'page' : undefined}
+                  className={item.id === 'home' ? 'is-active' : ''}
+                  key={item.id}
+                  type="button"
+                >
+                  <DashboardIcon name={item.icon} size={13} />
+                  <span>{item.label}</span>
+                  {item.badge ? <mark>{item.badge}</mark> : null}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+        <div className="student-home-user">
+          <div className="student-home-avatar">{studentName.charAt(0)}</div>
+          <div>
+            <strong>{studentName}</strong>
+            <span>21307001 · 计算机学院</span>
+          </div>
+        </div>
+      </aside>
+
+      <section className="student-home-main">
+        <header className="student-home-topbar">
+          <div>
+            <h1>首页概览</h1>
+            <p>2026年5月26日 · 学习空间实时状态</p>
+          </div>
+          <div className="student-home-actions">
+            <button type="button">
+              <DashboardIcon name="search" size={13} />
+              搜索自习室
+            </button>
+            <button type="button">
+              <DashboardIcon name="bell" size={13} />
+              通知
+            </button>
+            <button type="button" onClick={onLogout}>
+              退出登录
+            </button>
+          </div>
+        </header>
+
+        <section className="student-home-booking-banner" aria-label="下一场预约">
+          <span className="student-home-banner-icon">
+            <DashboardIcon name="calendar" size={24} />
+          </span>
+          <div>
+            <small>下一场预约</small>
+            <h2>光华楼 A座 3楼 · 经管自习室 301 · A15 号座位</h2>
+            <p>
+              今日 14:00 – 17:00 · 距开始还有 <strong>2小时18分</strong>
+            </p>
+          </div>
+          <div className="student-home-booking-actions">
+            <button type="button">立即签到</button>
+            <button type="button">取消预约</button>
+          </div>
+        </section>
+
+        <section className="student-home-stat-grid" aria-label="学习空间关键指标">
+          {STUDENT_HOME_STATS.map((stat) => (
+            <article className="dashboard-card student-home-stat-card" key={stat.label}>
+              <div>
+                <span>{stat.label}</span>
+                <strong>{stat.value}</strong>
+                <small>{stat.note}</small>
+              </div>
+              <i style={{ color: stat.tone }}>
+                <DashboardIcon name={stat.icon} size={17} />
+              </i>
+              <mark>{stat.trend}</mark>
+            </article>
+          ))}
+        </section>
+
+        <div className="student-home-content-grid">
+          <section className="student-home-room-section">
+            <header className="student-home-section-title">
+              <h2>推荐自习室</h2>
+              <button type="button">
+                全部
+                <DashboardIcon name="arrow-right" size={12} />
+              </button>
+            </header>
+            <div className="student-home-room-list">
+              {STUDENT_RECOMMENDED_ROOMS.map((room) => (
+                <article className="dashboard-card student-home-room-card" key={room.name}>
+                  <span className="student-home-room-icon" style={{ color: room.tone }}>
+                    <DashboardIcon name="building" size={18} />
+                  </span>
+                  <div className="student-home-room-info">
+                    <strong>{room.name}</strong>
+                    <small>
+                      <DashboardIcon name="pin" size={11} />
+                      {room.location}
+                    </small>
+                  </div>
+                  <div className="student-home-room-tags">
+                    {room.tags.map((tag) => (
+                      <span key={tag}>{tag}</span>
+                    ))}
+                  </div>
+                  <div className="student-home-room-seats">
+                    <strong>{room.seats}</strong>
+                    <small>{room.status}</small>
+                  </div>
+                  <button type="button">去预约</button>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <aside className="student-home-side">
+            <section>
+              <h2>快捷操作</h2>
+              <div className="student-home-quick-grid">
+                {STUDENT_QUICK_ACTIONS.map((action) => (
+                  <button key={action.label} type="button">
+                    <i style={{ color: action.tone }}>
+                      <DashboardIcon name={action.icon} size={17} />
+                    </i>
+                    <span>{action.label}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="dashboard-card student-home-week-card">
+              <h2>本周学习记录</h2>
+              <div className="student-home-week-chart" aria-label="本周学习记录">
+                {STUDENT_WEEK_RECORDS.map(([day, hours]) => (
+                  <div className="student-home-week-item" key={day}>
+                    <span style={{ height: `${Math.max(4, (hours / 4) * 52)}px` }} />
+                    <small>{day}</small>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </aside>
         </div>
       </section>
     </main>

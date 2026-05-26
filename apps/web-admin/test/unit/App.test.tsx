@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   AdminDashboard,
   App,
+  StudentHomePreview,
   requestLogin,
   requestRooms,
   resolveApiBaseUrl,
@@ -188,6 +189,27 @@ describe('统一登录页', () => {
         'http://xmwhzl.love:13000'
       )
     ).rejects.toThrow('账号或密码错误');
+  });
+
+  it('渲染学生首页概览页面', () => {
+    const html = renderToStaticMarkup(<StudentHomePreview studentName="林晓明" />);
+
+    expect(html).toContain('复旦大学');
+    expect(html).toContain('自习预约系统');
+    expect(html).toContain('首页概览');
+    expect(html).toContain('林晓明');
+    expect(html).toContain('21307001');
+    expect(html).toContain('下一场预约');
+    expect(html).toContain('经管自习室 301');
+    expect(html).toContain('今日 14:00 – 17:00');
+    expect(html).toContain('立即签到');
+    expect(html).toContain('今日全校空座');
+    expect(html).toContain('今日我的预约');
+    expect(html).toContain('推荐自习室');
+    expect(html).toContain('立即找座');
+    expect(html).toContain('本周学习记录');
+    expect(html).not.toContain('学生首页');
+    expect(html).not.toContain('查看自习室');
   });
 
   it('生产构建缺少 VITE_API_BASE_URL 时不能回退到 localhost', () => {
