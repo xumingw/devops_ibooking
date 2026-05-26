@@ -1222,6 +1222,89 @@ const ADMIN_DYNAMIC_CODE_STATUS_META = {
 
 const ADMIN_DYNAMIC_CODE_FILTERS = ['全部楼栋', '全部状态', '刷新策略'] as const;
 
+const ADMIN_USER_SUMMARY = [
+  {
+    label: '学生账号',
+    value: '18,420',
+    note: '学工号统一认证同步',
+    icon: 'users',
+    tone: '#3A6FA8'
+  },
+  {
+    label: '管理员',
+    value: '36',
+    note: '按角色授权后台菜单',
+    icon: 'shield',
+    tone: F.success
+  },
+  {
+    label: '停用账号',
+    value: '12',
+    note: '阻止登录与预约操作',
+    icon: 'alert',
+    tone: '#C84040'
+  },
+  {
+    label: '本周新增',
+    value: '128',
+    note: '来自院系名单导入',
+    icon: 'download',
+    tone: F.gold
+  }
+] satisfies Array<{
+  label: string;
+  value: string;
+  note: string;
+  icon: DashboardIconName;
+  tone: string;
+}>;
+
+const ADMIN_USER_RECORDS = [
+  {
+    name: '林晓明',
+    account: '22302010001',
+    department: '经济学院',
+    role: '学生',
+    source: '统一认证',
+    lastLogin: '今天 09:42',
+    status: 'active'
+  },
+  {
+    name: '王老师',
+    account: 'admin_full',
+    department: '教务处',
+    role: '超级管理员',
+    source: '后台创建',
+    lastLogin: '今天 08:50',
+    status: 'active'
+  },
+  {
+    name: '张老师',
+    account: 'room_admin_01',
+    department: '后勤保障',
+    role: '自习室管理员',
+    source: '后台创建',
+    lastLogin: '昨天 19:21',
+    status: 'active'
+  },
+  {
+    name: '陈同学',
+    account: '22307110012',
+    department: '计算机学院',
+    role: '学生',
+    source: '统一认证',
+    lastLogin: '7天前',
+    status: 'disabled'
+  }
+] as const;
+
+const ADMIN_USER_STATUS_META = {
+  active: { label: '正常', variant: 'green' },
+  disabled: { label: '停用', variant: 'red' }
+} as const;
+
+const ADMIN_USER_FILTERS = ['全部院系', '全部角色', '账号状态'] as const;
+
 const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
   dashboard: {
     title: '管理仪表盘',
@@ -1688,6 +1771,8 @@ export function AdminDashboard({ accessToken, adminName, initialActive, onLogout
           <ViolationRecordsPanel />
         ) : activeMenu === 'qrcode' ? (
           <DynamicCodePanel />
+        ) : activeMenu === 'users' ? (
+          <UserManagementPanel />
         ) : (
           <AdminModulePanel meta={activeMeta} />
         )}
@@ -3142,6 +3227,121 @@ function DynamicCodePanel() {
           ].map(([title, desc]) => (
             <div className="dynamic-code-rule" key={title}>
               <span />
+              <div>
+                <strong>{title}</strong>
+                <small>{desc}</small>
+              </div>
+            </div>
+          ))}
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function UserManagementPanel() {
+  return (
+    <section className="user-management-panel" aria-label="用户管理">
+      <div className="user-management-summary-grid" aria-label="用户关键指标">
+        {ADMIN_USER_SUMMARY.map((item) => (
+          <article className="dashboard-card user-management-summary-card" key={item.label}>
+            <span className="user-management-summary-icon" style={{ color: item.tone }}>
+              <DashboardIcon name={item.icon} size={15} />
+            </span>
+            <div>
+              <strong>{item.value}</strong>
+              <span>{item.label}</span>
+              <small>{item.note}</small>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="user-management-toolbar">
+        <label className="user-management-search">
+          <DashboardIcon name="search" size={14} />
+          <input aria-label="搜索用户" placeholder="姓名、学号、院系" />
+        </label>
+        {ADMIN_USER_FILTERS.map((filter) => (
+          <button key={filter} type="button">
+            {filter}
+            <DashboardIcon name="chevron-down" size={12} />
+          </button>
+        ))}
+        <button className="user-management-primary" type="button">
+          <DashboardIcon name="users" size={13} />
+          新增用户
+        </button>
+        <button type="button">
+          <DashboardIcon name="download" size={13} />
+          导入名单
+        </button>
+      </div>
+
+      <div className="user-management-layout">
+        <section className="dashboard-card user-management-table-card">
+          <header className="user-management-head">
+            <div>
+              <span>展示最近登录用户</span>
+              <h2>账号列表</h2>
+            </div>
+            <small>学生账号、管理员账号与院系归属统一维护</small>
+          </header>
+
+          <div className="user-management-table">
+            <div className="user-management-table-head">
+              {['姓名', '账号', '院系', '角色', '账号来源', '最近登录', '状态', '操作'].map((head) => (
+                <span key={head}>{head}</span>
+              ))}
+            </div>
+            {ADMIN_USER_RECORDS.map((user) => {
+              const status = ADMIN_USER_STATUS_META[user.status];
+              return (
+                <div className="user-management-table-row" key={user.account}>
+                  <strong>{user.name}</strong>
+                  <code>{user.account}</code>
+                  <span>{user.department}</span>
+                  <span>{user.role}</span>
+                  <span>{user.source}</span>
+                  <span>{user.lastLogin}</span>
+                  <span>
+                    <mark data-variant={status.variant}>{status.label}</mark>
+                  </span>
+                  <span className="user-management-actions">
+                    <button type="button">
+                      <DashboardIcon name="shield" size={12} />
+                      分配角色
+                    </button>
+                    <button type="button">
+                      <DashboardIcon name="settings" size={12} />
+                      重置密码
+                    </button>
+                    <button className={user.status === 'disabled' ? 'is-enable' : 'is-disable'} type="button">
+                      <DashboardIcon name={user.status === 'disabled' ? 'check-circle' : 'x'} size={12} />
+                      {user.status === 'disabled' ? '启用' : '停用'}
+                    </button>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <aside className="dashboard-card user-management-side-card">
+          <header className="user-management-head">
+            <div>
+              <span>账号规则</span>
+              <h2>来源与权限</h2>
+            </div>
+          </header>
+          {[
+            ['学工号统一认证同步', '学生账号以统一身份认证信息为准，院系变更自动同步'],
+            ['管理员账号需绑定角色', '后台访问范围由角色和菜单权限共同决定'],
+            ['菜单级权限由角色权限模块控制', '用户管理只维护账号与角色关系'],
+            ['停用账号会阻止登录与预约', '停用后保留历史预约、签到和审计记录']
+          ].map(([title, desc], index) => (
+            <div className="user-management-rule" key={title}>
+              <span>{index + 1}</span>
               <div>
                 <strong>{title}</strong>
                 <small>{desc}</small>
