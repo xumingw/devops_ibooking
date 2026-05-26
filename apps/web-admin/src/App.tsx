@@ -1927,6 +1927,50 @@ const STUDENT_ROOM_STATUS_META = {
 
 const STUDENT_ROOM_FILTERS = ['全部楼栋', '全校开放', '有空位', '有插座', '靠窗'] as const;
 
+type StudentSeatStatus = 'available' | 'window' | 'taken' | 'selected' | 'disabled';
+
+const STUDENT_SEAT_DATES = ['今天', '明天', '后天'] as const;
+const STUDENT_SEAT_BUILDINGS = ['光华楼 A座', '逸夫楼', '文史馆', '李兆基图书馆'] as const;
+const STUDENT_SEAT_FEATURES = ['插座', '靠窗', '安静区', '白板附近', '无障碍'] as const;
+
+const STUDENT_SEAT_ROWS: StudentSeatStatus[][] = [
+  ['available', 'available', 'taken', 'available', 'taken', 'available', 'available', 'available'],
+  ['window', 'window', 'window', 'window', 'window', 'window', 'window', 'window'],
+  ['taken', 'available', 'selected', 'taken', 'available', 'taken', 'available', 'taken'],
+  ['available', 'taken', 'available', 'available', 'available', 'taken', 'available', 'available'],
+  ['available', 'available', 'taken', 'taken', 'available', 'available', 'taken', 'available'],
+  ['taken', 'available', 'available', 'available', 'taken', 'available', 'available', 'taken'],
+  ['disabled', 'disabled', 'available', 'taken', 'available', 'available', 'taken', 'disabled']
+];
+
+const STUDENT_SEAT_STATUS_LABELS: Record<StudentSeatStatus, string> = {
+  available: '空闲',
+  window: '靠窗',
+  taken: '已占',
+  selected: '已选',
+  disabled: '停用'
+};
+
+const STUDENT_SEAT_LEGEND: Array<{
+  status: StudentSeatStatus;
+  label: string;
+}> = [
+  { status: 'available', label: '空闲' },
+  { status: 'taken', label: '已占' },
+  { status: 'selected', label: '已选' },
+  { status: 'window', label: '靠窗' }
+];
+
+const STUDENT_SEAT_TIME_SLOTS = [
+  { time: '08:00–12:00', label: '空闲', status: 'available' },
+  { time: '12:00–14:00', label: '已占用', status: 'taken' },
+  { time: '14:00–17:00', label: '已选', status: 'selected' },
+  { time: '17:00–22:00', label: '空闲', status: 'available' }
+] as const;
+
+const getStudentSeatNumber = (rowIndex: number, colIndex: number) =>
+  `${String.fromCharCode(65 + rowIndex)}${colIndex + 1}`;
+
 const STUDENT_QUICK_ACTIONS = [
   { label: '立即找座', icon: 'search', tone: F.navy },
   { label: '扫码签到', icon: 'scan', tone: F.success },
@@ -4540,6 +4584,15 @@ export function StudentHomePreview({
     pushAppPath(nextMenu === 'home' ? '/student' : `/student/${nextMenu}`);
   };
 
+  const pageTitle =
+    activeMenu === 'rooms' ? '自习室列表' : activeMenu === 'select' ? '选座预约' : '首页概览';
+  const pageSubtitle =
+    activeMenu === 'rooms'
+      ? `共 ${STUDENT_ROOM_LIST.length} 个自习室`
+      : activeMenu === 'select'
+        ? '光华楼 A座 · 3楼 · 经管自习室 301'
+        : '2026年5月26日 · 学习空间实时状态';
+
   return (
     <main className="student-home-page">
       <aside className="student-home-sidebar">
@@ -4582,15 +4635,22 @@ export function StudentHomePreview({
       <section className="student-home-main">
         <header className="student-home-topbar">
           <div>
-            <h1>{activeMenu === 'rooms' ? '自习室列表' : '首页概览'}</h1>
-            <p>
-              {activeMenu === 'rooms'
-                ? `共 ${STUDENT_ROOM_LIST.length} 个自习室`
-                : '2026年5月26日 · 学习空间实时状态'}
-            </p>
+            <h1>{pageTitle}</h1>
+            <p>{pageSubtitle}</p>
           </div>
           <div className="student-home-actions">
-            {activeMenu === 'rooms' ? (
+            {activeMenu === 'select' ? (
+              <>
+                <button type="button">
+                  <DashboardIcon name="building" size={13} />
+                  切换自习室
+                </button>
+                <button type="button">
+                  <DashboardIcon name="refresh" size={13} />
+                  刷新座位
+                </button>
+              </>
+            ) : activeMenu === 'rooms' ? (
               <>
                 <button type="button">
                   <DashboardIcon name="search" size={13} />
@@ -4621,6 +4681,8 @@ export function StudentHomePreview({
 
         {activeMenu === 'rooms' ? (
           <StudentRoomsPanel />
+        ) : activeMenu === 'select' ? (
+          <StudentSeatSelectorPanel />
         ) : (
           <>
         <section className="student-home-booking-banner" aria-label="下一场预约">
@@ -4795,5 +4857,223 @@ function StudentRoomsPanel() {
         })}
       </div>
     </section>
+  );
+}
+
+function StudentSeatSelectorPanel() {
+  return (
+    <section className="student-seat-selector-panel" aria-label="学生选座预约">
+      <aside className="student-seat-filter-panel">
+        <h2>筛选条件</h2>
+
+        <div className="student-seat-filter-section">
+          <h3>日期</h3>
+          <div className="student-seat-segment" aria-label="日期">
+            {STUDENT_SEAT_DATES.map((date, index) => (
+              <button className={index === 0 ? 'is-active' : ''} key={date} type="button">
+                {date}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="student-seat-filter-section">
+          <h3>时间段</h3>
+          <div className="student-seat-time-grid">
+            {[
+              ['开始', '14:00'],
+              ['结束', '17:00']
+            ].map(([label, value], index) => (
+              <div key={label}>
+                <span>{label}</span>
+                <button className={index === 0 ? 'is-active' : ''} type="button">
+                  {value}
+                  <DashboardIcon name="chevron-down" size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="student-seat-filter-section">
+          <h3>楼栋</h3>
+          <div className="student-seat-building-list">
+            {STUDENT_SEAT_BUILDINGS.map((building, index) => (
+              <button className={index === 0 ? 'is-active' : ''} key={building} type="button">
+                <i>{index === 0 ? <DashboardIcon name="check" size={9} /> : null}</i>
+                <span>{building}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="student-seat-filter-section">
+          <h3>座位属性</h3>
+          <div className="student-seat-feature-list">
+            {STUDENT_SEAT_FEATURES.map((feature, index) => (
+              <button className={index < 2 ? 'is-active' : ''} key={feature} type="button">
+                {feature}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="student-seat-filter-actions">
+          <button type="button">应用筛选</button>
+          <button type="button">重置条件</button>
+        </div>
+      </aside>
+
+      <div className="student-seat-floor-panel">
+        <header className="student-seat-floor-head">
+          <div>
+            <strong>经管自习室 301</strong>
+            <mark>开放中</mark>
+          </div>
+          <div className="student-seat-legend" aria-label="座位图例">
+            {STUDENT_SEAT_LEGEND.map((item) => (
+              <span key={item.status}>
+                <i data-status={item.status} />
+                {item.label}
+              </span>
+            ))}
+          </div>
+        </header>
+
+        <div className="dashboard-card student-seat-map-card">
+          <div className="student-seat-entry">入 口</div>
+          <div className="student-seat-window-row">
+            <i />
+            靠窗排
+          </div>
+
+          <div className="student-seat-grid" aria-label="经管自习室 301 座位图">
+            {STUDENT_SEAT_ROWS.map((row, rowIndex) => (
+              <div className="student-seat-row-block" key={`row-${rowIndex}`}>
+                {rowIndex === 3 ? (
+                  <div className="student-seat-aisle">
+                    <span>过道</span>
+                  </div>
+                ) : null}
+                <div className="student-seat-row">
+                  <span className="student-seat-row-label">
+                    {String.fromCharCode(65 + rowIndex)}
+                  </span>
+                  <div className="student-seat-row-side">
+                    {row.slice(0, 4).map((status, colIndex) => (
+                      <StudentSeatCell
+                        key={getStudentSeatNumber(rowIndex, colIndex)}
+                        seatNo={getStudentSeatNumber(rowIndex, colIndex)}
+                        status={status}
+                      />
+                    ))}
+                  </div>
+                  <span className="student-seat-row-gap" />
+                  <div className="student-seat-row-side">
+                    {row.slice(4).map((status, colIndex) => {
+                      const actualColIndex = colIndex + 4;
+
+                      return (
+                        <StudentSeatCell
+                          key={getStudentSeatNumber(rowIndex, actualColIndex)}
+                          seatNo={getStudentSeatNumber(rowIndex, actualColIndex)}
+                          status={status}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="student-seat-column-labels" aria-hidden="true">
+            <span />
+            {[1, 2, 3, 4, '', 5, 6, 7, 8].map((label, index) => (
+              <span key={`${label}-${index}`}>{label}</span>
+            ))}
+          </div>
+        </div>
+
+        <div className="student-seat-map-notes">
+          <span>A排、C排、E排设有插座</span>
+          <span>共 56 个座位 · 12 空余 · 今日已预约 38 场次</span>
+        </div>
+      </div>
+
+      <aside className="student-seat-booking-panel">
+        <h2>预约信息</h2>
+
+        <div className="student-seat-selected-card">
+          <small>已选座位</small>
+          <strong>C3</strong>
+          <span>经管自习室 301 · C排3号</span>
+          <div>
+            <mark>插座</mark>
+            <mark>安静区</mark>
+          </div>
+        </div>
+
+        <dl className="student-seat-booking-summary">
+          {[
+            ['日期', '2026年4月24日（周四）'],
+            ['时间', '14:00 – 17:00（3小时）'],
+            ['楼栋', '光华楼 A座 3楼']
+          ].map(([label, value]) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+
+        <div className="student-seat-rule-notice">
+          <DashboardIcon name="alert" size={13} />
+          <span>
+            请在开始时间后 <strong>15 分钟内</strong>完成签到，否则预约将自动取消并记录违约。
+          </span>
+        </div>
+
+        <button className="student-seat-primary-action" type="button">
+          确认预约
+        </button>
+        <button className="student-seat-secondary-action" type="button">
+          收藏该座位
+        </button>
+
+        <section className="student-seat-slot-list">
+          <h3>可用时段</h3>
+          {STUDENT_SEAT_TIME_SLOTS.map((slot) => (
+            <div data-status={slot.status} key={slot.time}>
+              <span>{slot.time}</span>
+              <mark>{slot.label}</mark>
+            </div>
+          ))}
+        </section>
+      </aside>
+    </section>
+  );
+}
+
+function StudentSeatCell({
+  seatNo,
+  status
+}: {
+  seatNo: string;
+  status: StudentSeatStatus;
+}) {
+  const disabled = status === 'taken' || status === 'disabled';
+
+  return (
+    <button
+      aria-label={`${seatNo} ${STUDENT_SEAT_STATUS_LABELS[status]}`}
+      className="student-seat-cell"
+      data-status={status}
+      disabled={disabled}
+      type="button"
+    >
+      <span>{seatNo}</span>
+      {status === 'available' || status === 'selected' ? <small>插</small> : null}
+    </button>
   );
 }
