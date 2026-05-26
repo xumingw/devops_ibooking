@@ -45,7 +45,7 @@ Ruleset 建议：
   - `release-source-guard`
   - `docker-build`
 
-`release-source-guard` 会拒绝任何不是从 `dev` 发起到 `main` 的 PR。`docker-build` 会构建 API、学生端、管理端三个镜像；PR 阶段只构建验证，`main` push 阶段会推送到配置的镜像仓库。默认仓库是 GHCR。
+`release-source-guard` 会拒绝任何不是从 `dev` 发起到 `main` 的 PR。`docker-build` 会构建 API 和统一 Web 入口两个镜像；PR 阶段只构建验证，`main` push 阶段会推送到配置的镜像仓库。默认仓库是 GHCR。
 
 ## 自动部署
 
@@ -69,20 +69,19 @@ Ruleset 建议：
 | `PROD_IMAGE_REGISTRY` | `ghcr.io` | 镜像仓库域名。国内部署建议改为云厂商 Registry，例如 ACR / TCR / SWR 的域名 |
 | `PROD_IMAGE_NAMESPACE` | `${owner}/${repo}` | 镜像命名空间；国内 Registry 通常填写账号下的 namespace |
 | `PROD_API_IMAGE_REPOSITORY` | `${PROD_IMAGE_REGISTRY}/${PROD_IMAGE_NAMESPACE}/api` | 可选；API 镜像完整仓库名，不含 tag |
-| `PROD_WEB_STUDENT_IMAGE_REPOSITORY` | `${PROD_IMAGE_REGISTRY}/${PROD_IMAGE_NAMESPACE}/web-student` | 可选；学生端镜像完整仓库名，不含 tag |
-| `PROD_WEB_ADMIN_IMAGE_REPOSITORY` | `${PROD_IMAGE_REGISTRY}/${PROD_IMAGE_NAMESPACE}/web-admin` | 可选；管理端镜像完整仓库名，不含 tag |
+| `PROD_WEB_ADMIN_IMAGE_REPOSITORY` | `${PROD_IMAGE_REGISTRY}/${PROD_IMAGE_NAMESPACE}/web-admin` | 可选；统一 Web 入口镜像完整仓库名，不含 tag |
+| `PROD_API_PUBLIC_URL` | 无默认值 | 生产 Web 构建注入的 API 公网地址，例如 `http://xmwhzl.love:13000` |
 
-三个完整仓库名必须使用同一个 Registry host，便于 workflow 用同一组凭证登录并推送 / 拉取。
+两个完整仓库名必须使用同一个 Registry host，便于 workflow 用同一组凭证登录并推送 / 拉取。
 
-示例：阿里云 ACR 如果不支持多级仓库路径，可直接配置三项完整仓库名：
+示例：阿里云 ACR 如果不支持多级仓库路径，可直接配置两项完整仓库名：
 
 ```text
 PROD_API_IMAGE_REPOSITORY=registry.cn-hangzhou.aliyuncs.com/<namespace>/ibooking-api
-PROD_WEB_STUDENT_IMAGE_REPOSITORY=registry.cn-hangzhou.aliyuncs.com/<namespace>/ibooking-web-student
-PROD_WEB_ADMIN_IMAGE_REPOSITORY=registry.cn-hangzhou.aliyuncs.com/<namespace>/ibooking-web-admin
+PROD_WEB_ADMIN_IMAGE_REPOSITORY=registry.cn-hangzhou.aliyuncs.com/<namespace>/ibooking-web
 ```
 
-`main` 部署时不会依赖 `latest`，workflow 会把本次 commit SHA 对应的三个镜像写入服务器 `infra/.deploy-images.env`，再执行 `docker compose --env-file infra/.deploy-images.env ... pull/up`，确保部署版本和构建版本一致。
+`main` 部署时不会依赖 `latest`，workflow 会把本次 commit SHA 对应的两个镜像写入服务器 `infra/.deploy-images.env`，再执行 `docker compose --env-file infra/.deploy-images.env ... pull/up`，确保部署版本和构建版本一致。
 
 服务器目录需要提前 clone 本仓库，并安装 Docker / Docker Compose。部署命令会在服务器执行：
 

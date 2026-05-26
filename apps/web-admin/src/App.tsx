@@ -4,6 +4,11 @@ import { F } from '@ibooking/design-tokens';
 
 export type EntryKind = 'student' | 'admin';
 
+type RoleView = {
+  name: string;
+  code: string;
+};
+
 type Feedback = {
   type: 'success' | 'error';
   text: string;
@@ -25,7 +30,7 @@ type LoginPayload = {
       name: string;
       departmentName?: string | null;
     };
-    roles?: Array<{ name: string; code: string }>;
+    roles?: RoleView[];
   };
 };
 
@@ -35,7 +40,6 @@ type ApiRuntimeEnv = {
 };
 
 type LoginRequestInput = {
-  entry: EntryKind;
   account: string;
   password: string;
 };
@@ -141,15 +145,11 @@ export const requestLogin = async (
   fetcher: typeof fetch = fetch,
   apiBaseUrl = resolveApiBaseUrl()
 ) => {
-  const response = await fetcher(`${apiBaseUrl}/api/v1/auth/${input.entry}-login`, {
+  const response = await fetcher(`${apiBaseUrl}/api/v1/auth/login`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(
-      input.entry === 'admin'
-        ? { username: input.account.trim(), password: input.password }
-        : { studentId: input.account.trim(), password: input.password }
-    )
+    body: JSON.stringify({ studentNo: input.account.trim(), password: input.password })
   });
   const payload = (await response.json().catch(() => null)) as LoginPayload | null;
   if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
@@ -221,6 +221,16 @@ export const saveAdminRoom = async (
 
   return payload.data;
 };
+
+const ADMIN_ROLE_CODES = new Set([
+  'ROLE_FULL_ADMIN',
+  'ROLE_ROOM_ADMIN',
+  'ROLE_AUDIT',
+  'ROLE_DEPARTMENT_ADMIN'
+]);
+
+export const resolveSessionKind = (roles: RoleView[] = []): EntryKind =>
+  roles.some((role) => ADMIN_ROLE_CODES.has(role.code)) ? 'admin' : 'student';
 
 const pushAppPath = (path: string) => {
   if (typeof window !== 'undefined') {
@@ -323,7 +333,6 @@ function DashboardIcon({
 }
 
 export function App() {
-  const [entry, setEntry] = useState<EntryKind>('admin');
   const [loginMode, setLoginMode] = useState<'password' | 'sso'>('password');
   const [account, setAccount] = useState(ENTRY_PRESETS.admin.account);
   const [password, setPassword] = useState(ENTRY_PRESETS.admin.password);
@@ -348,32 +357,26 @@ export function App() {
     []
   );
 
-  useEffect(() => {
-    setAccount(ENTRY_PRESETS[entry].account);
-    setPassword(ENTRY_PRESETS[entry].password);
-    setFeedback(null);
-  }, [entry]);
-
-  const handleEntryChange = (nextEntry: EntryKind) => {
-    setEntry(nextEntry);
-    setLoginMode('password');
-  };
-
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSubmitting(true);
     setFeedback(null);
 
     try {
-      const loginSession = await requestLogin({ entry, account, password });
+      const loginSession = await requestLogin({ account, password });
+      const sessionKind = resolveSessionKind(loginSession.roles);
 
       localStorage.setItem(AUTH_REMEMBER_KEY, remember ? '1' : '0');
       localStorage.setItem(
-        entry === 'admin' ? ADMIN_ACCESS_TOKEN_KEY : STUDENT_ACCESS_TOKEN_KEY,
+        sessionKind === 'admin' ? ADMIN_ACCESS_TOKEN_KEY : STUDENT_ACCESS_TOKEN_KEY,
         loginSession.accessToken
       );
-      setSession({ kind: entry, name: loginSession.user.name, accessToken: loginSession.accessToken });
-      pushAppPath(entry === 'admin' ? '/dashboard' : '/student');
+      setSession({
+        kind: sessionKind,
+        name: loginSession.user.name,
+        accessToken: loginSession.accessToken
+      });
+      pushAppPath(sessionKind === 'admin' ? '/dashboard' : '/student');
     } catch (error) {
       setFeedback({
         type: 'error',
@@ -404,11 +407,6 @@ export function App() {
   if (session?.kind === 'student') {
     return <StudentHomePreview studentName={session.name} onLogout={handleLogout} />;
   }
-
-  const accountLabel = entry === 'admin' ? '管理员账号' : '学号';
-  const accountPlaceholder = entry === 'admin' ? '请输入管理员账号' : '请输入学号';
-  const loginHint =
-    entry === 'admin' ? '请使用复旦校园管理账号登录' : '请使用复旦校园账号登录';
 
   return (
     <main className="admin-login-page" style={primaryStyle}>
@@ -457,30 +455,13 @@ export function App() {
         </div>
       </section>
 
-      <section className="admin-form-panel" aria-label="管理端登录">
+      <section className="admin-form-panel" aria-label="统一登录">
         <span className="form-blob form-blob-primary" />
         <span className="form-blob form-blob-gold" />
         <div className="login-card">
           <div className="login-title">
-            <h2>欢迎登录</h2>
-            <p>{loginHint}</p>
-          </div>
-
-          <div className="entry-switch" aria-label="入口切换">
-            <button
-              className={entry === 'student' ? 'entry-option is-active' : 'entry-option'}
-              type="button"
-              onClick={() => handleEntryChange('student')}
-            >
-              学生入口
-            </button>
-            <button
-              className={entry === 'admin' ? 'entry-option is-active' : 'entry-option'}
-              type="button"
-              onClick={() => handleEntryChange('admin')}
-            >
-              管理入口
-            </button>
+            <h2>统一登录</h2>
+            <p>请使用复旦学工号登录，系统会按账号权限进入对应工作台</p>
           </div>
 
           <div className="mode-switch" aria-label="登录方式">
@@ -503,14 +484,14 @@ export function App() {
           {loginMode === 'password' ? (
             <form className="login-form" onSubmit={handleSubmit}>
               <label>
-                <span>{accountLabel}</span>
+                <span>学工号</span>
                 <div className="input-shell">
                   <FieldIcon type="account" />
                   <input
                     autoComplete="username"
                     value={account}
                     onChange={(event) => setAccount(event.target.value)}
-                    placeholder={accountPlaceholder}
+                    placeholder="请输入学工号"
                   />
                 </div>
               </label>
@@ -553,7 +534,7 @@ export function App() {
           ) : (
             <div className="sso-panel">
               <div className="qr-mark">SSO</div>
-              <p>前往 passport.fudan.edu.cn 完成{entry === 'admin' ? '管理端' : '学生端'}统一身份认证</p>
+              <p>前往 passport.fudan.edu.cn 完成统一身份认证</p>
             </div>
           )}
 

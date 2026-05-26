@@ -1,5 +1,16 @@
 import { IsNotEmpty, IsString, Matches, MinLength } from 'class-validator';
 
+export class UnifiedLoginDto {
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^[A-Za-z0-9_-]{3,64}$/)
+  studentNo!: string;
+
+  @IsString()
+  @MinLength(1)
+  password!: string;
+}
+
 export class StudentLoginDto {
   @IsString()
   @IsNotEmpty()

@@ -48,10 +48,14 @@ export class AuthService {
     @Inject(AUTH_OPTIONS) private readonly options: AuthOptions
   ) {}
 
-  async loginStudent(input: { studentId: string; password: string }): Promise<AuthSession> {
-    const user = await this.repository.findUserByStudentNo(input.studentId);
+  async login(input: { studentNo: string; password: string }): Promise<AuthSession> {
+    const user = await this.repository.findUserByStudentNo(input.studentNo);
     this.assertCanLogin(user, input.password);
     return this.createSession(user);
+  }
+
+  async loginStudent(input: { studentId: string; password: string }): Promise<AuthSession> {
+    return this.login({ studentNo: input.studentId, password: input.password });
   }
 
   async loginAdmin(input: { username: string; password: string }): Promise<AuthSession> {

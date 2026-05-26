@@ -150,11 +150,11 @@ I0 全部 story 都不涉及 UI 实现（项目治理与基础架构）。**不�
   - 实施要点：`pnpm dlx @nestjs/cli new api --skip-git --package-manager pnpm`；引入 `@nestjs/config`、`@nestjs/swagger`；暴露 `GET /api/v1/health` 返回 `{status, db, redis, ts}`。
   - 验收：`pnpm --filter api dev` 启动成功，curl `localhost:3000/api/v1/health` 返 200。
 
-- [ ] **US0.2.1-T02** 创建学生端/管理端前端骨架
+- [ ] **US0.2.1-T02** 创建统一 Web 入口前端骨架
   - 预估工时：4h
   - 依赖任务：US0.4.1-T01
-  - 实施要点：两个独立 Vite app: `apps/web-student`（无 AntD）、`apps/web-admin`（装 AntD 5）；共享 `packages/design-tokens`（从 `自习室预约/fudan-tokens.jsx` 移植 F + PATHS 到 TS）。
-  - 验收：`pnpm --filter web-student dev` 跑在 5173；`pnpm --filter web-admin dev` 跑在 5174。
+  - 实施要点：`apps/web-admin` 作为统一 Web 入口，登录后按角色分流到学生首页或管理后台；`apps/web-student` 暂保留为历史骨架和后续学生页面迁移来源。
+  - 验收：`pnpm --filter web-admin dev` 跑在 5174，统一登录页可渲染。
 
 - [ ] **US0.2.1-T03** 配置环境变量、开发/测试/生产配置文件
   - 预估工时：2h
@@ -307,12 +307,12 @@ I0 全部 story 都不涉及 UI 实现（项目治理与基础架构）。**不�
   2. 执行 `pnpm install`。
   3. 执行 `docker-compose -f infra/docker-compose.yml up -d`。
   4. 执行 `pnpm --filter api db:migrate:dev`。
-  5. 执行 `pnpm dev`（或分别执行三个 app 的 dev）。
-  6. 浏览器访问 http://localhost:5173 与 http://localhost:5174。
+  5. 执行 `pnpm dev`（启动 API 与统一 Web 入口）。
+  6. 浏览器访问 http://localhost:5174。
   7. curl http://localhost:3000/api/v1/health。
 - **Assert 断言**：
-  - Step 5: `assert 三个进程均启动成功且无致命报错`
-  - Step 6: `assert http_status == 200 且页面可渲染（学生端登录页 / 管理端登录页）`
+  - Step 5: `assert API 与统一 Web 入口均启动成功且无致命报错`
+  - Step 6: `assert http_status == 200 且页面可渲染（统一登录页）`
   - Step 7: `assert response.status == 200 && response.body.code == "SUCCESS" && response.body.data.status == "UP"`
 - **后置处理**：`pnpm dev` 进程 Ctrl+C；`docker-compose down` 清理容器（保留 volume 以便下次秒启）。
 
@@ -433,9 +433,8 @@ I0 全部 story 都不涉及 UI 实现（项目治理与基础架构）。**不�
 **时长：5 分钟**
 
 1. 主持人在干净本地环境（VM 或新克隆目录）执行 `docker-compose -f infra/docker-compose.yml up -d && pnpm install && pnpm --filter api db:migrate:dev && pnpm dev`。
-2. 浏览器打开三个标签：
-   - `http://localhost:5173` （web-student 登录页骨架）
-   - `http://localhost:5174` （web-admin 登录页骨架）
+2. 浏览器打开两个标签：
+   - `http://localhost:5174` （统一登录页骨架）
    - `http://localhost:3000/api/v1/health` （后端健康检查 200）
 3. 切换到 GitHub 仓库主页：
    - 显示 main 分支受保护的截图

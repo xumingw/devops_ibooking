@@ -113,16 +113,14 @@ jobs:
           PROD_IMAGE_REGISTRY: ${{ vars.PROD_IMAGE_REGISTRY }}
           PROD_IMAGE_NAMESPACE: ${{ vars.PROD_IMAGE_NAMESPACE }}
           PROD_API_IMAGE_REPOSITORY: ${{ vars.PROD_API_IMAGE_REPOSITORY }}
-          PROD_WEB_STUDENT_IMAGE_REPOSITORY: ${{ vars.PROD_WEB_STUDENT_IMAGE_REPOSITORY }}
           PROD_WEB_ADMIN_IMAGE_REPOSITORY: ${{ vars.PROD_WEB_ADMIN_IMAGE_REPOSITORY }}
         run: |
           registry="${PROD_IMAGE_REGISTRY:-ghcr.io}"
           namespace="${PROD_IMAGE_NAMESPACE:-$DEFAULT_IMAGE_NAMESPACE}"
           api_repo="${PROD_API_IMAGE_REPOSITORY:-$registry/$namespace/api}"
-          web_student_repo="${PROD_WEB_STUDENT_IMAGE_REPOSITORY:-$registry/$namespace/web-student}"
           web_admin_repo="${PROD_WEB_ADMIN_IMAGE_REPOSITORY:-$registry/$namespace/web-admin}"
           registry_host="${api_repo%%/*}"
-          if [ "$registry_host" != "${web_student_repo%%/*}" ] || [ "$registry_host" != "${web_admin_repo%%/*}" ]; then
+          if [ "$registry_host" != "${web_admin_repo%%/*}" ]; then
             echo "All production image repositories must use the same registry host."
             exit 1
           fi
@@ -130,7 +128,6 @@ jobs:
           {
             echo "REGISTRY_HOST=$registry_host"
             echo "API_IMAGE_REPOSITORY=$api_repo"
-            echo "WEB_STUDENT_IMAGE_REPOSITORY=$web_student_repo"
             echo "WEB_ADMIN_IMAGE_REPOSITORY=$web_admin_repo"
             echo "IMAGE_TAG=${{ github.sha }}"
           } >> "$GITHUB_ENV"
@@ -169,7 +166,6 @@ jobs:
           fi
 
           docker build -f apps/api/Dockerfile -t "$API_IMAGE_REPOSITORY:$IMAGE_TAG" -t "$API_IMAGE_REPOSITORY:latest" .
-          docker build --build-arg VITE_API_BASE_URL="$api_public_url" -f apps/web-student/Dockerfile -t "$WEB_STUDENT_IMAGE_REPOSITORY:$IMAGE_TAG" -t "$WEB_STUDENT_IMAGE_REPOSITORY:latest" .
           docker build --build-arg VITE_API_BASE_URL="$api_public_url" -f apps/web-admin/Dockerfile -t "$WEB_ADMIN_IMAGE_REPOSITORY:$IMAGE_TAG" -t "$WEB_ADMIN_IMAGE_REPOSITORY:latest" .
 
       - name: Smoke API image
@@ -228,8 +224,6 @@ jobs:
         run: |
           docker push "$API_IMAGE_REPOSITORY:$IMAGE_TAG"
           docker push "$API_IMAGE_REPOSITORY:latest"
-          docker push "$WEB_STUDENT_IMAGE_REPOSITORY:$IMAGE_TAG"
-          docker push "$WEB_STUDENT_IMAGE_REPOSITORY:latest"
           docker push "$WEB_ADMIN_IMAGE_REPOSITORY:$IMAGE_TAG"
           docker push "$WEB_ADMIN_IMAGE_REPOSITORY:latest"
 
@@ -252,16 +246,14 @@ jobs:
           PROD_IMAGE_REGISTRY: ${{ vars.PROD_IMAGE_REGISTRY }}
           PROD_IMAGE_NAMESPACE: ${{ vars.PROD_IMAGE_NAMESPACE }}
           PROD_API_IMAGE_REPOSITORY: ${{ vars.PROD_API_IMAGE_REPOSITORY }}
-          PROD_WEB_STUDENT_IMAGE_REPOSITORY: ${{ vars.PROD_WEB_STUDENT_IMAGE_REPOSITORY }}
           PROD_WEB_ADMIN_IMAGE_REPOSITORY: ${{ vars.PROD_WEB_ADMIN_IMAGE_REPOSITORY }}
         run: |
           registry="${PROD_IMAGE_REGISTRY:-ghcr.io}"
           namespace="${PROD_IMAGE_NAMESPACE:-$DEFAULT_IMAGE_NAMESPACE}"
           api_repo="${PROD_API_IMAGE_REPOSITORY:-$registry/$namespace/api}"
-          web_student_repo="${PROD_WEB_STUDENT_IMAGE_REPOSITORY:-$registry/$namespace/web-student}"
           web_admin_repo="${PROD_WEB_ADMIN_IMAGE_REPOSITORY:-$registry/$namespace/web-admin}"
           registry_host="${api_repo%%/*}"
-          if [ "$registry_host" != "${web_student_repo%%/*}" ] || [ "$registry_host" != "${web_admin_repo%%/*}" ]; then
+          if [ "$registry_host" != "${web_admin_repo%%/*}" ]; then
             echo "All production image repositories must use the same registry host."
             exit 1
           fi
@@ -269,7 +261,6 @@ jobs:
           {
             echo "REGISTRY_HOST=$registry_host"
             echo "API_IMAGE_REPOSITORY=$api_repo"
-            echo "WEB_STUDENT_IMAGE_REPOSITORY=$web_student_repo"
             echo "WEB_ADMIN_IMAGE_REPOSITORY=$web_admin_repo"
             echo "IMAGE_TAG=${{ github.sha }}"
           } >> "$GITHUB_ENV"
@@ -324,19 +315,16 @@ jobs:
           SSH_USER: ${{ secrets.PROD_SSH_USER }}
           DEPLOY_PATH: ${{ secrets.PROD_DEPLOY_PATH }}
           PROD_API_PORT: ${{ vars.PROD_API_PORT }}
-          PROD_WEB_STUDENT_PORT: ${{ vars.PROD_WEB_STUDENT_PORT }}
           PROD_WEB_ADMIN_PORT: ${{ vars.PROD_WEB_ADMIN_PORT }}
         run: |
           SSH_HOST="${PROD_SSH_HOST:-cd-server}"
           API_IMAGE="$API_IMAGE_REPOSITORY:$IMAGE_TAG"
-          WEB_STUDENT_IMAGE="$WEB_STUDENT_IMAGE_REPOSITORY:$IMAGE_TAG"
           WEB_ADMIN_IMAGE="$WEB_ADMIN_IMAGE_REPOSITORY:$IMAGE_TAG"
           API_PORT="${PROD_API_PORT:-3000}"
-          WEB_STUDENT_PORT="${PROD_WEB_STUDENT_PORT:-5173}"
           WEB_ADMIN_PORT="${PROD_WEB_ADMIN_PORT:-5174}"
 
           ssh -i ~/.ssh/id_ed25519 "$SSH_USER@$SSH_HOST" \
-            "DEPLOY_PATH='$DEPLOY_PATH' API_IMAGE='$API_IMAGE' WEB_STUDENT_IMAGE='$WEB_STUDENT_IMAGE' WEB_ADMIN_IMAGE='$WEB_ADMIN_IMAGE' API_PORT='$API_PORT' WEB_STUDENT_PORT='$WEB_STUDENT_PORT' WEB_ADMIN_PORT='$WEB_ADMIN_PORT' bash -s" <<'REMOTE'
+            "DEPLOY_PATH='$DEPLOY_PATH' API_IMAGE='$API_IMAGE' WEB_ADMIN_IMAGE='$WEB_ADMIN_IMAGE' API_PORT='$API_PORT' WEB_ADMIN_PORT='$WEB_ADMIN_PORT' bash -s" <<'REMOTE'
           set -eu
           cd "$DEPLOY_PATH"
           git pull --ff-only origin main
@@ -346,10 +334,8 @@ jobs:
           }
           cat > infra/.deploy-images.env <<EOF
           API_IMAGE=$API_IMAGE
-          WEB_STUDENT_IMAGE=$WEB_STUDENT_IMAGE
           WEB_ADMIN_IMAGE=$WEB_ADMIN_IMAGE
           API_PORT=$API_PORT
-          WEB_STUDENT_PORT=$WEB_STUDENT_PORT
           WEB_ADMIN_PORT=$WEB_ADMIN_PORT
           EOF
           compose_project_name="devops_ibooking"
@@ -357,7 +343,7 @@ jobs:
           docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml pull
           docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml up -d mysql
           docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml run --rm -T api ./node_modules/.bin/prisma migrate deploy < /dev/null
-          docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml up -d --force-recreate
+          docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml up -d --force-recreate --remove-orphans
 
           for _ in $(seq 1 60); do
             if curl -fsS "http://127.0.0.1:${API_PORT}/api/v1/health" >/dev/null; then

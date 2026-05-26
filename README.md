@@ -1,6 +1,6 @@
 # 复旦大学自习室预约系统
 
-本仓库是 DevOps 课程项目的 I0 工程骨架。当前阶段只交付可运行的前后端基础设施、共享契约、数据库迁移与 CI 模板，不实现登录、预约、签到等业务功能。
+本仓库是 DevOps 课程项目的自习室预约系统工程仓库。当前默认运行一个统一 Web 入口：学生和管理员共用同一登录页，通过 `POST /api/v1/auth/login` 提交学工号和密码，登录后根据后端返回的角色与权限进入学生首页或管理后台。
 
 ## 本地启动
 
@@ -8,15 +8,17 @@
 pnpm install
 docker compose -f infra/docker-compose.yml up -d
 pnpm --filter api db:migrate:dev
+pnpm --filter api db:seed
 pnpm dev
 ```
 
 启动后访问：
 
-- 学生端：http://localhost:5173
-- 管理端：http://localhost:5174
+- 统一 Web 入口：http://localhost:5174
 - API 健康检查：http://localhost:3000/api/v1/health
 - MailHog：http://localhost:8025
+
+`apps/web-student` 目录暂时保留为历史学生端骨架和后续页面迁移来源，但默认本地启动、CI/CD 镜像构建和生产部署都以 `apps/web-admin` 承载统一入口。
 
 ## 数据库迁移
 
@@ -46,4 +48,7 @@ pnpm openapi:export
 
 ## 演示账号
 
-I0 不包含登录功能。演示账号会在 I1 的认证与 RBAC 迭代中通过种子数据提供。
+执行 `pnpm --filter api db:seed` 后可使用：
+
+- 管理员：`admin_full` / `Admin123!`
+- 学生：`stu_cse_01` / `Pass123!`

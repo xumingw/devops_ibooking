@@ -77,12 +77,12 @@
 - [ ] US1.4.1-T01 当前用户权限查询接口 GET /api/v1/auth/me
 - [ ] US1.4.1-T02 web-admin 动态路由 + 菜单过滤（Zustand auth store）
 
-### Block D — 学生端登录 UI
+### Block D — 统一登录 UI
 
-- [ ] US1.1.1-T03 apps/web-student/src/pages/Login.tsx 套 s01
+- [ ] US1.1.1-T03 apps/web-admin 统一登录页套 s01，提交学工号后按角色分流
 - [ ] US1.1.1-T04 登录单元测试 + 接口测试 + Playwright
 
-### Block E — 管理端登录与 RBAC UI
+### Block E — 统一登录与 RBAC UI
 
 - [ ] US1.1.2-T02 apps/web-admin/src/pages/Login.tsx 套 s01；ProtectedRoute 拦截非管理角色
 - [ ] US1.1.2-T04 非管理员访问后台拒绝测试
@@ -120,7 +120,7 @@
 ### Block G — CI 接入
 
 - [ ] US8.4.2-T01 GitHub Actions CI 任务串：pnpm install → lint → test → build → docker push
-- [ ] US8.4.2-T02 前端构建任务（web-student + web-admin 两个 dockerfile）
+- [ ] US8.4.2-T02 前端构建任务（统一 Web 入口 web-admin dockerfile）
 - [ ] US8.4.2-T03 单元测试在构建中执行（失败 exit 1）
 - [ ] US8.4.2-T04 镜像 tag = git short SHA + timestamp，GHCR 保留近 30 个
 
@@ -137,7 +137,7 @@
 - refresh token 7day TTL，存放在 httpOnly + Secure + SameSite=Lax cookie；同时在后端 `refresh_token` 表保留 hash + revoked + expiresAt 防止伪造。
 - 登出 = 删除 refresh_token 表对应记录 + 客户端清空 Zustand。
 - access 过期时前端 axios interceptor 捕获 401 → 自动调 refresh 接口 → 拿到新 access → 重试原请求；refresh 也失败则跳登录。
-- 学生登录与管理员登录共用同一接口 POST /api/v1/auth/login？**不**。两个独立接口 POST /api/v1/auth/student-login 与 POST /api/v1/auth/admin-login，根据 entry 区分；token payload 含 roles，前端按 roles 路由。
+- 学生和管理员共用同一登录页。前端统一调用 `POST /api/v1/auth/login`，body `{ studentNo, password }`；后端按 `studentNo` 查统一用户表，登录成功后根据 response 中的 `roles` 路由到学生首页或管理后台。`/student-login` 与 `/admin-login` 仅作为旧接口兼容保留。
 
 ### 5.2 US1.3.x RBAC 三表设计
 
@@ -171,7 +171,7 @@
 - workflow yaml 在 `.github/workflows/ci.yml`，包含 jobs/stages: install → lint → test → build → docker push。
 - 后端 docker image 用多阶段构建：`builder` 阶段 pnpm install + build → `runner` 阶段 node:20-alpine + dist + node_modules（仅 prod）。
 - 前端：build 后产物放 nginx:alpine 静态服务镜像。
-- GHCR 镜像地址：`ghcr.io/<owner>/devops_ibooking/api:<sha>`、`ghcr.io/<owner>/devops_ibooking/web-student:<sha>`、`ghcr.io/<owner>/devops_ibooking/web-admin:<sha>`。
+- GHCR 镜像地址：`ghcr.io/<owner>/devops_ibooking/api:<sha>`、`ghcr.io/<owner>/devops_ibooking/web-admin:<sha>`（`web-admin` 承载统一 Web 入口）。
 - 单元测试失败 → `pnpm test` exit 1 → CI fail → 不 push 镜像。
 
 ## 6. 数据/接口契约变更
@@ -185,8 +185,9 @@
 
 | Method | Path | 权限点 | 说明 |
 |---|---|---|---|
-| POST | /api/v1/auth/student-login | (none) | 学生登录 |
-| POST | /api/v1/auth/admin-login | (none) | 管理员登录 |
+| POST | /api/v1/auth/login | (none) | 统一登录，body `{ studentNo, password }` |
+| POST | /api/v1/auth/student-login | (none) | 旧学生登录兼容接口 |
+| POST | /api/v1/auth/admin-login | (none) | 旧管理员登录兼容接口 |
 | POST | /api/v1/auth/refresh | (cookie) | 刷新 access token |
 | POST | /api/v1/auth/logout | auth | 登出 |
 | GET | /api/v1/auth/me | auth | 当前用户 + 权限集 |
@@ -213,16 +214,16 @@
 - **前置条件**：US1.1.1-T02 实现完成；seed 数据含 stu_cse_01 / stu_disabled。
 - **测试数据**：合法账号 stu_cse_01（密码 Pass123!），禁用账号 stu_disabled，错误密码 wrong-password。
 - **操作步骤**：
-  1. POST `/api/v1/auth/student-login` body={ studentId:"stu_cse_01", password:"Pass123!" }
+  1. POST `/api/v1/auth/login` body={ studentNo:"stu_cse_01", password:"Pass123!" }
   2. 检查响应 + cookie。
-  3. POST 同接口 body={ studentId:"stu_disabled", password:"Pass123!" }
-  4. POST 同接口 body={ studentId:"stu_cse_01", password:"wrong-password" }
+  3. POST 同接口 body={ studentNo:"stu_disabled", password:"Pass123!" }
+  4. POST 同接口 body={ studentNo:"stu_cse_01", password:"wrong-password" }
   5. 用 step 1 返回的 access token 调 GET `/api/v1/auth/me`。
 - **Assert 断言**：
   - Step 2: `assert response.status == 200; assert response.body.data.accessToken != null; assert response 设置 httpOnly cookie refreshToken; assert db.refresh_token 表新增一行 userId=stu_cse_01`
   - Step 3: `assert response.status == 403; assert response.body.code == "USER_DISABLED"; assert db.refresh_token 不变`
   - Step 4: `assert response.status == 401; assert response.body.code == "INVALID_CREDENTIALS"`
-  - Step 5: `assert response.body.data.user.studentId == "stu_cse_01"; assert response.body.data.permissions 包含 "booking.read"`
+  - Step 5: `assert response.body.data.user.studentNo == "stu_cse_01"; assert response.body.data.permissions 包含 "booking.read"`
 - **后置处理**：删除测试创建的 refresh_token 记录；清理 Zustand 状态。
 
 ### TC-US1.1.2-01：验证管理员登录
@@ -232,7 +233,7 @@
 - **前置条件**：US1.1.2-T02 实现完成；seed 数据含 admin_full / stu_cse_01 / noPerm01。
 - **测试数据**：admin_full（密码 Admin123!）、stu_cse_01、noPerm01。
 - **操作步骤**：
-  1. POST `/api/v1/auth/admin-login` body={ username:"admin_full", password:"Admin123!" }
+  1. POST `/api/v1/auth/login` body={ studentNo:"admin_full", password:"Admin123!" }
   2. 用 token 访问 `http://localhost:5174/admin/dashboard`
   3. 用 stu_cse_01 token 访问 `http://localhost:5174/admin/dashboard`
   4. 用 noPerm01（已登录但无任何 role）token 访问 GET `/api/v1/rooms`
@@ -324,8 +325,8 @@ TC-US1.1.1-01 / TC-US1.1.2-01（已上） / TC-US1.1.3-01 / TC-US1.2.1-01 / TC-U
 
 ## 9. 演示脚本（10 分钟）
 
-1. **学生登录与首页（2min）**：用 stu_cse_01 登录 web-student；展示登录态保存、access token 自动刷新（用 dev 工具改 token 过期时间触发 refresh）。
-2. **管理员登录与菜单差异（3min）**：分别用 admin_full / roomAdmin01 / audit01 登录 web-admin；切换三个账号展示侧边栏菜单差异（admin_full 全部、roomAdmin01 仅资源管理、audit01 仅预约/违约 — 此时虽未实现仍需菜单显示）。
+1. **学生登录与首页（2min）**：用 stu_cse_01 在统一 Web 入口登录；展示登录态保存、access token 自动刷新（用 dev 工具改 token 过期时间触发 refresh）。
+2. **管理员登录与菜单差异（3min）**：分别用 admin_full / roomAdmin01 / audit01 在统一 Web 入口登录；切换三个账号展示侧边栏菜单差异（admin_full 全部、roomAdmin01 仅资源管理、audit01 仅预约/违约 — 此时虽未实现仍需菜单显示）。
 3. **角色权限管理（2min）**：admin_full 进入 a05 → 创建测试角色 → 给 audit01 加 ROLE_AUDIT → audit01 重新登录看到新菜单。
 4. **资源 CRUD（2min）**：admin_full 进入 a02 创建 R_TEST → 进入 a03 在 R_TEST 中创建 A_TEST → 注销 A_TEST 看到灰色样式。
 5. **越权防护（1min）**：用 audit01 token（DevTools 复制）curl POST `/api/v1/rooms` → 显示 403 RBAC_FORBIDDEN。
@@ -340,7 +341,7 @@ TC-US1.1.1-01 / TC-US1.1.2-01（已上） / TC-US1.1.3-01 / TC-US1.2.1-01 / TC-U
 - 不修改 `自习室预约/` 目录
 - 不在 `packages/shared-types` 之外定义 DTO
 - 不实现预约 / 签到 / 违约相关功能（I2+ 范围）
-- 不引入 AntD 到 web-student
+- 不将历史 `apps/web-student` 重新作为默认入口或生产部署目标
 - 不绕过 PermissionsGuard 直接公开管理接口
 - 不存 access token 到 localStorage（XSS 风险；用内存）
 
@@ -351,7 +352,7 @@ TC-US1.1.1-01 / TC-US1.1.2-01（已上） / TC-US1.1.3-01 / TC-US1.2.1-01 / TC-U
 - packages/shared-types 含 User/Role/Permission/Room/Seat 完整 DTO + Zod schema
 - 4 角色 + 20 权限点 seed 已在 DB
 - 4 类测试账号 seed 已在 DB
-- web-admin / web-student 路由保护框架就绪
+- 统一 Web 入口路由保护框架就绪
 - CI 流水线含 build + lint + unit
 - `OpenAPI v0.1` 快照在 docs/api/openapi-v0.1.yaml
 

@@ -11,7 +11,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { ErrorCode, LoginResponse, MeResponse } from '@ibooking/shared-types';
 import { AuthService, AuthSession } from './auth.service';
-import { AdminLoginDto, StudentLoginDto } from './auth.dto';
+import { AdminLoginDto, StudentLoginDto, UnifiedLoginDto } from './auth.dto';
 import {
   clearRefreshCookie,
   readCookie,
@@ -23,6 +23,14 @@ import {
 @Controller('api/v1/auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @Post('login')
+  async login(
+    @Body() body: UnifiedLoginDto,
+    @Res({ passthrough: true }) response: Response
+  ): Promise<LoginResponse> {
+    return this.withRefreshCookie(await this.authService.login(body), response);
+  }
 
   @Post('student-login')
   async studentLogin(

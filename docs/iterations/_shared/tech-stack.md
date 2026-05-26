@@ -27,8 +27,7 @@
 | 服务态 | TanStack Query | 5 |
 | 客户态 | Zustand | 4 |
 | 表单 | React Hook Form + Zod | 7 / 3 |
-| 管理端 UI | Ant Design | 5 |
-| 学生端 UI | 自建（沿用 fudan-tokens.jsx 的 F 与 PATHS） | — |
+| 统一 Web 入口 UI | React + Ant Design 管理模块 + 自建学生模块 | 18.3 / 5 |
 | 测试 | Jest（NestJS）+ supertest + Vitest + RTL + Playwright | latest |
 | 数据库 | MySQL | 8.4 (utf8mb4) |
 | 缓存/队列存储 | Redis | 7.2 |
@@ -40,9 +39,10 @@
 
 - **Prisma 优先于 TypeORM**：迁移 story 一流，TS 类型自动生成；复杂查询用 `$queryRaw` 兜底。
 - **BullMQ + Redis 一体化**：处理 +15min 自动取消、+15min/+10min 提醒推送、每日二维码轮换（唯一队列基础设施，不引入 Quartz / node-schedule）。
-- **Ant Design 仅在 web-admin**：表格 / 表单 / 抽屉密集，AntD 节省时间。Primary color 必须设为 `F.navy`。
-- **学生端不引入 AntD**：保留 mockup 风格识别度，沿用 inline-style + design-tokens。
-- **两个独立 Vite 应用**（web-student / web-admin）：bundle 小、RBAC 菜单逻辑简单、可独立部署。
+- **统一 Web 入口**：学生和管理员使用同一个登录页，登录成功后按 `roles` / `permissions` 路由到学生首页或管理后台。
+- **Ant Design 仅用于管理模块**：表格 / 表单 / 抽屉密集，AntD 节省时间。Primary color 必须设为 `F.navy`。
+- **学生模块保留 mockup 识别度**：沿用 design-tokens，不在学生页面主动采用管理后台的密集表格风格。
+- **`apps/web-admin` 作为统一 Web Shell**：生产只构建和部署该 Web 镜像；`apps/web-student` 暂保留为历史骨架和后续学生页面迁移来源，不作为默认运行或部署入口。
 - **拉伸 Taro 4 (React) 而非微信原生**：可复用 `packages/shared-types` 与 `packages/design-tokens`，比 WXML/WXSS 重写代价低。
 
 ## 3. 仓库布局（pnpm workspaces，无 Turbo）
@@ -51,8 +51,8 @@
 ibooking/
 ├── apps/
 │   ├── api/               # NestJS
-│   ├── web-student/       # React 学生 PC（响应式覆盖移动端断点）
-│   ├── web-admin/         # React 管理 PC
+│   ├── web-admin/         # React 统一 Web 入口（登录、学生首页、管理后台）
+│   ├── web-student/       # 历史学生端骨架，后续页面迁移来源；默认不部署
 │   └── miniapp/           # 拉伸: Taro 4（仅 I5+ 拉伸触发时创建）
 ├── packages/
 │   ├── shared-types/      # DTO + Zod schema（前后端契约源头）
@@ -102,8 +102,7 @@ QRCODE_HMAC_SECRET=
 | 服务 | 端口 |
 |---|---|
 | API | 3000 |
-| web-student | 5173 |
-| web-admin | 5174 |
+| unified-web (`apps/web-admin`) | 5174 |
 | MySQL | 3306 |
 | Redis | 6379 |
 | MailHog | 8025 |

@@ -32,8 +32,7 @@
 | 服务态 | TanStack Query | 5 |
 | 客户态 | Zustand | 4 |
 | 表单 | React Hook Form + Zod | 7 / 3 |
-| 管理端 UI | Ant Design | 5 |
-| 学生端 UI | 自建（沿用 fudan-tokens.jsx 的 F 与 PATHS） | — |
+| 统一 Web 入口 UI | React + Ant Design 管理模块 + 自建学生模块 | 18.3 / 5 |
 | 测试 | Jest（NestJS）+ supertest + Vitest + RTL + Playwright | latest |
 | 数据库 | MySQL | 8.4 (utf8mb4) |
 | 缓存/队列存储 | Redis | 7.2 |
@@ -65,7 +64,7 @@ LLM_MODEL=
 VITE_API_BASE_URL=, VITE_WS_URL=
 ```
 
-**端口（dev）：** API 3000 · web-student 5173 · web-admin 5174 · MySQL 3306 · Redis 6379 · MailHog 8025。
+**端口（dev）：** API 3000 · unified-web (`apps/web-admin`) 5174 · MySQL 3306 · Redis 6379 · MailHog 8025。`apps/web-student` 暂保留为历史骨架和学生页面迁移来源，默认不运行、不部署。
 
 **命名规范：**
 - 数据库表：`snake_case`（user, role, permission, role_permission, user_role, room, seat, booking, violation, check_in_code, reminder_log, audit_log, system_param, ai_chat_session, ai_chat_message）。
@@ -81,8 +80,8 @@ VITE_API_BASE_URL=, VITE_WS_URL=
 ibooking/
 ├── apps/
 │   ├── api/               # NestJS
-│   ├── web-student/       # React 学生 PC（响应式覆盖移动端断点）
-│   ├── web-admin/         # React 管理 PC
+│   ├── web-admin/         # React 统一 Web 入口（登录、学生首页、管理后台）
+│   ├── web-student/       # 历史学生端骨架，后续页面迁移来源；默认不部署
 │   └── miniapp/           # 拉伸: Taro 4（仅 I5+ 拉伸触发时创建）
 ├── packages/
 │   ├── shared-types/      # DTO + Zod schema（前后端契约源头）
@@ -306,12 +305,12 @@ ibooking/
       - 依赖任务: 无
       - 实施要点: `pnpm dlx @nestjs/cli new api --skip-git --package-manager pnpm`；引入 @nestjs/config + @nestjs/swagger；暴露 `GET /api/v1/health` 返回 `{status,db,redis,ts}`。
       - 验收: `pnpm --filter api start:dev` 可启动，`curl localhost:3000/api/v1/health` 返回 200 且 body 含 status/db/redis/ts 字段。
-    - [ ] **US0.2.1-T02** 创建学生端/管理端前端工程骨架
+    - [ ] **US0.2.1-T02** 创建统一 Web 入口前端工程骨架
       - 负责人: TBD
       - 预估工时: TBD
       - 依赖任务: US0.2.1-T01
-      - 实施要点: 两个独立 Vite app: `apps/web-student`（无 AntD）, `apps/web-admin`（装 AntD 5）；共享 `packages/design-tokens`（从 fudan-tokens.jsx 移植 F + PATHS）。
-      - 验收: `pnpm --filter web-student build` 与 `pnpm --filter web-admin build` 均无错；浏览器可分别访问两端首页。
+      - 实施要点: `apps/web-admin` 作为统一 Web 入口，登录后按 `roles` / `permissions` 分流到学生首页或管理后台；`apps/web-student` 暂保留为历史骨架和后续学生页面迁移来源。
+      - 验收: `pnpm --filter web-admin build` 无错；浏览器访问 5174 可看到统一登录页。
     - [ ] **US0.2.1-T03** 配置环境变量、开发/测试/生产配置文件
       - 负责人: TBD
       - 预估工时: TBD
@@ -590,25 +589,25 @@ ibooking/
       - 负责人：TBD
       - 预估工时：TBD
       - 依赖任务：无
-      - 实施要点：POST /api/v1/auth/student-login，body { studentId, password }；class-validator 校验非空 + 学号格式；返回 access token (15m) + refresh token (7d, httpOnly cookie)。
+      - 实施要点：POST /api/v1/auth/login，body { studentNo, password }；class-validator 校验非空 + 学工号格式；返回 access token (15m) + refresh token (7d, httpOnly cookie)；旧 `/student-login` / `/admin-login` 仅保留兼容。
       - 验收：curl 合法账号 → 200 含 token；错误参数 → 400 含字段定位错误。
     - [ ] **US1.1.1-T02** 实现学生身份校验与会话令牌生成
       - 负责人：TBD
       - 预估工时：TBD
       - 依赖任务：US1.1.1-T01
-      - 实施要点：AuthService.validateStudent(studentId, password) 用 Prisma 查 user + bcrypt 比对；签 JWT；refresh token 入 refresh_token 表 (userId, tokenHash, expiresAt, revoked)。
+      - 实施要点：AuthService.login(studentNo, password) 用 Prisma 查统一 user 表 + bcrypt 比对；签 JWT；refresh token 入 refresh_token 表 (userId, tokenHash, expiresAt, revoked)。
       - 验收：合法登录 → refresh_token 表新增一行；禁用账号 → 401。
-    - [ ] **US1.1.1-T03** 实现学生端登录页面和错误提示
+    - [ ] **US1.1.1-T03** 实现统一登录页面和学生错误提示
       - 负责人：TBD
       - 预估工时：TBD
       - 依赖任务：US1.1.1-T02
-      - 实施要点：apps/web-student/src/pages/Login.tsx，对照 s01 登录页（沿用 design-tokens 的 F.navy/F.gold）；React Hook Form + Zod；TanStack Query useMutation。
-      - 验收：浏览器开 5173/login，合法凭据跳转首页；错误密码红色提示。
+      - 实施要点：apps/web-admin 统一登录页对照 s01 登录页；提交账号密码后根据后端返回角色分流。
+      - 验收：浏览器开 5174，学生合法凭据跳转学生首页；错误密码红色提示。
     - [ ] **US1.1.1-T04** 补充登录成功/失败测试用例
       - 负责人：TBD
       - 预估工时：TBD
       - 依赖任务：US1.1.1-T03
-      - 实施要点：Jest 单测覆盖 AuthService.validateStudent；supertest 接口测试覆盖正向/错误密码/禁用账号三场景。
+      - 实施要点：Jest 单测覆盖 AuthService.login；接口测试覆盖正向/错误密码/禁用账号三场景。
       - 验收：jest --coverage auth 模块行覆盖率 ≥70%；TC-US1.1.1-01 全部 4 步通过。
   - [ ] **TC-US1.1.1-01：验证学生登录**
     - 测试目的：验证学生使用合法学号密码可登录并获得 access/refresh 双 token，禁用账号或错误密码被拒——这是后续所有学生端功能的入口，不能被绕过。
@@ -619,7 +618,7 @@ ibooking/
 
       | Step | 操作 | Assert |
       |---:|---|---|
-      | 1 | 打开学生端登录页，输入 stu_cse_01 正确凭据并提交。 | `assert response.status == 200；assert token != null；assert 当前用户角色包含 STUDENT。` |
+      | 1 | 打开统一登录页，输入 stu_cse_01 正确凭据并提交。 | `assert response.status == 200；assert token != null；assert 当前用户角色包含 STUDENT。` |
       | 2 | 登录后访问学生首页。 | `assert 页面展示学生姓名、院系和预约入口。` |
       | 3 | 使用 stu_disabled 正确凭据提交登录。 | `assert response.status == 403；assert message 包含“禁用”或“不可登录”。` |
       | 4 | 使用 stu_cse_01 错误密码提交登录。 | `assert response.status == 401；assert 不生成有效会话。` |
@@ -636,9 +635,9 @@ ibooking/
       - 负责人：TBD
       - 预估工时：TBD
       - 依赖任务：US1.1.1-T02
-      - 实施要点：AuthService 增加 validateAdmin(username, password)；登录时根据 user.roles 是否含管理类角色路由到 web-admin 或 web-student。
+      - 实施要点：登录成功后根据 user.roles 是否含管理类角色，在统一 Web 入口内路由到管理后台或学生首页。
       - 验收：admin_full 登录 → token payload 含 ROLE_FULL_ADMIN；学生登录 → 不含管理角色。
-    - [ ] **US1.1.2-T02** 实现管理端登录页面和后台入口保护
+    - [ ] **US1.1.2-T02** 实现统一登录后的后台入口保护
       - 负责人：TBD
       - 预估工时：TBD
       - 依赖任务：US1.1.2-T01
@@ -665,7 +664,7 @@ ibooking/
 
       | Step | 操作 | Assert |
       |---:|---|---|
-      | 1 | 打开管理端登录页，使用 admin_full 登录。 | `assert 登录成功；assert 跳转到后台首页。` |
+      | 1 | 打开统一登录页，使用 admin_full 登录。 | `assert 登录成功；assert 跳转到后台首页。` |
       | 2 | 登录后请求管理端菜单接口。 | `assert 返回包含管理菜单项且与权限匹配。` |
       | 3 | 使用普通学生账号访问后台首页。 | `assert response.status in [403, 302]；assert 无法进入后台功能。` |
       | 4 | 使用无后台权限账号登录后访问 /admin/rooms。 | `assert response.status == 403。` |
@@ -5200,8 +5199,8 @@ ibooking/
       - 负责人：TBD
       - 预估工时：TBD
       - 依赖任务：US8.4.1-T02
-      - 实施要点：构建 web-student + web-admin 两个独立任务；产物 dist/ 打包到 nginx 镜像。
-      - 验收：两个 web 镜像构建成功。
+      - 实施要点：构建统一 Web 入口 `web-admin`；产物 dist/ 打包到 nginx 镜像。
+      - 验收：统一 Web 镜像构建成功。
     - [ ] **US8.4.2-T03** 在构建中执行单元测试
       - 负责人：TBD
       - 预估工时：TBD
@@ -5253,7 +5252,7 @@ ibooking/
       - 预估工时：TBD
       - 依赖任务：US8.4.3-T02
       - 实施要点：GitHub Actions deploy job 任务串接 build → ssh exec deploy.sh；部署后自动 curl 健康检查 + 等待 60s。
-      - 验收：部署完成后浏览器可访问 web-student + web-admin。
+      - 验收：部署完成后浏览器可访问统一 Web 入口。
     - [ ] **US8.4.3-T04** 记录部署回滚步骤
       - 负责人：TBD
       - 预估工时：TBD

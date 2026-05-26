@@ -123,6 +123,23 @@ describe('AuthService', () => {
     expect(session.refreshToken).toEqual(expect.any(String));
   });
 
+  it('统一登录接口使用学工号密码登录并按账号返回角色', async () => {
+    const studentSession = await service.login({
+      studentNo: 'stu_cse_01',
+      password: 'Pass123!'
+    });
+    const adminSession = await service.login({
+      studentNo: 'admin_full',
+      password: 'Admin123!'
+    });
+
+    expect(studentSession.response.user.studentNo).toBe('stu_cse_01');
+    expect(studentSession.response.roles.map((role) => role.code)).toEqual(['ROLE_STUDENT']);
+    expect(adminSession.response.user.studentNo).toBe('admin_full');
+    expect(adminSession.response.roles.map((role) => role.code)).toEqual(['ROLE_FULL_ADMIN']);
+    expect(repository.refreshTokens.size).toBe(2);
+  });
+
   it('错误密码返回 401 且不创建 refresh token', async () => {
     await expect(
       service.loginStudent({ studentId: 'stu_cse_01', password: 'wrong-password' })

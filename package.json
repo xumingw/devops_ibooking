@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "pnpm@9.15.9",
   "scripts": {
-    "dev": "pnpm -r --parallel --if-present dev",
+    "dev": "pnpm -r --parallel --filter api --filter web-admin --if-present dev",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
