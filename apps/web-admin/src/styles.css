@@ -5855,6 +5855,606 @@ button {
   color: #2d7a6e;
 }
 
+.student-seat-selector-panel {
+  min-height: calc(100vh - 58px);
+  display: grid;
+  grid-template-columns: 254px minmax(430px, 1fr) 276px;
+  margin: -22px;
+  background: #f4f8f7;
+}
+
+.student-seat-filter-panel,
+.student-seat-booking-panel {
+  min-width: 0;
+  overflow: auto;
+  background: #ffffff;
+  padding: 18px;
+}
+
+.student-seat-filter-panel {
+  border-right: 1px solid #d8e8e5;
+}
+
+.student-seat-booking-panel {
+  border-left: 1px solid #d8e8e5;
+}
+
+.student-seat-filter-panel h2,
+.student-seat-booking-panel h2 {
+  margin: 0 0 16px;
+  color: #1a2e2a;
+  font-size: 13px;
+}
+
+.student-seat-filter-section {
+  margin-bottom: 18px;
+}
+
+.student-seat-filter-section h3,
+.student-seat-slot-list h3 {
+  margin: 0 0 8px;
+  color: #4a6b64;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.student-seat-segment {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid #d8e8e5;
+  border-radius: 8px;
+  background: #ecf4f2;
+}
+
+.student-seat-segment button {
+  height: 31px;
+  border: 0;
+  background: transparent;
+  color: #8aaaa4;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.student-seat-segment button.is-active {
+  background: #2d7a6e;
+  color: #ffffff;
+}
+
+.student-seat-time-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.student-seat-time-grid span {
+  display: block;
+  margin-bottom: 4px;
+  color: #8aaaa4;
+  font-size: 10px;
+}
+
+.student-seat-time-grid button {
+  width: 100%;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1.5px solid #d8e8e5;
+  border-radius: 7px;
+  padding: 0 9px;
+  background: #ffffff;
+  color: #1a2e2a;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.student-seat-time-grid button.is-active {
+  border-color: #2d7a6e;
+  background: #ecf4f2;
+}
+
+.student-seat-building-list {
+  display: grid;
+  gap: 4px;
+}
+
+.student-seat-building-list button {
+  min-height: 33px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 7px 10px;
+  background: transparent;
+  color: #4a6b64;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.student-seat-building-list button.is-active {
+  border-color: rgba(45, 122, 110, 0.18);
+  background: #ecf4f2;
+  color: #2d7a6e;
+  font-weight: 800;
+}
+
+.student-seat-building-list i {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 2px solid #d8e8e5;
+  border-radius: 4px;
+  color: #ffffff;
+}
+
+.student-seat-building-list button.is-active i {
+  border-color: #2d7a6e;
+  background: #2d7a6e;
+}
+
+.student-seat-feature-list {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.student-seat-feature-list button {
+  min-height: 25px;
+  border: 1px solid #d8e8e5;
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: #ffffff;
+  color: #8aaaa4;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.student-seat-feature-list button.is-active {
+  border-color: #2d7a6e;
+  background: #2d7a6e;
+  color: #ffffff;
+}
+
+.student-seat-filter-actions {
+  display: grid;
+  gap: 7px;
+  border-top: 1px solid #ecf4f2;
+  padding-top: 16px;
+}
+
+.student-seat-filter-actions button,
+.student-seat-primary-action,
+.student-seat-secondary-action {
+  height: 36px;
+  border: 1.5px solid #2d7a6e;
+  border-radius: 8px;
+  background: #2d7a6e;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.student-seat-filter-actions button:last-child,
+.student-seat-secondary-action {
+  border-color: transparent;
+  background: transparent;
+  color: #8aaaa4;
+}
+
+.student-seat-floor-panel {
+  min-width: 0;
+  overflow: auto;
+  padding: 22px;
+}
+
+.student-seat-floor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.student-seat-floor-head > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.student-seat-floor-head strong {
+  color: #1a2e2a;
+  font-size: 13px;
+}
+
+.student-seat-floor-head mark {
+  border: 1px solid #bbf7d0;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: #f0faf4;
+  color: #2d9a5c;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.student-seat-legend {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: #8aaaa4;
+  font-size: 11px;
+}
+
+.student-seat-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.student-seat-legend i {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1.5px solid #86efac;
+  background: #f0faf4;
+}
+
+.student-seat-legend i[data-status="taken"] {
+  border-color: #d1d5db;
+  background: #f3f4f6;
+}
+
+.student-seat-legend i[data-status="selected"] {
+  border-color: #2d7a6e;
+  background: #2d7a6e;
+}
+
+.student-seat-legend i[data-status="window"] {
+  border-color: #7dd3fc;
+  background: #eff6ff;
+}
+
+.student-seat-map-card {
+  padding: 20px;
+}
+
+.student-seat-entry {
+  width: max-content;
+  margin: 0 auto 12px;
+  border: 1px dashed #b6cbc6;
+  border-radius: 4px;
+  padding: 3px 24px;
+  background: #ecf4f2;
+  color: #8aaaa4;
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+
+.student-seat-window-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  margin-bottom: 8px;
+  color: #0369a1;
+  font-size: 10px;
+}
+
+.student-seat-window-row i {
+  width: 20px;
+  height: 2px;
+  border-radius: 1px;
+  background: #7dd3fc;
+}
+
+.student-seat-grid {
+  display: grid;
+  justify-content: center;
+  gap: 3px;
+}
+
+.student-seat-row-block {
+  display: grid;
+  gap: 3px;
+}
+
+.student-seat-aisle {
+  height: 22px;
+  display: grid;
+  align-items: center;
+  color: #b6cbc6;
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-align: center;
+}
+
+.student-seat-aisle::before {
+  content: "";
+  height: 1px;
+  grid-area: 1 / 1;
+  background: #ecf4f2;
+}
+
+.student-seat-aisle span {
+  z-index: 1;
+  justify-self: center;
+  background: #ffffff;
+  padding: 0 8px;
+}
+
+.student-seat-row {
+  display: grid;
+  grid-template-columns: 18px repeat(4, 34px) 18px repeat(4, 34px);
+  align-items: center;
+  gap: 3px;
+}
+
+.student-seat-row-label {
+  color: #8aaaa4;
+  font-family: Inter, sans-serif;
+  font-size: 9px;
+  text-align: right;
+}
+
+.student-seat-row-side {
+  display: grid;
+  grid-template-columns: repeat(4, 34px);
+  gap: 3px;
+}
+
+.student-seat-row-gap {
+  width: 18px;
+}
+
+.student-seat-cell {
+  width: 34px;
+  height: 34px;
+  position: relative;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid #86efac;
+  border-radius: 6px;
+  background: #f0faf4;
+  color: #2d9a5c;
+  font-family: Inter, sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.student-seat-cell small {
+  position: absolute;
+  right: 2px;
+  bottom: 1px;
+  color: #d4a843;
+  font-family: inherit;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.student-seat-cell[data-status="window"] {
+  border-color: #7dd3fc;
+  background: #eff6ff;
+  color: #0369a1;
+}
+
+.student-seat-cell[data-status="taken"] {
+  border-color: #d1d5db;
+  background: #f3f4f6;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.student-seat-cell[data-status="selected"] {
+  border-color: #2d7a6e;
+  background: #2d7a6e;
+  color: #ffffff;
+  box-shadow: 0 10px 22px rgba(45, 122, 110, 0.24);
+}
+
+.student-seat-cell[data-status="disabled"] {
+  border-color: #e5e7eb;
+  background: repeating-linear-gradient(135deg, #f8fafc 0, #f8fafc 4px, #edf2f7 4px, #edf2f7 8px);
+  color: #cbd5e1;
+  cursor: not-allowed;
+}
+
+.student-seat-column-labels {
+  width: max-content;
+  display: grid;
+  grid-template-columns: 18px repeat(4, 34px) 18px repeat(4, 34px);
+  gap: 3px;
+  margin: 7px auto 0;
+  color: #b6cbc6;
+  font-family: Inter, sans-serif;
+  font-size: 9px;
+  text-align: center;
+}
+
+.student-seat-map-notes {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.student-seat-map-notes span {
+  border: 1px solid #d8e8e5;
+  border-radius: 7px;
+  padding: 5px 10px;
+  background: #ffffff;
+  color: #8aaaa4;
+  font-size: 11px;
+}
+
+.student-seat-selected-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  padding: 14px;
+  background: #142e28;
+}
+
+.student-seat-selected-card::after {
+  content: "";
+  width: 78px;
+  height: 78px;
+  position: absolute;
+  right: -18px;
+  bottom: -22px;
+  border-radius: 999px;
+  background: rgba(212, 168, 67, 0.12);
+}
+
+.student-seat-selected-card small,
+.student-seat-selected-card span {
+  display: block;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 10px;
+}
+
+.student-seat-selected-card strong {
+  display: block;
+  margin: 5px 0 3px;
+  color: #d4a843;
+  font-family: Inter, sans-serif;
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.student-seat-selected-card div {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.student-seat-selected-card mark {
+  border-radius: 999px;
+  padding: 2px 7px;
+  background: rgba(212, 168, 67, 0.15);
+  color: #d4a843;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.student-seat-booking-summary {
+  margin: 16px 0;
+}
+
+.student-seat-booking-summary div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #ecf4f2;
+  padding: 8px 0;
+}
+
+.student-seat-booking-summary dt {
+  color: #8aaaa4;
+  font-size: 11px;
+}
+
+.student-seat-booking-summary dd {
+  margin: 0;
+  color: #1a2e2a;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: right;
+}
+
+.student-seat-rule-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  border: 1px solid #fde68a;
+  border-radius: 9px;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #fffbeb;
+  color: #c8820a;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.student-seat-rule-notice .dashboard-icon {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.student-seat-primary-action,
+.student-seat-secondary-action {
+  width: 100%;
+}
+
+.student-seat-secondary-action {
+  margin-top: 8px;
+}
+
+.student-seat-slot-list {
+  border-top: 1px solid #ecf4f2;
+  margin-top: 16px;
+  padding-top: 16px;
+}
+
+.student-seat-slot-list div {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid #bbf7d0;
+  border-radius: 7px;
+  margin-bottom: 5px;
+  padding: 6px 10px;
+  background: #f0faf4;
+}
+
+.student-seat-slot-list div[data-status="taken"] {
+  border-color: #d8e8e5;
+  background: #f3f4f6;
+}
+
+.student-seat-slot-list div[data-status="selected"] {
+  border-color: rgba(45, 122, 110, 0.2);
+  background: #ecf4f2;
+}
+
+.student-seat-slot-list span {
+  color: #4a6b64;
+  font-family: Inter, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.student-seat-slot-list mark {
+  border-radius: 999px;
+  padding: 2px 7px;
+  background: #ffffff;
+  color: #2d9a5c;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.student-seat-slot-list div[data-status="taken"] mark {
+  color: #8aaaa4;
+}
+
+.student-seat-slot-list div[data-status="selected"] mark {
+  color: #2d7a6e;
+}
+
 @media (max-width: 860px) {
   .admin-login-page {
     grid-template-columns: 1fr;
@@ -5974,6 +6574,23 @@ button {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .student-seat-selector-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .student-seat-filter-panel,
+  .student-seat-booking-panel {
+    border: 0;
+  }
+
+  .student-seat-filter-panel {
+    border-bottom: 1px solid #d8e8e5;
+  }
+
+  .student-seat-booking-panel {
+    border-top: 1px solid #d8e8e5;
+  }
+
   .admin-brand-panel {
     min-height: 320px;
     padding: 32px 28px;
@@ -6083,6 +6700,46 @@ button {
   .student-rooms-filterbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .student-seat-selector-panel {
+    margin: -18px;
+  }
+
+  .student-seat-floor-panel {
+    padding: 18px;
+  }
+
+  .student-seat-floor-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .student-seat-map-card {
+    overflow-x: auto;
+    padding: 16px;
+  }
+
+  .student-seat-row {
+    grid-template-columns: 16px repeat(4, 30px) 14px repeat(4, 30px);
+  }
+
+  .student-seat-row-side {
+    grid-template-columns: repeat(4, 30px);
+  }
+
+  .student-seat-row-gap {
+    width: 14px;
+  }
+
+  .student-seat-cell {
+    width: 30px;
+    height: 30px;
+    font-size: 9px;
+  }
+
+  .student-seat-column-labels {
+    grid-template-columns: 16px repeat(4, 30px) 14px repeat(4, 30px);
   }
 
   .login-card {
