@@ -1,4 +1,4 @@
-import type { CSSProperties, FormEvent } from 'react';
+import type { CSSProperties, FormEvent, ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { F } from '@ibooking/design-tokens';
 
@@ -12,6 +12,7 @@ type Feedback = {
 type SessionView = {
   kind: EntryKind;
   name: string;
+  accessToken: string;
 };
 
 type LoginPayload = {
@@ -37,6 +38,51 @@ type LoginRequestInput = {
   entry: EntryKind;
   account: string;
   password: string;
+};
+
+type RoomScopeType = 'SCHOOL' | 'DEPARTMENT';
+type RoomStatus = 'ACTIVE' | 'INACTIVE';
+
+type AdminRoom = {
+  id: string;
+  name: string;
+  building: string;
+  floor: number;
+  capacity: number;
+  scopeType: RoomScopeType;
+  departmentId: string | null;
+  openHour: number;
+  closeHour: number;
+  overnight: boolean;
+  status: RoomStatus;
+};
+
+type AdminRoomFormState = {
+  name: string;
+  building: string;
+  floor: number;
+  capacity: number;
+  scopeType: RoomScopeType;
+  departmentId: string;
+  openHour: number;
+  closeHour: number;
+  overnight: boolean;
+};
+
+type AdminRoomEditor =
+  | { mode: 'create'; room: null }
+  | { mode: 'edit'; room: AdminRoomRow };
+
+type AdminRoomRow = AdminRoom & {
+  code: string;
+  departmentLabel: string;
+  hours: string;
+  statusLabel: string;
+};
+
+type SaveRoomOptions = {
+  accessToken: string;
+  roomId?: string;
 };
 
 const AUTH_REMEMBER_KEY = 'ibooking.auth.remember';
@@ -80,6 +126,69 @@ export const requestLogin = async (
   const payload = (await response.json().catch(() => null)) as LoginPayload | null;
   if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
     throw new Error(payload?.message || '登录失败，请稍后重试');
+  }
+
+  return payload.data;
+};
+
+export const requestRooms = async (
+  accessToken: string,
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl()
+): Promise<AdminRoom[]> => {
+  const response = await fetcher(`${apiBaseUrl}/api/v1/rooms`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: AdminRoom[];
+  } | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
+    throw new Error(payload?.message || '自习室列表加载失败');
+  }
+
+  return payload.data;
+};
+
+export const saveAdminRoom = async (
+  input: AdminRoomFormState,
+  options: SaveRoomOptions,
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl()
+): Promise<AdminRoom> => {
+  const isEdit = Boolean(options.roomId);
+  const response = await fetcher(
+    isEdit ? `${apiBaseUrl}/api/v1/rooms/${options.roomId}` : `${apiBaseUrl}/api/v1/rooms`,
+    {
+      method: isEdit ? 'PATCH' : 'POST',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${options.accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: input.name,
+        building: input.building,
+        floor: Number(input.floor),
+        capacity: Number(input.capacity),
+        scopeType: input.scopeType,
+        departmentId: input.scopeType === 'DEPARTMENT' ? input.departmentId || 'dept-cs' : null,
+        openHour: Number(input.openHour),
+        closeHour: Number(input.closeHour),
+        overnight: Boolean(input.overnight)
+      })
+    }
+  );
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: AdminRoom;
+  } | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
+    throw new Error(payload?.message || '保存失败');
   }
 
   return payload.data;
@@ -141,7 +250,14 @@ const DASHBOARD_ICON_PATHS = {
   download: 'M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4 M7 10l5 5 5-5 M12 15V3',
   refresh: 'M23 4v6h-6 M1 20v-6h6 M3.51 9a9 9 0 0114.85-3.36L23 10 M1 14l4.64 4.36A9 9 0 0020.49 15',
   'check-circle': 'M22 11.08V12a10 10 0 11-5.93-9.14 M22 4L12 14.01l-3-3',
-  'arrow-right': 'M5 12h14 M12 5l7 7-7 7'
+  'arrow-right': 'M5 12h14 M12 5l7 7-7 7',
+  plus: 'M12 5v14 M5 12h14',
+  search: 'M21 21l-4.35-4.35 M10.5 18a7.5 7.5 0 100-15 7.5 7.5 0 000 15z',
+  edit: 'M12 20h9 M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z',
+  x: 'M18 6L6 18 M6 6l12 12',
+  check: 'M20 6L9 17l-5-5',
+  'chevron-down': 'M6 9l6 6 6-6',
+  'more-v': 'M12 8h.01 M12 12h.01 M12 16h.01'
 } as const;
 
 type DashboardIconName = keyof typeof DASHBOARD_ICON_PATHS;
@@ -228,7 +344,7 @@ export function App() {
         entry === 'admin' ? ADMIN_ACCESS_TOKEN_KEY : STUDENT_ACCESS_TOKEN_KEY,
         loginSession.accessToken
       );
-      setSession({ kind: entry, name: loginSession.user.name });
+      setSession({ kind: entry, name: loginSession.user.name, accessToken: loginSession.accessToken });
       pushAppPath(entry === 'admin' ? '/dashboard' : '/student');
     } catch (error) {
       setFeedback({
@@ -248,7 +364,13 @@ export function App() {
   };
 
   if (session?.kind === 'admin') {
-    return <AdminDashboard adminName={session.name} onLogout={handleLogout} />;
+    return (
+      <AdminDashboard
+        accessToken={session.accessToken}
+        adminName={session.name}
+        onLogout={handleLogout}
+      />
+    );
   }
 
   if (session?.kind === 'student') {
@@ -415,6 +537,7 @@ export function App() {
 }
 
 type DashboardProps = {
+  accessToken?: string;
   adminName: string;
   initialActive?: AdminMenuId;
   onLogout?: () => void;
@@ -439,6 +562,7 @@ const ADMIN_MENU_IDS = [
 type AdminMenuId = (typeof ADMIN_MENU_IDS)[number];
 
 type AdminMenuAction = {
+  id?: 'create-room' | 'refresh-rooms';
   label: string;
   icon: DashboardIconName;
 };
@@ -495,6 +619,106 @@ const DASHBOARD_NAV_GROUPS: Array<{
   }
 ];
 
+const ADMIN_ROOM_FALLBACKS: AdminRoom[] = [
+  {
+    id: 'room-gm-301',
+    name: '经管自习室 301',
+    building: '光华楼 A座',
+    floor: 3,
+    capacity: 48,
+    scopeType: 'SCHOOL',
+    departmentId: null,
+    openHour: 8,
+    closeHour: 22,
+    overnight: false,
+    status: 'ACTIVE'
+  },
+  {
+    id: 'room-science-201',
+    name: '理工自习室 201',
+    building: '理科楼',
+    floor: 2,
+    capacity: 36,
+    scopeType: 'SCHOOL',
+    departmentId: null,
+    openHour: 7,
+    closeHour: 24,
+    overnight: false,
+    status: 'ACTIVE'
+  },
+  {
+    id: 'room-humanities-a',
+    name: '文史馆阅览室 A',
+    building: '文史馆',
+    floor: 1,
+    capacity: 72,
+    scopeType: 'SCHOOL',
+    departmentId: null,
+    openHour: 9,
+    closeHour: 21,
+    overnight: false,
+    status: 'ACTIVE'
+  },
+  {
+    id: 'room-cs-lab-b',
+    name: '计算机学院自习室 B',
+    building: '计算机楼',
+    floor: 4,
+    capacity: 24,
+    scopeType: 'DEPARTMENT',
+    departmentId: 'dept-cs',
+    openHour: 22,
+    closeHour: 7,
+    overnight: true,
+    status: 'ACTIVE'
+  }
+];
+
+const newRoomForm = (): AdminRoomFormState => ({
+  name: '',
+  building: '',
+  floor: 1,
+  capacity: 40,
+  scopeType: 'SCHOOL',
+  departmentId: '',
+  openHour: 7,
+  closeHour: 22,
+  overnight: false
+});
+
+const formatRoomHour = (hour: number) => `${String(hour).padStart(2, '0')}:00`;
+
+const formatRoomHours = (room: AdminRoom) =>
+  room.overnight
+    ? `${formatRoomHour(room.openHour)}–次日 ${formatRoomHour(room.closeHour)}`
+    : `${formatRoomHour(room.openHour)}–${formatRoomHour(room.closeHour)}`;
+
+const getRoomDepartmentLabel = (room: Pick<AdminRoom, 'scopeType' | 'departmentId'>) => {
+  if (room.scopeType === 'SCHOOL') return '全校';
+  if (room.departmentId === 'dept-cs') return '计算机学院';
+  return '院系限定';
+};
+
+const toAdminRoomRow = (room: AdminRoom, index: number): AdminRoomRow => ({
+  ...room,
+  code: `R${String(index + 1).padStart(3, '0')}`,
+  departmentLabel: getRoomDepartmentLabel(room),
+  hours: formatRoomHours(room),
+  statusLabel: room.status === 'ACTIVE' ? '开放中' : '已停用'
+});
+
+const roomToForm = (room: AdminRoom): AdminRoomFormState => ({
+  name: room.name,
+  building: room.building,
+  floor: room.floor,
+  capacity: room.capacity,
+  scopeType: room.scopeType,
+  departmentId: room.departmentId ?? '',
+  openHour: room.openHour,
+  closeHour: room.closeHour,
+  overnight: room.overnight
+});
+
 const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
   dashboard: {
     title: '管理仪表盘',
@@ -515,8 +739,8 @@ const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
     sub: '共 48 个自习室',
     description: '维护自习室基础信息、开放范围、院系限制与当前运营状态。',
     actions: [
-      { label: '新增自习室', icon: 'building' },
-      { label: '资源状态同步', icon: 'refresh' }
+      { id: 'create-room', label: '新增自习室', icon: 'plus' },
+      { id: 'refresh-rooms', label: '资源状态同步', icon: 'refresh' }
     ],
     metrics: [
       { label: '开放中', value: '43 间', tone: F.success },
@@ -849,15 +1073,26 @@ const resolveInitialAdminMenu = (): AdminMenuId => {
   return isAdminMenuId(section) ? section : 'dashboard';
 };
 
-export function AdminDashboard({ adminName, initialActive, onLogout }: DashboardProps) {
+export function AdminDashboard({ accessToken, adminName, initialActive, onLogout }: DashboardProps) {
   const [activeMenu, setActiveMenu] = useState<AdminMenuId>(
     () => initialActive ?? resolveInitialAdminMenu()
   );
+  const [roomCreateSignal, setRoomCreateSignal] = useState(0);
+  const [roomRefreshSignal, setRoomRefreshSignal] = useState(0);
   const activeMeta = ADMIN_MENU_META[activeMenu];
 
   const handleMenuChange = (nextMenu: AdminMenuId) => {
     setActiveMenu(nextMenu);
     pushAppPath(nextMenu === 'dashboard' ? '/dashboard' : `/dashboard/${nextMenu}`);
+  };
+
+  const handleTopbarAction = (action: AdminMenuAction) => {
+    if (action.id === 'create-room') {
+      setRoomCreateSignal((current) => current + 1);
+    }
+    if (action.id === 'refresh-rooms') {
+      setRoomRefreshSignal((current) => current + 1);
+    }
   };
 
   return (
@@ -906,7 +1141,12 @@ export function AdminDashboard({ adminName, initialActive, onLogout }: Dashboard
           </div>
           <div className="dashboard-actions">
             {activeMeta.actions.map((action) => (
-              <button className="dashboard-secondary-button" key={action.label} type="button">
+              <button
+                className="dashboard-secondary-button"
+                key={action.label}
+                type="button"
+                onClick={() => handleTopbarAction(action)}
+              >
                 <DashboardIcon name={action.icon} size={13} />
                 {action.label}
               </button>
@@ -921,7 +1161,17 @@ export function AdminDashboard({ adminName, initialActive, onLogout }: Dashboard
           </div>
         </header>
 
-        {activeMenu === 'dashboard' ? <DashboardOverview /> : <AdminModulePanel meta={activeMeta} />}
+        {activeMenu === 'dashboard' ? (
+          <DashboardOverview />
+        ) : activeMenu === 'rooms' ? (
+          <RoomManagementPanel
+            accessToken={accessToken}
+            createSignal={roomCreateSignal}
+            refreshSignal={roomRefreshSignal}
+          />
+        ) : (
+          <AdminModulePanel meta={activeMeta} />
+        )}
       </section>
     </main>
   );
@@ -1099,6 +1349,348 @@ function AdminModulePanel({ meta }: { meta: AdminMenuMeta }) {
         </div>
       </section>
     </div>
+  );
+}
+
+function RoomManagementPanel({
+  accessToken,
+  createSignal,
+  refreshSignal
+}: {
+  accessToken?: string;
+  createSignal: number;
+  refreshSignal: number;
+}) {
+  const [rooms, setRooms] = useState<AdminRoomRow[]>(() =>
+    ADMIN_ROOM_FALLBACKS.map(toAdminRoomRow)
+  );
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [editor, setEditor] = useState<AdminRoomEditor | null>(null);
+  const [form, setForm] = useState<AdminRoomFormState>(() => newRoomForm());
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    if (!accessToken) {
+      setRooms(ADMIN_ROOM_FALLBACKS.map(toAdminRoomRow));
+      setLoadError('');
+      setLoading(false);
+      return () => {
+        alive = false;
+      };
+    }
+
+    setLoading(true);
+    requestRooms(accessToken)
+      .then((nextRooms) => {
+        if (!alive) return;
+        setRooms(nextRooms.map(toAdminRoomRow));
+        setLoadError('');
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setRooms(ADMIN_ROOM_FALLBACKS.map(toAdminRoomRow));
+        setLoadError(error instanceof Error ? error.message : '自习室列表加载失败');
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [accessToken, refreshSignal]);
+
+  useEffect(() => {
+    if (createSignal === 0) return;
+    setEditor({ mode: 'create', room: null });
+    setForm(newRoomForm());
+    setFormError('');
+  }, [createSignal]);
+
+  const filteredRooms = rooms.filter((room) => {
+    const keyword = query.trim().toLowerCase();
+    if (!keyword) return true;
+    return [room.name, room.building, room.departmentLabel].some((field) =>
+      field.toLowerCase().includes(keyword)
+    );
+  });
+
+  const openCreate = () => {
+    setEditor({ mode: 'create', room: null });
+    setForm(newRoomForm());
+    setFormError('');
+  };
+
+  const openEdit = (room: AdminRoomRow) => {
+    setEditor({ mode: 'edit', room });
+    setForm(roomToForm(room));
+    setFormError('');
+  };
+
+  const updateForm = <Key extends keyof AdminRoomFormState>(
+    key: Key,
+    value: AdminRoomFormState[Key]
+  ) => {
+    setForm((current) => {
+      const next = { ...current, [key]: value };
+      if (key === 'scopeType') {
+        next.departmentId = value === 'DEPARTMENT' ? current.departmentId || 'dept-cs' : '';
+      }
+      return next;
+    });
+  };
+
+  const handleSaveRoom = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!accessToken) {
+      setFormError('请先使用管理账号登录后再保存');
+      return;
+    }
+
+    const isEdit = editor?.mode === 'edit';
+    setSaving(true);
+    setFormError('');
+    try {
+      const savedRoom = await saveAdminRoom(form, {
+        accessToken,
+        roomId: isEdit ? editor.room.id : undefined
+      });
+      setRooms((currentRooms) => {
+        const nextRooms = isEdit
+          ? currentRooms.map((room) => (room.id === savedRoom.id ? savedRoom : room))
+          : [...currentRooms, savedRoom];
+        return nextRooms.map(toAdminRoomRow);
+      });
+      setEditor(null);
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : '保存失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className="room-management-panel" aria-label="自习室管理">
+      <div className="room-toolbar">
+        <label className="room-search">
+          <DashboardIcon name="search" size={14} />
+          <input
+            aria-label="搜索自习室"
+            placeholder="搜索自习室名称、楼栋"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+        <button className="room-filter-button" type="button">
+          全部状态
+          <DashboardIcon name="chevron-down" size={12} />
+        </button>
+        <button className="room-filter-button" type="button">
+          全部楼栋
+          <DashboardIcon name="chevron-down" size={12} />
+        </button>
+        <button className="room-secondary-button" type="button">
+          <DashboardIcon name="download" size={13} />
+          导出
+        </button>
+        <button className="room-primary-button" type="button" onClick={openCreate}>
+          <DashboardIcon name="plus" size={13} />
+          新增自习室
+        </button>
+      </div>
+
+      {(loading || loadError) && (
+        <div className={`room-message ${loadError ? 'is-error' : ''}`}>
+          <DashboardIcon name={loadError ? 'alert' : 'refresh'} size={14} />
+          {loadError || '正在加载自习室列表…'}
+        </div>
+      )}
+
+      <div className="dashboard-card room-table-card">
+        <div className="room-table-head">
+          {['编号', '自习室名称', '楼栋', '楼层', '容量', '开放对象', '状态', '开放时间', '操作'].map(
+            (head) => (
+              <span key={head}>{head}</span>
+            )
+          )}
+        </div>
+        {filteredRooms.map((room) => (
+          <div className="room-table-row" key={room.id}>
+            <span>{room.code}</span>
+            <strong>{room.name}</strong>
+            <span>{room.building}</span>
+            <span>{room.floor}楼</span>
+            <span>{room.capacity}</span>
+            <span>
+              <mark data-variant={room.scopeType === 'DEPARTMENT' ? 'purple' : 'navy'}>
+                {room.departmentLabel}
+              </mark>
+            </span>
+            <span>
+              <mark data-variant={room.status === 'ACTIVE' ? 'green' : 'gray'}>
+                {room.statusLabel}
+              </mark>
+            </span>
+            <span>{room.hours}</span>
+            <span className="room-row-actions">
+              <button type="button" onClick={() => openEdit(room)}>
+                <DashboardIcon name="edit" size={12} />
+                编辑
+              </button>
+              <button type="button">
+                <DashboardIcon name="move" size={12} />
+                平面图
+              </button>
+              <button aria-label={`${room.name} 更多操作`} type="button">
+                <DashboardIcon name="more-v" size={12} />
+              </button>
+            </span>
+          </div>
+        ))}
+        {filteredRooms.length === 0 && <div className="room-empty">没有匹配的自习室</div>}
+      </div>
+
+      {editor && (
+        <div className="room-editor-layer">
+          <button
+            aria-label="关闭编辑面板"
+            className="room-editor-backdrop"
+            type="button"
+            onClick={() => setEditor(null)}
+          />
+          <form className="dashboard-card room-editor" onSubmit={handleSaveRoom}>
+            <header className="room-editor-head">
+              <div>
+                <h2>{editor.mode === 'create' ? '新增自习室' : '编辑自习室'}</h2>
+                <p>维护名称、楼栋、容量与开放规则</p>
+              </div>
+              <button aria-label="关闭" type="button" onClick={() => setEditor(null)}>
+                <DashboardIcon name="x" size={14} />
+              </button>
+            </header>
+
+            <RoomFormField label="自习室名称">
+              <input
+                required
+                value={form.name}
+                onChange={(event) => updateForm('name', event.target.value)}
+              />
+            </RoomFormField>
+            <RoomFormField label="楼栋">
+              <input
+                required
+                value={form.building}
+                onChange={(event) => updateForm('building', event.target.value)}
+              />
+            </RoomFormField>
+            <div className="room-form-grid">
+              <RoomFormField label="楼层">
+                <input
+                  max="99"
+                  min="0"
+                  required
+                  type="number"
+                  value={form.floor}
+                  onChange={(event) => updateForm('floor', Number(event.target.value))}
+                />
+              </RoomFormField>
+              <RoomFormField label="容量">
+                <input
+                  max="1000"
+                  min="1"
+                  required
+                  type="number"
+                  value={form.capacity}
+                  onChange={(event) => updateForm('capacity', Number(event.target.value))}
+                />
+              </RoomFormField>
+            </div>
+            <div className="room-form-grid">
+              <RoomFormField label="开放对象">
+                <select
+                  value={form.scopeType}
+                  onChange={(event) => updateForm('scopeType', event.target.value as RoomScopeType)}
+                >
+                  <option value="SCHOOL">全校</option>
+                  <option value="DEPARTMENT">院系</option>
+                </select>
+              </RoomFormField>
+              <RoomFormField label="院系">
+                <select
+                  disabled={form.scopeType !== 'DEPARTMENT'}
+                  value={form.scopeType === 'DEPARTMENT' ? form.departmentId || 'dept-cs' : ''}
+                  onChange={(event) => updateForm('departmentId', event.target.value)}
+                >
+                  <option value="">无</option>
+                  <option value="dept-cs">计算机学院</option>
+                </select>
+              </RoomFormField>
+            </div>
+            <div className="room-form-grid">
+              <RoomFormField label="开始小时">
+                <input
+                  max="23"
+                  min="0"
+                  required
+                  type="number"
+                  value={form.openHour}
+                  onChange={(event) => updateForm('openHour', Number(event.target.value))}
+                />
+              </RoomFormField>
+              <RoomFormField label="结束小时">
+                <input
+                  max="24"
+                  min="1"
+                  required
+                  type="number"
+                  value={form.closeHour}
+                  onChange={(event) => updateForm('closeHour', Number(event.target.value))}
+                />
+              </RoomFormField>
+            </div>
+            <label className="room-checkbox">
+              <input
+                checked={form.overnight}
+                type="checkbox"
+                onChange={(event) => updateForm('overnight', event.target.checked)}
+              />
+              过夜开放
+            </label>
+
+            {formError && <div className="room-form-error">{formError}</div>}
+
+            <div className="room-editor-actions">
+              <button type="button" onClick={() => setEditor(null)}>
+                取消
+              </button>
+              <button className="room-primary-button" disabled={saving} type="submit">
+                <DashboardIcon name="check" size={13} />
+                {saving ? '保存中…' : '保存'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function RoomFormField({
+  children,
+  label
+}: {
+  children: ReactNode;
+  label: string;
+}) {
+  return (
+    <label className="room-form-field">
+      <span>{label}</span>
+      {children}
+    </label>
   );
 }
 
