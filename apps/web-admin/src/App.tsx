@@ -1,8 +1,13 @@
-import type { CSSProperties, FormEvent } from 'react';
+import type { CSSProperties, FormEvent, ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { F } from '@ibooking/design-tokens';
 
 export type EntryKind = 'student' | 'admin';
+
+type RoleView = {
+  name: string;
+  code: string;
+};
 
 type Feedback = {
   type: 'success' | 'error';
@@ -12,6 +17,7 @@ type Feedback = {
 type SessionView = {
   kind: EntryKind;
   name: string;
+  accessToken: string;
 };
 
 type LoginPayload = {
@@ -24,7 +30,7 @@ type LoginPayload = {
       name: string;
       departmentName?: string | null;
     };
-    roles?: Array<{ name: string; code: string }>;
+    roles?: RoleView[];
   };
 };
 
@@ -34,10 +40,82 @@ type ApiRuntimeEnv = {
 };
 
 type LoginRequestInput = {
-  entry: EntryKind;
   account: string;
   password: string;
 };
+
+type RoomScopeType = 'SCHOOL' | 'DEPARTMENT';
+type RoomStatus = 'ACTIVE' | 'INACTIVE';
+
+type AdminRoom = {
+  id: string;
+  name: string;
+  building: string;
+  floor: number;
+  capacity: number;
+  scopeType: RoomScopeType;
+  departmentId: string | null;
+  openHour: number;
+  closeHour: number;
+  overnight: boolean;
+  status: RoomStatus;
+};
+
+type AdminRoomFormState = {
+  name: string;
+  building: string;
+  floor: number;
+  capacity: number;
+  scopeType: RoomScopeType;
+  departmentId: string;
+  openHour: number;
+  closeHour: number;
+  overnight: boolean;
+};
+
+type AdminRoomEditor =
+  | { mode: 'create'; room: null }
+  | { mode: 'edit'; room: AdminRoomRow };
+
+type AdminRoomRow = AdminRoom & {
+  code: string;
+  departmentLabel: string;
+  hours: string;
+  statusLabel: string;
+};
+
+type SaveRoomOptions = {
+  accessToken: string;
+  roomId?: string;
+};
+
+type AdminSeat = {
+  id: string;
+  roomName: string;
+  code: string;
+  x: number;
+  y: number;
+  hasPower: boolean;
+  nearWindow: boolean;
+  quietZone: boolean;
+  status: RoomStatus;
+  updatedAt: string;
+};
+
+type AdminSeatFormState = {
+  roomName: string;
+  code: string;
+  x: number;
+  y: number;
+  hasPower: boolean;
+  nearWindow: boolean;
+  quietZone: boolean;
+  status: RoomStatus;
+};
+
+type AdminSeatEditor =
+  | { mode: 'create'; seat: null }
+  | { mode: 'edit'; seat: AdminSeat };
 
 const AUTH_REMEMBER_KEY = 'ibooking.auth.remember';
 const ADMIN_ACCESS_TOKEN_KEY = 'ibooking.admin.accessToken';
@@ -67,15 +145,11 @@ export const requestLogin = async (
   fetcher: typeof fetch = fetch,
   apiBaseUrl = resolveApiBaseUrl()
 ) => {
-  const response = await fetcher(`${apiBaseUrl}/api/v1/auth/${input.entry}-login`, {
+  const response = await fetcher(`${apiBaseUrl}/api/v1/auth/login`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(
-      input.entry === 'admin'
-        ? { username: input.account.trim(), password: input.password }
-        : { studentId: input.account.trim(), password: input.password }
-    )
+    body: JSON.stringify({ studentNo: input.account.trim(), password: input.password })
   });
   const payload = (await response.json().catch(() => null)) as LoginPayload | null;
   if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
@@ -84,6 +158,79 @@ export const requestLogin = async (
 
   return payload.data;
 };
+
+export const requestRooms = async (
+  accessToken: string,
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl()
+): Promise<AdminRoom[]> => {
+  const response = await fetcher(`${apiBaseUrl}/api/v1/rooms`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: AdminRoom[];
+  } | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
+    throw new Error(payload?.message || '自习室列表加载失败');
+  }
+
+  return payload.data;
+};
+
+export const saveAdminRoom = async (
+  input: AdminRoomFormState,
+  options: SaveRoomOptions,
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl()
+): Promise<AdminRoom> => {
+  const isEdit = Boolean(options.roomId);
+  const response = await fetcher(
+    isEdit ? `${apiBaseUrl}/api/v1/rooms/${options.roomId}` : `${apiBaseUrl}/api/v1/rooms`,
+    {
+      method: isEdit ? 'PATCH' : 'POST',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${options.accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        name: input.name,
+        building: input.building,
+        floor: Number(input.floor),
+        capacity: Number(input.capacity),
+        scopeType: input.scopeType,
+        departmentId: input.scopeType === 'DEPARTMENT' ? input.departmentId || 'dept-cs' : null,
+        openHour: Number(input.openHour),
+        closeHour: Number(input.closeHour),
+        overnight: Boolean(input.overnight)
+      })
+    }
+  );
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: AdminRoom;
+  } | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
+    throw new Error(payload?.message || '保存失败');
+  }
+
+  return payload.data;
+};
+
+const ADMIN_ROLE_CODES = new Set([
+  'ROLE_FULL_ADMIN',
+  'ROLE_ROOM_ADMIN',
+  'ROLE_AUDIT',
+  'ROLE_DEPARTMENT_ADMIN'
+]);
+
+export const resolveSessionKind = (roles: RoleView[] = []): EntryKind =>
+  roles.some((role) => ADMIN_ROLE_CODES.has(role.code)) ? 'admin' : 'student';
 
 const pushAppPath = (path: string) => {
   if (typeof window !== 'undefined') {
@@ -140,8 +287,18 @@ const DASHBOARD_ICON_PATHS = {
   eye: 'M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 9a3 3 0 100 6 3 3 0 000-6z',
   download: 'M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4 M7 10l5 5 5-5 M12 15V3',
   refresh: 'M23 4v6h-6 M1 20v-6h6 M3.51 9a9 9 0 0114.85-3.36L23 10 M1 14l4.64 4.36A9 9 0 0020.49 15',
+  trash:
+    'M3 6h18 M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2 M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6 M10 11v6 M14 11v6',
+  info: 'M12 22a10 10 0 100-20 10 10 0 000 20z M12 16v-4 M12 8h.01',
   'check-circle': 'M22 11.08V12a10 10 0 11-5.93-9.14 M22 4L12 14.01l-3-3',
-  'arrow-right': 'M5 12h14 M12 5l7 7-7 7'
+  'arrow-right': 'M5 12h14 M12 5l7 7-7 7',
+  plus: 'M12 5v14 M5 12h14',
+  search: 'M21 21l-4.35-4.35 M10.5 18a7.5 7.5 0 100-15 7.5 7.5 0 000 15z',
+  edit: 'M12 20h9 M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z',
+  x: 'M18 6L6 18 M6 6l12 12',
+  check: 'M20 6L9 17l-5-5',
+  'chevron-down': 'M6 9l6 6 6-6',
+  'more-v': 'M12 8h.01 M12 12h.01 M12 16h.01'
 } as const;
 
 type DashboardIconName = keyof typeof DASHBOARD_ICON_PATHS;
@@ -179,7 +336,6 @@ function DashboardIcon({
 }
 
 export function App() {
-  const [entry, setEntry] = useState<EntryKind>('admin');
   const [loginMode, setLoginMode] = useState<'password' | 'sso'>('password');
   const [account, setAccount] = useState(ENTRY_PRESETS.admin.account);
   const [password, setPassword] = useState(ENTRY_PRESETS.admin.password);
@@ -204,32 +360,26 @@ export function App() {
     []
   );
 
-  useEffect(() => {
-    setAccount(ENTRY_PRESETS[entry].account);
-    setPassword(ENTRY_PRESETS[entry].password);
-    setFeedback(null);
-  }, [entry]);
-
-  const handleEntryChange = (nextEntry: EntryKind) => {
-    setEntry(nextEntry);
-    setLoginMode('password');
-  };
-
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSubmitting(true);
     setFeedback(null);
 
     try {
-      const loginSession = await requestLogin({ entry, account, password });
+      const loginSession = await requestLogin({ account, password });
+      const sessionKind = resolveSessionKind(loginSession.roles);
 
       localStorage.setItem(AUTH_REMEMBER_KEY, remember ? '1' : '0');
       localStorage.setItem(
-        entry === 'admin' ? ADMIN_ACCESS_TOKEN_KEY : STUDENT_ACCESS_TOKEN_KEY,
+        sessionKind === 'admin' ? ADMIN_ACCESS_TOKEN_KEY : STUDENT_ACCESS_TOKEN_KEY,
         loginSession.accessToken
       );
-      setSession({ kind: entry, name: loginSession.user.name });
-      pushAppPath(entry === 'admin' ? '/dashboard' : '/student');
+      setSession({
+        kind: sessionKind,
+        name: loginSession.user.name,
+        accessToken: loginSession.accessToken
+      });
+      pushAppPath(sessionKind === 'admin' ? '/dashboard' : '/student');
     } catch (error) {
       setFeedback({
         type: 'error',
@@ -248,17 +398,18 @@ export function App() {
   };
 
   if (session?.kind === 'admin') {
-    return <AdminDashboard adminName={session.name} onLogout={handleLogout} />;
+    return (
+      <AdminDashboard
+        accessToken={session.accessToken}
+        adminName={session.name}
+        onLogout={handleLogout}
+      />
+    );
   }
 
   if (session?.kind === 'student') {
     return <StudentHomePreview studentName={session.name} onLogout={handleLogout} />;
   }
-
-  const accountLabel = entry === 'admin' ? '管理员账号' : '学号';
-  const accountPlaceholder = entry === 'admin' ? '请输入管理员账号' : '请输入学号';
-  const loginHint =
-    entry === 'admin' ? '请使用复旦校园管理账号登录' : '请使用复旦校园账号登录';
 
   return (
     <main className="admin-login-page" style={primaryStyle}>
@@ -307,30 +458,13 @@ export function App() {
         </div>
       </section>
 
-      <section className="admin-form-panel" aria-label="管理端登录">
+      <section className="admin-form-panel" aria-label="统一登录">
         <span className="form-blob form-blob-primary" />
         <span className="form-blob form-blob-gold" />
         <div className="login-card">
           <div className="login-title">
-            <h2>欢迎登录</h2>
-            <p>{loginHint}</p>
-          </div>
-
-          <div className="entry-switch" aria-label="入口切换">
-            <button
-              className={entry === 'student' ? 'entry-option is-active' : 'entry-option'}
-              type="button"
-              onClick={() => handleEntryChange('student')}
-            >
-              学生入口
-            </button>
-            <button
-              className={entry === 'admin' ? 'entry-option is-active' : 'entry-option'}
-              type="button"
-              onClick={() => handleEntryChange('admin')}
-            >
-              管理入口
-            </button>
+            <h2>统一登录</h2>
+            <p>请使用复旦学工号登录，系统会按账号权限进入对应工作台</p>
           </div>
 
           <div className="mode-switch" aria-label="登录方式">
@@ -353,14 +487,14 @@ export function App() {
           {loginMode === 'password' ? (
             <form className="login-form" onSubmit={handleSubmit}>
               <label>
-                <span>{accountLabel}</span>
+                <span>学工号</span>
                 <div className="input-shell">
                   <FieldIcon type="account" />
                   <input
                     autoComplete="username"
                     value={account}
                     onChange={(event) => setAccount(event.target.value)}
-                    placeholder={accountPlaceholder}
+                    placeholder="请输入学工号"
                   />
                 </div>
               </label>
@@ -403,7 +537,7 @@ export function App() {
           ) : (
             <div className="sso-panel">
               <div className="qr-mark">SSO</div>
-              <p>前往 passport.fudan.edu.cn 完成{entry === 'admin' ? '管理端' : '学生端'}统一身份认证</p>
+              <p>前往 passport.fudan.edu.cn 完成统一身份认证</p>
             </div>
           )}
 
@@ -415,6 +549,7 @@ export function App() {
 }
 
 type DashboardProps = {
+  accessToken?: string;
   adminName: string;
   initialActive?: AdminMenuId;
   onLogout?: () => void;
@@ -439,6 +574,7 @@ const ADMIN_MENU_IDS = [
 type AdminMenuId = (typeof ADMIN_MENU_IDS)[number];
 
 type AdminMenuAction = {
+  id?: 'create-room' | 'refresh-rooms' | 'create-seat';
   label: string;
   icon: DashboardIconName;
 };
@@ -495,6 +631,1016 @@ const DASHBOARD_NAV_GROUPS: Array<{
   }
 ];
 
+const ADMIN_ROOM_FALLBACKS: AdminRoom[] = [
+  {
+    id: 'room-gm-301',
+    name: '经管自习室 301',
+    building: '光华楼 A座',
+    floor: 3,
+    capacity: 48,
+    scopeType: 'SCHOOL',
+    departmentId: null,
+    openHour: 8,
+    closeHour: 22,
+    overnight: false,
+    status: 'ACTIVE'
+  },
+  {
+    id: 'room-science-201',
+    name: '理工自习室 201',
+    building: '理科楼',
+    floor: 2,
+    capacity: 36,
+    scopeType: 'SCHOOL',
+    departmentId: null,
+    openHour: 7,
+    closeHour: 24,
+    overnight: false,
+    status: 'ACTIVE'
+  },
+  {
+    id: 'room-humanities-a',
+    name: '文史馆阅览室 A',
+    building: '文史馆',
+    floor: 1,
+    capacity: 72,
+    scopeType: 'SCHOOL',
+    departmentId: null,
+    openHour: 9,
+    closeHour: 21,
+    overnight: false,
+    status: 'ACTIVE'
+  },
+  {
+    id: 'room-cs-lab-b',
+    name: '计算机学院自习室 B',
+    building: '计算机楼',
+    floor: 4,
+    capacity: 24,
+    scopeType: 'DEPARTMENT',
+    departmentId: 'dept-cs',
+    openHour: 22,
+    closeHour: 7,
+    overnight: true,
+    status: 'ACTIVE'
+  }
+];
+
+const newRoomForm = (): AdminRoomFormState => ({
+  name: '',
+  building: '',
+  floor: 1,
+  capacity: 40,
+  scopeType: 'SCHOOL',
+  departmentId: '',
+  openHour: 7,
+  closeHour: 22,
+  overnight: false
+});
+
+const formatRoomHour = (hour: number) => `${String(hour).padStart(2, '0')}:00`;
+
+const formatRoomHours = (room: AdminRoom) =>
+  room.overnight
+    ? `${formatRoomHour(room.openHour)}–次日 ${formatRoomHour(room.closeHour)}`
+    : `${formatRoomHour(room.openHour)}–${formatRoomHour(room.closeHour)}`;
+
+const getRoomDepartmentLabel = (room: Pick<AdminRoom, 'scopeType' | 'departmentId'>) => {
+  if (room.scopeType === 'SCHOOL') return '全校';
+  if (room.departmentId === 'dept-cs') return '计算机学院';
+  return '院系限定';
+};
+
+const toAdminRoomRow = (room: AdminRoom, index: number): AdminRoomRow => ({
+  ...room,
+  code: `R${String(index + 1).padStart(3, '0')}`,
+  departmentLabel: getRoomDepartmentLabel(room),
+  hours: formatRoomHours(room),
+  statusLabel: room.status === 'ACTIVE' ? '开放中' : '已停用'
+});
+
+const roomToForm = (room: AdminRoom): AdminRoomFormState => ({
+  name: room.name,
+  building: room.building,
+  floor: room.floor,
+  capacity: room.capacity,
+  scopeType: room.scopeType,
+  departmentId: room.departmentId ?? '',
+  openHour: room.openHour,
+  closeHour: room.closeHour,
+  overnight: room.overnight
+});
+
+const ADMIN_SEAT_FALLBACKS: AdminSeat[] = [
+  {
+    id: 'seat-gm-301-a012',
+    roomName: '经管自习室 301',
+    code: 'A-012',
+    x: 118,
+    y: 84,
+    hasPower: true,
+    nearWindow: true,
+    quietZone: false,
+    status: 'ACTIVE',
+    updatedAt: '10:24'
+  },
+  {
+    id: 'seat-science-201-c018',
+    roomName: '理工自习室 201',
+    code: 'C-018',
+    x: 214,
+    y: 132,
+    hasPower: false,
+    nearWindow: false,
+    quietZone: true,
+    status: 'INACTIVE',
+    updatedAt: '09:58'
+  },
+  {
+    id: 'seat-humanities-a-f006',
+    roomName: '文史馆阅览室 A',
+    code: 'F-006',
+    x: 326,
+    y: 210,
+    hasPower: false,
+    nearWindow: true,
+    quietZone: true,
+    status: 'ACTIVE',
+    updatedAt: '09:40'
+  },
+  {
+    id: 'seat-library-b022',
+    roomName: '图书馆自习区',
+    code: 'B-022',
+    x: 168,
+    y: 156,
+    hasPower: true,
+    nearWindow: false,
+    quietZone: false,
+    status: 'ACTIVE',
+    updatedAt: '09:12'
+  },
+  {
+    id: 'seat-gm-301-g002',
+    roomName: '经管自习室 301',
+    code: 'G-002',
+    x: 402,
+    y: 268,
+    hasPower: true,
+    nearWindow: false,
+    quietZone: true,
+    status: 'INACTIVE',
+    updatedAt: '昨天'
+  }
+];
+
+const newSeatForm = (): AdminSeatFormState => ({
+  roomName: '经管自习室 301',
+  code: '',
+  x: 100,
+  y: 100,
+  hasPower: false,
+  nearWindow: false,
+  quietZone: false,
+  status: 'ACTIVE'
+});
+
+const seatToForm = (seat: AdminSeat): AdminSeatFormState => ({
+  roomName: seat.roomName,
+  code: seat.code,
+  x: seat.x,
+  y: seat.y,
+  hasPower: seat.hasPower,
+  nearWindow: seat.nearWindow,
+  quietZone: seat.quietZone,
+  status: seat.status
+});
+
+const getSeatTags = (seat: Pick<AdminSeat, 'hasPower' | 'nearWindow' | 'quietZone'>) => {
+  const tags = [
+    seat.hasPower ? '带插座' : '',
+    seat.nearWindow ? '靠窗' : '',
+    seat.quietZone ? '安静区' : ''
+  ].filter(Boolean);
+  return tags.length > 0 ? tags : ['普通座'];
+};
+
+type FloorSeatStatus = 'available' | 'window' | 'taken' | 'selected' | 'disabled';
+
+const FLOOR_EDITOR_TOOLS: Array<{
+  icon: DashboardIconName;
+  label: string;
+  active?: boolean;
+}> = [
+  { icon: 'move', label: '选择', active: true },
+  { icon: 'plus', label: '添加座位' },
+  { icon: 'trash', label: '删除' },
+  { icon: 'edit', label: '标注属性' },
+  { icon: 'grid', label: '吸附网格' },
+  { icon: 'refresh', label: '撤销' }
+];
+
+const FLOOR_EDITOR_SUPPORT_TOOLS: Array<{ icon: DashboardIconName; label: string }> = [
+  { icon: 'info', label: '说明' },
+  { icon: 'download', label: '导出' }
+];
+
+const FLOOR_EDITOR_ROWS: FloorSeatStatus[][] = [
+  ['available', 'window', 'window', 'window', 'window', 'window', 'window', 'available'],
+  ['available', 'taken', 'available', 'taken', 'available', 'taken', 'available', 'available'],
+  ['available', 'available', 'taken', 'selected', 'available', 'taken', 'available', 'taken'],
+  ['taken', 'available', 'available', 'available', 'taken', 'available', 'available', 'taken'],
+  ['available', 'taken', 'available', 'taken', 'available', 'available', 'taken', 'available'],
+  ['taken', 'available', 'available', 'available', 'taken', 'available', 'available', 'taken']
+];
+
+const FLOOR_STATUS_LABELS: Record<FloorSeatStatus, string> = {
+  available: '可预约',
+  window: '靠窗',
+  taken: '已预约',
+  selected: '已选择',
+  disabled: '停用'
+};
+
+const SCHEDULE_SUMMARY = [
+  {
+    label: '全校默认时段',
+    value: '07:00–22:00',
+    note: '未配置时回退默认',
+    icon: 'calendar',
+    tone: F.navy
+  },
+  {
+    label: '整点时段',
+    value: '1 小时粒度',
+    note: '选座与预约统一按整点计算',
+    icon: 'grid',
+    tone: '#3A6FA8'
+  },
+  {
+    label: '跨天开放',
+    value: '4 间',
+    note: '支持 22:00–次日 07:00',
+    icon: 'refresh',
+    tone: F.gold
+  },
+  {
+    label: '特殊日期优先',
+    value: '2 条',
+    note: '节假日、考试周、维修日覆盖默认',
+    icon: 'alert',
+    tone: '#C84040'
+  }
+] satisfies Array<{
+  label: string;
+  value: string;
+  note: string;
+  icon: DashboardIconName;
+  tone: string;
+}>;
+
+const SCHEDULE_RULES = [
+  {
+    room: '经管自习室 301',
+    scope: '工作日',
+    time: '08:00–22:00',
+    type: '常规开放',
+    status: '生效中',
+    note: '全校开放'
+  },
+  {
+    room: '计算机学院自习室 B',
+    scope: '每日',
+    time: '22:00–次日 07:00',
+    type: '跨天开放',
+    status: '生效中',
+    note: '院系夜间'
+  },
+  {
+    room: '逸夫综合区',
+    scope: '5月25日',
+    time: '暂停开放',
+    type: '闭馆维护',
+    status: '待生效',
+    note: '特殊日期优先'
+  },
+  {
+    room: '图书馆自习区',
+    scope: '考试周',
+    time: '07:00–23:00',
+    type: '考试周延长',
+    status: '待发布',
+    note: '延长开放'
+  }
+] as const;
+
+const SCHEDULE_SPECIAL_RULES = [
+  {
+    date: '5月25日',
+    title: '闭馆维护',
+    target: '逸夫综合区',
+    time: '暂停开放',
+    desc: '维修日规则覆盖默认开放时间'
+  },
+  {
+    date: '6月10日–6月23日',
+    title: '考试周延长',
+    target: '图书馆自习区',
+    time: '07:00–23:00',
+    desc: '考试周特殊规则优先于全校默认'
+  }
+] as const;
+
+const ADMIN_BOOKING_RECORDS = [
+  {
+    id: 'BK-1893',
+    uid: '21307001',
+    user: '林晓明',
+    room: '经管301',
+    seat: 'C3',
+    date: '04-24',
+    time: '14:00–17:00',
+    checkin: '14:02',
+    status: 'active'
+  },
+  {
+    id: 'BK-1892',
+    uid: '21309022',
+    user: '张子涵',
+    room: '理工201',
+    seat: 'F8',
+    date: '04-24',
+    time: '13:00–16:00',
+    checkin: '13:08',
+    status: 'active'
+  },
+  {
+    id: 'BK-1891',
+    uid: '20301055',
+    user: '王芳',
+    room: '图书馆',
+    seat: 'B22',
+    date: '04-24',
+    time: '10:00–12:00',
+    checkin: '10:05',
+    status: 'done'
+  },
+  {
+    id: 'BK-1890',
+    uid: '22310044',
+    user: '陈浩然',
+    room: '文史馆A',
+    seat: 'D5',
+    date: '04-24',
+    time: '09:00–11:00',
+    checkin: '—',
+    status: 'violation'
+  },
+  {
+    id: 'BK-1889',
+    uid: '21306078',
+    user: '赵雪',
+    room: '理工403',
+    seat: 'A11',
+    date: '04-23',
+    time: '19:00–22:00',
+    checkin: '19:04',
+    status: 'done'
+  },
+  {
+    id: 'BK-1888',
+    uid: '20312091',
+    user: '刘明达',
+    room: '经管301',
+    seat: 'G2',
+    date: '04-23',
+    time: '14:00–17:00',
+    checkin: '14:18',
+    status: 'pending'
+  }
+] as const;
+
+const ADMIN_BOOKING_STATUS_META = {
+  active: { label: '使用中', variant: 'green' },
+  done: { label: '已完成', variant: 'gray' },
+  violation: { label: '违约', variant: 'red' },
+  pending: { label: '待签到', variant: 'blue' }
+} as const;
+
+const ADMIN_BOOKING_FILTERS = ['今日', '本周', '全部状态'] as const;
+
+const ADMIN_VIOLATION_SUMMARY = [
+  {
+    label: '未签到',
+    value: '14',
+    note: '开始后 15 分钟自动取消',
+    icon: 'alert',
+    tone: '#C84040'
+  },
+  {
+    label: '超时取消',
+    value: '4',
+    note: '座位已释放并生成记录',
+    icon: 'refresh',
+    tone: '#C8820A'
+  },
+  {
+    label: '限制中',
+    value: '27',
+    note: '连续 3 次违约限制预约',
+    icon: 'shield',
+    tone: '#3A6FA8'
+  },
+  {
+    label: '申诉中',
+    value: '3',
+    note: '等待管理员复核',
+    icon: 'log',
+    tone: F.gold
+  }
+] satisfies Array<{
+  label: string;
+  value: string;
+  note: string;
+  icon: DashboardIconName;
+  tone: string;
+}>;
+
+const ADMIN_VIOLATION_RECORDS = [
+  {
+    id: 'V-1027',
+    bookingId: 'BK-1890',
+    student: '陈浩然',
+    uid: '22310044',
+    room: '文史馆A',
+    seat: 'D5',
+    reason: '开始后 15 分钟未签到',
+    action: '自动取消',
+    occurred: '04-24 09:15',
+    status: 'recorded'
+  },
+  {
+    id: 'V-1026',
+    bookingId: 'BK-1884',
+    student: '刘同学',
+    uid: '21307019',
+    room: '经管301',
+    seat: 'C3',
+    reason: '开始后 15 分钟未签到',
+    action: '自动取消',
+    occurred: '04-24 10:15',
+    status: 'recorded'
+  },
+  {
+    id: 'V-1025',
+    bookingId: 'BK-1876',
+    student: '赵同学',
+    uid: '21309081',
+    room: '理工201',
+    seat: 'F8',
+    reason: '重复取消',
+    action: '人工复核',
+    occurred: '04-24 09:42',
+    status: 'review'
+  },
+  {
+    id: 'V-1024',
+    bookingId: 'BK-1862',
+    student: '钱同学',
+    uid: '20301036',
+    room: '文史馆A',
+    seat: 'D5',
+    reason: '签到码异常',
+    action: '申诉处理',
+    occurred: '昨天',
+    status: 'appeal'
+  },
+  {
+    id: 'V-1023',
+    bookingId: 'BK-1859',
+    student: '孙同学',
+    uid: '20312078',
+    room: '图书馆区',
+    seat: 'B22',
+    reason: '连续未签到',
+    action: '限制预约',
+    occurred: '昨天',
+    status: 'restricted'
+  }
+] as const;
+
+const ADMIN_VIOLATION_STATUS_META = {
+  recorded: { label: '已记录', variant: 'red' },
+  review: { label: '待复核', variant: 'gold' },
+  appeal: { label: '申诉中', variant: 'blue' },
+  restricted: { label: '限制中', variant: 'gray' }
+} as const;
+
+const ADMIN_VIOLATION_FILTERS = ['今日', '全部原因', '全部状态'] as const;
+
+const ADMIN_DYNAMIC_CODE_SUMMARY = [
+  {
+    label: '今日已生成',
+    value: '48',
+    note: '覆盖全部开放自习室',
+    icon: 'qr',
+    tone: F.success
+  },
+  {
+    label: '异常上报',
+    value: '2',
+    note: '疑似截图复用拦截',
+    icon: 'alert',
+    tone: '#C84040'
+  },
+  {
+    label: '平均刷新',
+    value: '60s',
+    note: '网页动态码滚动刷新',
+    icon: 'refresh',
+    tone: '#3A6FA8'
+  },
+  {
+    label: '待打印',
+    value: '3',
+    note: '小程序二维码需线下张贴',
+    icon: 'download',
+    tone: F.gold
+  }
+] satisfies Array<{
+  label: string;
+  value: string;
+  note: string;
+  icon: DashboardIconName;
+  tone: string;
+}>;
+
+const ADMIN_DYNAMIC_CODE_RECORDS = [
+  {
+    room: '经管自习室 301',
+    building: '光华楼 A座',
+    webCode: 'FD-301-7K2',
+    qrStatus: '已生成',
+    refresh: '60 秒刷新',
+    updatedAt: '10:24',
+    status: 'active'
+  },
+  {
+    room: '理工自习室 201',
+    building: '理科楼',
+    webCode: 'FD-201-QP9',
+    qrStatus: '已生成',
+    refresh: '60 秒刷新',
+    updatedAt: '10:20',
+    status: 'active'
+  },
+  {
+    room: '文史馆阅览室 A',
+    building: '文史馆',
+    webCode: 'FD-HIS-22A',
+    qrStatus: '待打印',
+    refresh: '90 秒刷新',
+    updatedAt: '09:58',
+    status: 'pending'
+  },
+  {
+    room: '逸夫综合区',
+    building: '逸夫楼',
+    webCode: '暂停',
+    qrStatus: '暂停',
+    refresh: '关闭',
+    updatedAt: '昨天',
+    status: 'closed'
+  }
+] as const;
+
+const ADMIN_DYNAMIC_CODE_STATUS_META = {
+  active: { label: '正常', variant: 'green' },
+  pending: { label: '待处理', variant: 'gold' },
+  closed: { label: '维护中', variant: 'gray' }
+} as const;
+
+const ADMIN_DYNAMIC_CODE_FILTERS = ['全部楼栋', '全部状态', '刷新策略'] as const;
+
+const ADMIN_USER_SUMMARY = [
+  {
+    label: '学生账号',
+    value: '18,420',
+    note: '学工号统一认证同步',
+    icon: 'users',
+    tone: '#3A6FA8'
+  },
+  {
+    label: '管理员',
+    value: '36',
+    note: '按角色授权后台菜单',
+    icon: 'shield',
+    tone: F.success
+  },
+  {
+    label: '停用账号',
+    value: '12',
+    note: '阻止登录与预约操作',
+    icon: 'alert',
+    tone: '#C84040'
+  },
+  {
+    label: '本周新增',
+    value: '128',
+    note: '来自院系名单导入',
+    icon: 'download',
+    tone: F.gold
+  }
+] satisfies Array<{
+  label: string;
+  value: string;
+  note: string;
+  icon: DashboardIconName;
+  tone: string;
+}>;
+
+const ADMIN_USER_RECORDS = [
+  {
+    name: '林晓明',
+    account: '22302010001',
+    department: '经济学院',
+    role: '学生',
+    source: '统一认证',
+    lastLogin: '今天 09:42',
+    status: 'active'
+  },
+  {
+    name: '王老师',
+    account: 'admin_full',
+    department: '教务处',
+    role: '超级管理员',
+    source: '后台创建',
+    lastLogin: '今天 08:50',
+    status: 'active'
+  },
+  {
+    name: '张老师',
+    account: 'room_admin_01',
+    department: '后勤保障',
+    role: '自习室管理员',
+    source: '后台创建',
+    lastLogin: '昨天 19:21',
+    status: 'active'
+  },
+  {
+    name: '陈同学',
+    account: '22307110012',
+    department: '计算机学院',
+    role: '学生',
+    source: '统一认证',
+    lastLogin: '7天前',
+    status: 'disabled'
+  }
+] as const;
+
+const ADMIN_USER_STATUS_META = {
+  active: { label: '正常', variant: 'green' },
+  disabled: { label: '停用', variant: 'red' }
+} as const;
+
+const ADMIN_USER_FILTERS = ['全部院系', '全部角色', '账号状态'] as const;
+
+const ADMIN_ROLE_SUMMARY = [
+  {
+    label: '角色数',
+    value: '5',
+    note: '覆盖管理员与观察员',
+    icon: 'shield',
+    tone: F.success
+  },
+  {
+    label: '权限点',
+    value: '42',
+    note: '按模块与操作拆分',
+    icon: 'settings',
+    tone: '#3A6FA8'
+  },
+  {
+    label: '待审变更',
+    value: '3',
+    note: '审批后生效',
+    icon: 'alert',
+    tone: '#C8820A'
+  },
+  {
+    label: '菜单级权限',
+    value: '13',
+    note: '后台菜单按角色过滤',
+    icon: 'grid',
+    tone: F.gold
+  }
+] satisfies Array<{
+  label: string;
+  value: string;
+  note: string;
+  icon: DashboardIconName;
+  tone: string;
+}>;
+
+const ADMIN_ROLE_RECORDS = [
+  {
+    name: '超级管理员',
+    users: '3',
+    scope: '全部院系',
+    spaceAccess: '全部',
+    operationAccess: '全部',
+    menuAccess: '13/13',
+    updatedAt: '今天 08:50',
+    status: 'active'
+  },
+  {
+    name: '自习室管理员',
+    users: '14',
+    scope: '全校空间',
+    spaceAccess: '可编辑',
+    operationAccess: '可处理',
+    menuAccess: '8/13',
+    updatedAt: '昨天 19:21',
+    status: 'active'
+  },
+  {
+    name: '院系管理员',
+    users: '9',
+    scope: '院系范围',
+    spaceAccess: '院系编辑',
+    operationAccess: '只读',
+    menuAccess: '6/13',
+    updatedAt: '昨天',
+    status: 'active'
+  },
+  {
+    name: '只读观察员',
+    users: '10',
+    scope: '全校只读',
+    spaceAccess: '只读',
+    operationAccess: '只读',
+    menuAccess: '5/13',
+    updatedAt: '04-23',
+    status: 'active'
+  },
+  {
+    name: '临时审计员',
+    users: '0',
+    scope: '审计范围',
+    spaceAccess: '无',
+    operationAccess: '只读',
+    menuAccess: '2/13',
+    updatedAt: '待审批',
+    status: 'pending'
+  }
+] as const;
+
+const ADMIN_ROLE_STATUS_META = {
+  active: { label: '启用', variant: 'green' },
+  pending: { label: '待审批', variant: 'gold' },
+  disabled: { label: '禁用', variant: 'gray' }
+} as const;
+
+const ADMIN_ROLE_PERMISSION_GROUPS = [
+  { group: '空间管理', permissions: ['自习室管理', '座位管理', '平面图编辑器', '开放时间'] },
+  { group: '运营管理', permissions: ['预约记录', '违约记录', '动态码管理'] },
+  { group: '系统与权限', permissions: ['用户管理', '角色权限', '系统参数', '审计日志', '数据报表'] }
+] as const;
+
+const ADMIN_ROLE_PERMISSION_MATRIX = [
+  {
+    title: '空间管理 / 座位管理 / 平面图编辑器',
+    scope: '可编辑',
+    checked: '全选'
+  },
+  {
+    title: '运营管理 / 签到动态码 / 违约记录',
+    scope: '可处理',
+    checked: '部分'
+  },
+  {
+    title: '系统与权限 / 用户管理 / 角色权限',
+    scope: '审批后生效',
+    checked: '复核'
+  }
+] as const;
+
+const ADMIN_ROLE_FILTERS = ['全部角色', '权限范围', '审批状态'] as const;
+
+const ADMIN_PARAM_SUMMARY = [
+  {
+    label: '单次最长',
+    value: '4 小时',
+    note: '单笔预约不可超过上限',
+    icon: 'calendar',
+    tone: F.success
+  },
+  {
+    label: '签到宽限',
+    value: '15 分钟',
+    note: '超时自动取消并记录违约',
+    icon: 'check-circle',
+    tone: '#3A6FA8'
+  },
+  {
+    label: '提醒规则',
+    value: '3 条',
+    note: '开始前、开始后、取消前',
+    icon: 'alert',
+    tone: '#C8820A'
+  },
+  {
+    label: '待发布变更',
+    value: '2',
+    note: '参数变更需审批发布',
+    icon: 'settings',
+    tone: F.gold
+  }
+] satisfies Array<{
+  label: string;
+  value: string;
+  note: string;
+  icon: DashboardIconName;
+  tone: string;
+}>;
+
+const ADMIN_PARAM_RECORDS = [
+  {
+    name: '最大预约时长',
+    value: '4 小时',
+    defaultValue: '4 小时',
+    scope: '全校',
+    type: '预约规则',
+    status: 'active',
+    note: '单次预约按整点开始结束，不允许超过 4 小时'
+  },
+  {
+    name: '默认开放时间',
+    value: '07:00-22:00',
+    defaultValue: '07:00-22:00',
+    scope: '普通自习室',
+    type: '开放时间',
+    status: 'active',
+    note: '夜间开放自习室可单独覆盖默认时段'
+  },
+  {
+    name: '开始前 15 分钟提醒',
+    value: '15 分钟',
+    defaultValue: '15 分钟',
+    scope: '全校',
+    type: '提醒策略',
+    status: 'active',
+    note: '预约开始前通过站内通知和小程序提醒'
+  },
+  {
+    name: '开始后 10 分钟未签到提醒',
+    value: '10 分钟',
+    defaultValue: '10 分钟',
+    scope: '全校',
+    type: '提醒策略',
+    status: 'active',
+    note: '学生仍未签到时追加未签到提醒'
+  },
+  {
+    name: '开始后 15 分钟自动取消',
+    value: '15 分钟',
+    defaultValue: '15 分钟',
+    scope: '全校',
+    type: '违约策略',
+    status: 'review',
+    note: '释放座位并生成违约记录'
+  }
+] as const;
+
+const ADMIN_PARAM_STATUS_META = {
+  active: { label: '已生效', variant: 'green' },
+  review: { label: '待发布', variant: 'gold' }
+} as const;
+
+const ADMIN_PARAM_TIMELINE = [
+  ['T-15', '开始前 15 分钟提醒', '提醒学生准备前往自习室'],
+  ['T+10', '开始后 10 分钟未签到提醒', '提示尽快完成动态码或二维码签到'],
+  ['T+15', '开始后 15 分钟自动取消', '释放座位并生成违约记录']
+] as const;
+
+const ADMIN_PARAM_SCOPES = [
+  ['全校', '统一预约时长、签到宽限和违约策略'],
+  ['院系自习室', '可继承全校规则并叠加院系限制'],
+  ['夜间开放', '覆盖默认 07:00-22:00 开放时间']
+] as const;
+
+const ADMIN_PARAM_FILTERS = ['全部参数', '生效范围', '发布状态'] as const;
+
+const ADMIN_AUDIT_SUMMARY = [
+  {
+    label: '资源变更',
+    value: '74',
+    note: '自习室、座位、开放时间',
+    icon: 'building',
+    tone: '#3A6FA8'
+  },
+  {
+    label: '权限变更',
+    value: '9',
+    note: '角色权限调整需复核',
+    icon: 'shield',
+    tone: '#C8820A'
+  },
+  {
+    label: '失败登录',
+    value: '4',
+    note: '异常账号与 IP 已标记',
+    icon: 'alert',
+    tone: '#C84040'
+  },
+  {
+    label: '风险事件',
+    value: '6',
+    note: '待安全管理员确认',
+    icon: 'eye',
+    tone: F.gold
+  }
+] satisfies Array<{
+  label: string;
+  value: string;
+  note: string;
+  icon: DashboardIconName;
+  tone: string;
+}>;
+
+const ADMIN_AUDIT_RECORDS = [
+  {
+    time: '10:31:22',
+    operator: '王老师',
+    module: '自习室管理',
+    action: '更新开放时间',
+    target: '经管自习室 301',
+    ip: '10.28.4.12',
+    result: 'success',
+    detail: '07:00-22:00 调整为 07:00-23:00'
+  },
+  {
+    time: '10:08:41',
+    operator: '张老师',
+    module: '座位管理',
+    action: '停用座位 C-018',
+    target: '理工自习室 201',
+    ip: '10.28.4.33',
+    result: 'success',
+    detail: '电源插座检修，停用至 2026-05-27'
+  },
+  {
+    time: '09:42:09',
+    operator: '李老师',
+    module: '角色权限',
+    action: '新增权限点',
+    target: 'ROLE_ROOM_ADMIN',
+    ip: '10.28.4.16',
+    result: 'review',
+    detail: '权限调整需二次复核'
+  },
+  {
+    time: '09:16:00',
+    operator: '系统任务',
+    module: '签到任务',
+    action: '自动取消预约',
+    target: 'BK-20260526-0916',
+    ip: 'system',
+    result: 'success',
+    detail: '开始后 15 分钟未签到，释放座位并记录违约'
+  },
+  {
+    time: '08:52:18',
+    operator: 'admin_full',
+    module: '统一登录',
+    action: '登录失败 4 次',
+    target: '后台登录',
+    ip: '10.28.4.16',
+    result: 'risk',
+    detail: '同一 IP 短时间连续失败，已加入风险事件'
+  }
+] as const;
+
+const ADMIN_AUDIT_STATUS_META = {
+  success: { label: '成功', variant: 'green' },
+  review: { label: '待审批', variant: 'gold' },
+  risk: { label: '异常', variant: 'red' }
+} as const;
+
+const ADMIN_AUDIT_RISKS = [
+  ['登录失败 4 次', 'IP 10.28.4.16', '需要确认是否为管理员本人操作'],
+  ['权限调整需二次复核', 'ROLE_ROOM_ADMIN 新增权限点', '等待超级管理员审批'],
+  ['高频导出日志', '30 分钟内导出 3 次', '建议核对数据使用目的']
+] as const;
+
+const ADMIN_AUDIT_RULES = [
+  ['操作留痕不可删除', '管理员、系统任务和规则引擎动作都保留完整流水'],
+  ['审计数据保留 180 天', '满足课程要求中的操作追踪和问题复盘'],
+  ['导出需要记录用途', '导出审计日志会同步生成二次审计记录']
+] as const;
+
+const ADMIN_AUDIT_FILTERS = ['全部模块', '全部结果', '最近 24 小时'] as const;
+
 const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
   dashboard: {
     title: '管理仪表盘',
@@ -515,8 +1661,8 @@ const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
     sub: '共 48 个自习室',
     description: '维护自习室基础信息、开放范围、院系限制与当前运营状态。',
     actions: [
-      { label: '新增自习室', icon: 'building' },
-      { label: '资源状态同步', icon: 'refresh' }
+      { id: 'create-room', label: '新增自习室', icon: 'plus' },
+      { id: 'refresh-rooms', label: '资源状态同步', icon: 'refresh' }
     ],
     metrics: [
       { label: '开放中', value: '43 间', tone: F.success },
@@ -538,7 +1684,7 @@ const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
     sub: '共 2,840 个座位',
     description: '维护座位编号、插座标记、禁用状态与可预约区域。',
     actions: [
-      { label: '新增座位', icon: 'grid' },
+      { id: 'create-seat', label: '新增座位', icon: 'plus' },
       { label: '批量导入', icon: 'download' }
     ],
     metrics: [
@@ -557,12 +1703,12 @@ const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
     ]
   },
   editor: {
-    title: '平面图编辑器',
-    sub: '3 个楼层草稿待发布',
+    title: '座位平面图编辑器',
+    sub: '经管自习室 301 · 光华楼 A座 3楼',
     description: '调整座位坐标、通道、门窗和插座图层，发布后同步到学生端选座图。',
     actions: [
-      { label: '保存草稿', icon: 'download' },
-      { label: '发布平面图', icon: 'move' }
+      { label: '预览', icon: 'eye' },
+      { label: '保存布局', icon: 'check' }
     ],
     metrics: [
       { label: '已发布图层', value: '42', tone: F.success },
@@ -580,7 +1726,7 @@ const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
     ]
   },
   schedule: {
-    title: '开放时间',
+    title: '开放时间管理',
     sub: '默认开放 07:00–22:00',
     description: '配置普通开放、夜间开放、节假日调整和临时闭馆规则。',
     actions: [
@@ -603,12 +1749,12 @@ const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
     ]
   },
   bookings: {
-    title: '预约记录',
+    title: '预约记录管理',
     sub: '共 1,247 条记录（今日）',
     description: '查询预约、签到、取消与超时记录，支持按学生、自习室和时段筛选。',
     actions: [
-      { label: '筛选记录', icon: 'settings' },
-      { label: '导出记录', icon: 'download' }
+      { label: '代预约', icon: 'plus' },
+      { label: '导出 Excel', icon: 'download' }
     ],
     metrics: [
       { label: '使用中', value: '892', tone: F.success },
@@ -626,7 +1772,7 @@ const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
     ]
   },
   violations: {
-    title: '违约记录',
+    title: '违约记录管理',
     sub: '今日新增 18 条',
     description: '跟踪未签到、超时取消和限制预约记录，支持人工复核与申诉处理。',
     actions: [
@@ -695,7 +1841,7 @@ const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
     ]
   },
   roles: {
-    title: '角色权限',
+    title: '角色权限管理',
     sub: '5 个角色 · 菜单级权限',
     description: '配置管理员角色、权限边界和菜单可见范围，符合 RBAC 要求。',
     actions: [
@@ -718,7 +1864,7 @@ const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
     ]
   },
   params: {
-    title: '系统参数',
+    title: '系统参数管理',
     sub: '预约规则与提醒策略',
     description: '维护最大预约时长、签到窗口、提醒节奏和违约限制参数。',
     actions: [
@@ -741,7 +1887,7 @@ const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
     ]
   },
   audit: {
-    title: '审计日志',
+    title: '审计日志管理',
     sub: '最近 24 小时 386 条',
     description: '记录登录、资源变更、权限调整和关键运营操作，便于追踪。',
     actions: [
@@ -849,15 +1995,30 @@ const resolveInitialAdminMenu = (): AdminMenuId => {
   return isAdminMenuId(section) ? section : 'dashboard';
 };
 
-export function AdminDashboard({ adminName, initialActive, onLogout }: DashboardProps) {
+export function AdminDashboard({ accessToken, adminName, initialActive, onLogout }: DashboardProps) {
   const [activeMenu, setActiveMenu] = useState<AdminMenuId>(
     () => initialActive ?? resolveInitialAdminMenu()
   );
+  const [roomCreateSignal, setRoomCreateSignal] = useState(0);
+  const [roomRefreshSignal, setRoomRefreshSignal] = useState(0);
+  const [seatCreateSignal, setSeatCreateSignal] = useState(0);
   const activeMeta = ADMIN_MENU_META[activeMenu];
 
   const handleMenuChange = (nextMenu: AdminMenuId) => {
     setActiveMenu(nextMenu);
     pushAppPath(nextMenu === 'dashboard' ? '/dashboard' : `/dashboard/${nextMenu}`);
+  };
+
+  const handleTopbarAction = (action: AdminMenuAction) => {
+    if (action.id === 'create-room') {
+      setRoomCreateSignal((current) => current + 1);
+    }
+    if (action.id === 'refresh-rooms') {
+      setRoomRefreshSignal((current) => current + 1);
+    }
+    if (action.id === 'create-seat') {
+      setSeatCreateSignal((current) => current + 1);
+    }
   };
 
   return (
@@ -906,7 +2067,12 @@ export function AdminDashboard({ adminName, initialActive, onLogout }: Dashboard
           </div>
           <div className="dashboard-actions">
             {activeMeta.actions.map((action) => (
-              <button className="dashboard-secondary-button" key={action.label} type="button">
+              <button
+                className="dashboard-secondary-button"
+                key={action.label}
+                type="button"
+                onClick={() => handleTopbarAction(action)}
+              >
                 <DashboardIcon name={action.icon} size={13} />
                 {action.label}
               </button>
@@ -921,7 +2087,37 @@ export function AdminDashboard({ adminName, initialActive, onLogout }: Dashboard
           </div>
         </header>
 
-        {activeMenu === 'dashboard' ? <DashboardOverview /> : <AdminModulePanel meta={activeMeta} />}
+        {activeMenu === 'dashboard' ? (
+          <DashboardOverview />
+        ) : activeMenu === 'rooms' ? (
+          <RoomManagementPanel
+            accessToken={accessToken}
+            createSignal={roomCreateSignal}
+            refreshSignal={roomRefreshSignal}
+          />
+        ) : activeMenu === 'seats' ? (
+          <SeatManagementPanel createSignal={seatCreateSignal} />
+        ) : activeMenu === 'editor' ? (
+          <FloorEditorPanel />
+        ) : activeMenu === 'schedule' ? (
+          <ScheduleManagementPanel />
+        ) : activeMenu === 'bookings' ? (
+          <BookingRecordsPanel />
+        ) : activeMenu === 'violations' ? (
+          <ViolationRecordsPanel />
+        ) : activeMenu === 'qrcode' ? (
+          <DynamicCodePanel />
+        ) : activeMenu === 'users' ? (
+          <UserManagementPanel />
+        ) : activeMenu === 'roles' ? (
+          <RoleManagementPanel />
+        ) : activeMenu === 'params' ? (
+          <SystemParameterPanel />
+        ) : activeMenu === 'audit' ? (
+          <AuditLogPanel />
+        ) : (
+          <AdminModulePanel meta={activeMeta} />
+        )}
       </section>
     </main>
   );
@@ -1099,6 +2295,1771 @@ function AdminModulePanel({ meta }: { meta: AdminMenuMeta }) {
         </div>
       </section>
     </div>
+  );
+}
+
+function RoomManagementPanel({
+  accessToken,
+  createSignal,
+  refreshSignal
+}: {
+  accessToken?: string;
+  createSignal: number;
+  refreshSignal: number;
+}) {
+  const [rooms, setRooms] = useState<AdminRoomRow[]>(() =>
+    ADMIN_ROOM_FALLBACKS.map(toAdminRoomRow)
+  );
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [editor, setEditor] = useState<AdminRoomEditor | null>(null);
+  const [form, setForm] = useState<AdminRoomFormState>(() => newRoomForm());
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    if (!accessToken) {
+      setRooms(ADMIN_ROOM_FALLBACKS.map(toAdminRoomRow));
+      setLoadError('');
+      setLoading(false);
+      return () => {
+        alive = false;
+      };
+    }
+
+    setLoading(true);
+    requestRooms(accessToken)
+      .then((nextRooms) => {
+        if (!alive) return;
+        setRooms(nextRooms.map(toAdminRoomRow));
+        setLoadError('');
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setRooms(ADMIN_ROOM_FALLBACKS.map(toAdminRoomRow));
+        setLoadError(error instanceof Error ? error.message : '自习室列表加载失败');
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [accessToken, refreshSignal]);
+
+  useEffect(() => {
+    if (createSignal === 0) return;
+    setEditor({ mode: 'create', room: null });
+    setForm(newRoomForm());
+    setFormError('');
+  }, [createSignal]);
+
+  const filteredRooms = rooms.filter((room) => {
+    const keyword = query.trim().toLowerCase();
+    if (!keyword) return true;
+    return [room.name, room.building, room.departmentLabel].some((field) =>
+      field.toLowerCase().includes(keyword)
+    );
+  });
+
+  const openCreate = () => {
+    setEditor({ mode: 'create', room: null });
+    setForm(newRoomForm());
+    setFormError('');
+  };
+
+  const openEdit = (room: AdminRoomRow) => {
+    setEditor({ mode: 'edit', room });
+    setForm(roomToForm(room));
+    setFormError('');
+  };
+
+  const updateForm = <Key extends keyof AdminRoomFormState>(
+    key: Key,
+    value: AdminRoomFormState[Key]
+  ) => {
+    setForm((current) => {
+      const next = { ...current, [key]: value };
+      if (key === 'scopeType') {
+        next.departmentId = value === 'DEPARTMENT' ? current.departmentId || 'dept-cs' : '';
+      }
+      return next;
+    });
+  };
+
+  const handleSaveRoom = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!accessToken) {
+      setFormError('请先使用管理账号登录后再保存');
+      return;
+    }
+
+    const isEdit = editor?.mode === 'edit';
+    setSaving(true);
+    setFormError('');
+    try {
+      const savedRoom = await saveAdminRoom(form, {
+        accessToken,
+        roomId: isEdit ? editor.room.id : undefined
+      });
+      setRooms((currentRooms) => {
+        const nextRooms = isEdit
+          ? currentRooms.map((room) => (room.id === savedRoom.id ? savedRoom : room))
+          : [...currentRooms, savedRoom];
+        return nextRooms.map(toAdminRoomRow);
+      });
+      setEditor(null);
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : '保存失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className="room-management-panel" aria-label="自习室管理">
+      <div className="room-toolbar">
+        <label className="room-search">
+          <DashboardIcon name="search" size={14} />
+          <input
+            aria-label="搜索自习室"
+            placeholder="搜索自习室名称、楼栋"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+        <button className="room-filter-button" type="button">
+          全部状态
+          <DashboardIcon name="chevron-down" size={12} />
+        </button>
+        <button className="room-filter-button" type="button">
+          全部楼栋
+          <DashboardIcon name="chevron-down" size={12} />
+        </button>
+        <button className="room-secondary-button" type="button">
+          <DashboardIcon name="download" size={13} />
+          导出
+        </button>
+        <button className="room-primary-button" type="button" onClick={openCreate}>
+          <DashboardIcon name="plus" size={13} />
+          新增自习室
+        </button>
+      </div>
+
+      {(loading || loadError) && (
+        <div className={`room-message ${loadError ? 'is-error' : ''}`}>
+          <DashboardIcon name={loadError ? 'alert' : 'refresh'} size={14} />
+          {loadError || '正在加载自习室列表…'}
+        </div>
+      )}
+
+      <div className="dashboard-card room-table-card">
+        <div className="room-table-head">
+          {['编号', '自习室名称', '楼栋', '楼层', '容量', '开放对象', '状态', '开放时间', '操作'].map(
+            (head) => (
+              <span key={head}>{head}</span>
+            )
+          )}
+        </div>
+        {filteredRooms.map((room) => (
+          <div className="room-table-row" key={room.id}>
+            <span>{room.code}</span>
+            <strong>{room.name}</strong>
+            <span>{room.building}</span>
+            <span>{room.floor}楼</span>
+            <span>{room.capacity}</span>
+            <span>
+              <mark data-variant={room.scopeType === 'DEPARTMENT' ? 'purple' : 'navy'}>
+                {room.departmentLabel}
+              </mark>
+            </span>
+            <span>
+              <mark data-variant={room.status === 'ACTIVE' ? 'green' : 'gray'}>
+                {room.statusLabel}
+              </mark>
+            </span>
+            <span>{room.hours}</span>
+            <span className="room-row-actions">
+              <button type="button" onClick={() => openEdit(room)}>
+                <DashboardIcon name="edit" size={12} />
+                编辑
+              </button>
+              <button type="button">
+                <DashboardIcon name="move" size={12} />
+                平面图
+              </button>
+              <button aria-label={`${room.name} 更多操作`} type="button">
+                <DashboardIcon name="more-v" size={12} />
+              </button>
+            </span>
+          </div>
+        ))}
+        {filteredRooms.length === 0 && <div className="room-empty">没有匹配的自习室</div>}
+      </div>
+
+      {editor && (
+        <div className="room-editor-layer">
+          <button
+            aria-label="关闭编辑面板"
+            className="room-editor-backdrop"
+            type="button"
+            onClick={() => setEditor(null)}
+          />
+          <form className="dashboard-card room-editor" onSubmit={handleSaveRoom}>
+            <header className="room-editor-head">
+              <div>
+                <h2>{editor.mode === 'create' ? '新增自习室' : '编辑自习室'}</h2>
+                <p>维护名称、楼栋、容量与开放规则</p>
+              </div>
+              <button aria-label="关闭" type="button" onClick={() => setEditor(null)}>
+                <DashboardIcon name="x" size={14} />
+              </button>
+            </header>
+
+            <RoomFormField label="自习室名称">
+              <input
+                required
+                value={form.name}
+                onChange={(event) => updateForm('name', event.target.value)}
+              />
+            </RoomFormField>
+            <RoomFormField label="楼栋">
+              <input
+                required
+                value={form.building}
+                onChange={(event) => updateForm('building', event.target.value)}
+              />
+            </RoomFormField>
+            <div className="room-form-grid">
+              <RoomFormField label="楼层">
+                <input
+                  max="99"
+                  min="0"
+                  required
+                  type="number"
+                  value={form.floor}
+                  onChange={(event) => updateForm('floor', Number(event.target.value))}
+                />
+              </RoomFormField>
+              <RoomFormField label="容量">
+                <input
+                  max="1000"
+                  min="1"
+                  required
+                  type="number"
+                  value={form.capacity}
+                  onChange={(event) => updateForm('capacity', Number(event.target.value))}
+                />
+              </RoomFormField>
+            </div>
+            <div className="room-form-grid">
+              <RoomFormField label="开放对象">
+                <select
+                  value={form.scopeType}
+                  onChange={(event) => updateForm('scopeType', event.target.value as RoomScopeType)}
+                >
+                  <option value="SCHOOL">全校</option>
+                  <option value="DEPARTMENT">院系</option>
+                </select>
+              </RoomFormField>
+              <RoomFormField label="院系">
+                <select
+                  disabled={form.scopeType !== 'DEPARTMENT'}
+                  value={form.scopeType === 'DEPARTMENT' ? form.departmentId || 'dept-cs' : ''}
+                  onChange={(event) => updateForm('departmentId', event.target.value)}
+                >
+                  <option value="">无</option>
+                  <option value="dept-cs">计算机学院</option>
+                </select>
+              </RoomFormField>
+            </div>
+            <div className="room-form-grid">
+              <RoomFormField label="开始小时">
+                <input
+                  max="23"
+                  min="0"
+                  required
+                  type="number"
+                  value={form.openHour}
+                  onChange={(event) => updateForm('openHour', Number(event.target.value))}
+                />
+              </RoomFormField>
+              <RoomFormField label="结束小时">
+                <input
+                  max="24"
+                  min="1"
+                  required
+                  type="number"
+                  value={form.closeHour}
+                  onChange={(event) => updateForm('closeHour', Number(event.target.value))}
+                />
+              </RoomFormField>
+            </div>
+            <label className="room-checkbox">
+              <input
+                checked={form.overnight}
+                type="checkbox"
+                onChange={(event) => updateForm('overnight', event.target.checked)}
+              />
+              过夜开放
+            </label>
+
+            {formError && <div className="room-form-error">{formError}</div>}
+
+            <div className="room-editor-actions">
+              <button type="button" onClick={() => setEditor(null)}>
+                取消
+              </button>
+              <button className="room-primary-button" disabled={saving} type="submit">
+                <DashboardIcon name="check" size={13} />
+                {saving ? '保存中…' : '保存'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function RoomFormField({
+  children,
+  label
+}: {
+  children: ReactNode;
+  label: string;
+}) {
+  return (
+    <label className="room-form-field">
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function SeatManagementPanel({ createSignal }: { createSignal: number }) {
+  const [seats, setSeats] = useState<AdminSeat[]>(ADMIN_SEAT_FALLBACKS);
+  const [query, setQuery] = useState('');
+  const [editor, setEditor] = useState<AdminSeatEditor | null>(null);
+  const [form, setForm] = useState<AdminSeatFormState>(() => newSeatForm());
+
+  useEffect(() => {
+    if (createSignal === 0) return;
+    setEditor({ mode: 'create', seat: null });
+    setForm(newSeatForm());
+  }, [createSignal]);
+
+  const filteredSeats = seats.filter((seat) => {
+    const keyword = query.trim().toLowerCase();
+    if (!keyword) return true;
+    return [seat.code, seat.roomName, ...getSeatTags(seat)].some((field) =>
+      field.toLowerCase().includes(keyword)
+    );
+  });
+
+  const openCreate = () => {
+    setEditor({ mode: 'create', seat: null });
+    setForm(newSeatForm());
+  };
+
+  const openEdit = (seat: AdminSeat) => {
+    setEditor({ mode: 'edit', seat });
+    setForm(seatToForm(seat));
+  };
+
+  const updateForm = <Key extends keyof AdminSeatFormState>(
+    key: Key,
+    value: AdminSeatFormState[Key]
+  ) => {
+    setForm((current) => ({ ...current, [key]: value }));
+  };
+
+  const handleSaveSeat = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const isEdit = editor?.mode === 'edit';
+    const savedSeat: AdminSeat = {
+      id: isEdit ? editor.seat.id : `seat-local-${Date.now()}`,
+      roomName: form.roomName,
+      code: form.code.trim() || 'NEW-001',
+      x: Number(form.x),
+      y: Number(form.y),
+      hasPower: form.hasPower,
+      nearWindow: form.nearWindow,
+      quietZone: form.quietZone,
+      status: form.status,
+      updatedAt: '刚刚'
+    };
+
+    setSeats((currentSeats) =>
+      isEdit
+        ? currentSeats.map((seat) => (seat.id === savedSeat.id ? savedSeat : seat))
+        : [...currentSeats, savedSeat]
+    );
+    setEditor(null);
+  };
+
+  const totalCount = seats.length;
+  const powerCount = seats.filter((seat) => seat.hasPower).length;
+  const windowCount = seats.filter((seat) => seat.nearWindow).length;
+  const disabledCount = seats.filter((seat) => seat.status === 'INACTIVE').length;
+
+  return (
+    <section className="seat-management-panel" aria-label="座位管理">
+      <div className="seat-summary-grid" aria-label="座位关键指标">
+        {[
+          { label: '座位总数', value: `${totalCount}`, tone: F.navy },
+          { label: '带插座', value: `${powerCount}`, tone: F.gold },
+          { label: '靠窗', value: `${windowCount}`, tone: '#3A6FA8' },
+          { label: '禁用', value: `${disabledCount}`, tone: '#C84040' }
+        ].map((metric) => (
+          <article className="dashboard-card seat-summary-card" key={metric.label}>
+            <span style={{ color: metric.tone }} />
+            <strong>{metric.value}</strong>
+            <small>{metric.label}</small>
+          </article>
+        ))}
+      </div>
+
+      <div className="seat-toolbar">
+        <label className="seat-search">
+          <DashboardIcon name="search" size={14} />
+          <input
+            aria-label="搜索座位"
+            placeholder="搜索座位编号、自习室"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+        <button type="button">
+          全部自习室
+          <DashboardIcon name="chevron-down" size={12} />
+        </button>
+        <button type="button">
+          全部标签
+          <DashboardIcon name="chevron-down" size={12} />
+        </button>
+        <button type="button">
+          全部状态
+          <DashboardIcon name="chevron-down" size={12} />
+        </button>
+        <button className="seat-primary-action" type="button" onClick={openCreate}>
+          <DashboardIcon name="plus" size={13} />
+          新增座位
+        </button>
+        <button type="button">
+          <DashboardIcon name="settings" size={13} />
+          批量维护
+        </button>
+      </div>
+
+      <div className="dashboard-card seat-table-card">
+        <div className="seat-table-head">
+          {['座位编号', '自习室', '坐标', '标签', '状态', '最近更新', '操作'].map((head) => (
+            <span key={head}>{head}</span>
+          ))}
+        </div>
+        {filteredSeats.map((seat) => (
+          <div className="seat-table-row" key={seat.id}>
+            <strong>{seat.code}</strong>
+            <span>{seat.roomName}</span>
+            <span>
+              X {seat.x} / Y {seat.y}
+            </span>
+            <span className="seat-tag-list">
+              {getSeatTags(seat).map((tag) => (
+                <mark data-variant={tag === '带插座' ? 'gold' : tag === '靠窗' ? 'blue' : 'gray'} key={tag}>
+                  {tag}
+                </mark>
+              ))}
+            </span>
+            <span>
+              <mark data-variant={seat.status === 'ACTIVE' ? 'green' : 'red'}>
+                {seat.status === 'ACTIVE' ? '可预约' : '禁用'}
+              </mark>
+            </span>
+            <span>{seat.updatedAt}</span>
+            <span className="seat-row-actions">
+              <button type="button" onClick={() => openEdit(seat)}>
+                <DashboardIcon name="edit" size={12} />
+                编辑
+              </button>
+              <button type="button">
+                <DashboardIcon name="move" size={12} />
+                定位
+              </button>
+            </span>
+          </div>
+        ))}
+        {filteredSeats.length === 0 && <div className="seat-empty">没有匹配的座位</div>}
+      </div>
+
+      {editor && (
+        <div className="seat-editor-layer">
+          <button
+            aria-label="关闭座位编辑面板"
+            className="seat-editor-backdrop"
+            type="button"
+            onClick={() => setEditor(null)}
+          />
+          <form className="dashboard-card seat-editor" onSubmit={handleSaveSeat}>
+            <header className="seat-editor-head">
+              <div>
+                <h2>{editor.mode === 'create' ? '新增座位' : '编辑座位'}</h2>
+                <p>维护座位编号、坐标、插座与靠窗标记</p>
+              </div>
+              <button aria-label="关闭" type="button" onClick={() => setEditor(null)}>
+                <DashboardIcon name="x" size={14} />
+              </button>
+            </header>
+
+            <RoomFormField label="座位编号">
+              <input
+                required
+                value={form.code}
+                onChange={(event) => updateForm('code', event.target.value)}
+              />
+            </RoomFormField>
+            <RoomFormField label="所属自习室">
+              <select
+                value={form.roomName}
+                onChange={(event) => updateForm('roomName', event.target.value)}
+              >
+                {Array.from(new Set(ADMIN_SEAT_FALLBACKS.map((seat) => seat.roomName))).map(
+                  (roomName) => (
+                    <option key={roomName} value={roomName}>
+                      {roomName}
+                    </option>
+                  )
+                )}
+              </select>
+            </RoomFormField>
+            <div className="seat-form-grid">
+              <RoomFormField label="X 坐标">
+                <input
+                  min="0"
+                  required
+                  type="number"
+                  value={form.x}
+                  onChange={(event) => updateForm('x', Number(event.target.value))}
+                />
+              </RoomFormField>
+              <RoomFormField label="Y 坐标">
+                <input
+                  min="0"
+                  required
+                  type="number"
+                  value={form.y}
+                  onChange={(event) => updateForm('y', Number(event.target.value))}
+                />
+              </RoomFormField>
+            </div>
+            <RoomFormField label="状态">
+              <select
+                value={form.status}
+                onChange={(event) => updateForm('status', event.target.value as RoomStatus)}
+              >
+                <option value="ACTIVE">可预约</option>
+                <option value="INACTIVE">禁用</option>
+              </select>
+            </RoomFormField>
+            {[
+              ['hasPower', '带插座'],
+              ['nearWindow', '靠窗'],
+              ['quietZone', '安静区']
+            ].map(([key, label]) => (
+              <label className="seat-checkbox" key={key}>
+                <input
+                  checked={Boolean(form[key as keyof AdminSeatFormState])}
+                  type="checkbox"
+                  onChange={(event) =>
+                    updateForm(key as keyof AdminSeatFormState, event.target.checked as never)
+                  }
+                />
+                {label}
+              </label>
+            ))}
+
+            <div className="seat-editor-actions">
+              <button type="button" onClick={() => setEditor(null)}>
+                取消
+              </button>
+              <button className="seat-primary-action" type="submit">
+                <DashboardIcon name="check" size={13} />
+                保存
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function FloorEditorPanel() {
+  return (
+    <section className="floor-editor-panel" aria-label="座位平面图编辑器">
+      <div className="floor-editor-head">
+        <div>
+          <span>光华楼空间草稿</span>
+          <h2>座位平面图编辑器</h2>
+          <p>经管自习室 301 · 光华楼 A座 3楼</p>
+        </div>
+        <div className="floor-editor-head-actions">
+          <button type="button">
+            <DashboardIcon name="eye" size={13} />
+            预览
+          </button>
+          <button className="floor-primary-action" type="button">
+            <DashboardIcon name="check" size={13} />
+            保存布局
+          </button>
+        </div>
+      </div>
+
+      <div className="floor-editor-workbench">
+        <aside className="floor-toolbar" aria-label="编辑工具">
+          {FLOOR_EDITOR_TOOLS.map((tool) => (
+            <button
+              aria-label={tool.label}
+              className={tool.active ? 'is-active' : ''}
+              key={tool.label}
+              title={tool.label}
+              type="button"
+            >
+              <DashboardIcon name={tool.icon} size={16} />
+            </button>
+          ))}
+          <div className="floor-toolbar-spacer" />
+          {FLOOR_EDITOR_SUPPORT_TOOLS.map((tool) => (
+            <button aria-label={tool.label} key={tool.label} title={tool.label} type="button">
+              <DashboardIcon name={tool.icon} size={15} />
+            </button>
+          ))}
+        </aside>
+
+        <div className="floor-canvas" aria-label="座位平面图画布">
+          <div className="floor-canvas-card">
+            <div className="floor-entry-label">入 口</div>
+            <div className="floor-seat-map">
+              {FLOOR_EDITOR_ROWS.map((row, rowIndex) => {
+                const rowLabel = String.fromCharCode(65 + rowIndex);
+                return (
+                  <div className="floor-row-wrap" key={rowLabel}>
+                    {rowIndex === 3 && <span className="floor-aisle" aria-label="主通道" />}
+                    <div className="floor-row">
+                      <span className="floor-row-label">{rowLabel}</span>
+                      <div className="floor-seat-group">
+                        {row.slice(0, 4).map((status, columnIndex) => (
+                          <FloorSeatCell
+                            code={`${rowLabel}${columnIndex + 1}`}
+                            key={`${rowLabel}-${columnIndex + 1}`}
+                            status={status}
+                          />
+                        ))}
+                      </div>
+                      <span className="floor-seat-gap" />
+                      <div className="floor-seat-group">
+                        {row.slice(4).map((status, columnOffset) => (
+                          <FloorSeatCell
+                            code={`${rowLabel}${columnOffset + 5}`}
+                            key={`${rowLabel}-${columnOffset + 5}`}
+                            status={status}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="floor-window-line" aria-label="靠窗区域">
+              靠窗座位
+            </div>
+          </div>
+        </div>
+
+        <aside className="floor-properties" aria-label="属性面板">
+          <h3>属性面板</h3>
+          <div className="floor-selected-card">
+            <span>已选座位</span>
+            <strong>C4</strong>
+          </div>
+          {[
+            ['行', 'C（第3行）'],
+            ['列', '4（第4列）'],
+            ['朝向', '背窗'],
+            ['状态', '正常']
+          ].map(([label, value]) => (
+            <div className="floor-prop-row" key={label}>
+              <span>{label}</span>
+              <strong>{value}</strong>
+            </div>
+          ))}
+          <div className="floor-tag-section">
+            <span>标签</span>
+            <div className="floor-tag-list">
+              {['插座', '安静区', '靠窗', '白板附近'].map((tag, index) => (
+                <button className={index < 2 ? 'is-active' : ''} key={tag} type="button">
+                  {tag}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="floor-property-actions">
+            <button className="floor-primary-action" type="button">
+              应用更改
+            </button>
+            <button className="floor-danger-action" type="button">
+              <DashboardIcon name="trash" size={13} />
+              删除座位
+            </button>
+          </div>
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function FloorSeatCell({ code, status }: { code: string; status: FloorSeatStatus }) {
+  return (
+    <button
+      aria-label={`${code} ${FLOOR_STATUS_LABELS[status]}`}
+      className="floor-seat-cell"
+      data-status={status}
+      type="button"
+    >
+      {code}
+    </button>
+  );
+}
+
+function ScheduleManagementPanel() {
+  return (
+    <section className="schedule-management-panel" aria-label="开放时间管理">
+      <div className="schedule-summary-grid" aria-label="开放时间关键指标">
+        {SCHEDULE_SUMMARY.map((item) => (
+          <article className="dashboard-card schedule-summary-card" key={item.label}>
+            <span className="schedule-summary-icon" style={{ color: item.tone }}>
+              <DashboardIcon name={item.icon} size={16} />
+            </span>
+            <strong>{item.value}</strong>
+            <small>{item.label}</small>
+            <p>{item.note}</p>
+          </article>
+        ))}
+      </div>
+
+      <div className="schedule-workspace">
+        <section className="dashboard-card schedule-editor-card">
+          <header className="schedule-section-head">
+            <div>
+              <span>规则编辑</span>
+              <h2>开放时间管理</h2>
+            </div>
+            <button className="schedule-primary-action" type="button">
+              <DashboardIcon name="check" size={13} />
+              保存开放时间
+            </button>
+          </header>
+
+          <div className="schedule-form-grid">
+            <RoomFormField label="自习室">
+              <select defaultValue="经管自习室 301">
+                <option>经管自习室 301</option>
+                <option>计算机学院自习室 B</option>
+                <option>图书馆自习区</option>
+                <option>逸夫综合区</option>
+              </select>
+            </RoomFormField>
+            <RoomFormField label="适用日期">
+              <select defaultValue="工作日">
+                <option>工作日</option>
+                <option>每日</option>
+                <option>考试周</option>
+                <option>指定日期</option>
+              </select>
+            </RoomFormField>
+            <RoomFormField label="开始小时">
+              <input defaultValue="07:00" />
+            </RoomFormField>
+            <RoomFormField label="结束小时">
+              <input defaultValue="22:00" />
+            </RoomFormField>
+          </div>
+
+          <div className="schedule-option-list">
+            {[
+              ['整点时段', '只允许选择 07:00、08:00 这类整点小时'],
+              ['跨天开放', '结束时间早于开始时间时按次日计算'],
+              ['未配置时回退默认', '房间没有独立规则时使用全校默认 07:00–22:00']
+            ].map(([label, desc], index) => (
+              <label className="schedule-option" key={label}>
+                <input defaultChecked={index !== 1} type="checkbox" />
+                <span>
+                  <strong>{label}</strong>
+                  <small>{desc}</small>
+                </span>
+              </label>
+            ))}
+          </div>
+        </section>
+
+        <section className="dashboard-card schedule-priority-card">
+          <header className="schedule-section-head">
+            <div>
+              <span>规则优先级</span>
+              <h2>特殊日期优先</h2>
+            </div>
+          </header>
+          <div className="schedule-priority-list">
+            {[
+              ['1', '节假日特殊规则', '闭馆维护、考试周延长等特殊日期优先匹配'],
+              ['2', '自习室独立规则', '单个房间的开放时段覆盖全校默认'],
+              ['3', '全校默认时段', '未配置时回退默认 07:00–22:00']
+            ].map(([order, title, desc]) => (
+              <div className="schedule-priority-item" key={title}>
+                <span>{order}</span>
+                <div>
+                  <strong>{title}</strong>
+                  <small>{desc}</small>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <div className="schedule-grid-row">
+        <section className="dashboard-card schedule-table-card">
+          <header className="schedule-section-head">
+            <div>
+              <span>开放规则</span>
+              <h2>房间时段配置</h2>
+            </div>
+            <button type="button">
+              <DashboardIcon name="plus" size={13} />
+              新增开放规则
+            </button>
+          </header>
+          <div className="schedule-table">
+            <div className="schedule-table-head">
+              {['自习室', '适用日期', '开放时段', '规则类型', '状态', '说明'].map((head) => (
+                <span key={head}>{head}</span>
+              ))}
+            </div>
+            {SCHEDULE_RULES.map((rule) => (
+              <div className="schedule-table-row" key={`${rule.room}-${rule.scope}`}>
+                <strong>{rule.room}</strong>
+                <span>{rule.scope}</span>
+                <span>{rule.time}</span>
+                <span>
+                  <mark data-variant={rule.type === '闭馆维护' ? 'red' : rule.type === '跨天开放' ? 'blue' : 'green'}>
+                    {rule.type}
+                  </mark>
+                </span>
+                <span>{rule.status}</span>
+                <span>{rule.note}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="dashboard-card schedule-special-card">
+          <header className="schedule-section-head">
+            <div>
+              <span>特殊日期</span>
+              <h2>节假日特殊规则</h2>
+            </div>
+            <button type="button">
+              <DashboardIcon name="refresh" size={13} />
+              同步节假日
+            </button>
+          </header>
+          {SCHEDULE_SPECIAL_RULES.map((rule) => (
+            <article className="schedule-special-item" key={rule.title}>
+              <div>
+                <strong>{rule.title}</strong>
+                <span>{rule.date}</span>
+              </div>
+              <p>{rule.target} · {rule.time}</p>
+              <small>{rule.desc}</small>
+            </article>
+          ))}
+        </section>
+      </div>
+    </section>
+  );
+}
+
+function BookingRecordsPanel() {
+  return (
+    <section className="booking-records-panel" aria-label="预约记录管理">
+      <div className="booking-records-toolbar">
+        <label className="booking-records-search">
+          <DashboardIcon name="search" size={14} />
+          <input aria-label="搜索预约记录" placeholder="学号、姓名、座位编号" />
+        </label>
+        {ADMIN_BOOKING_FILTERS.map((filter) => (
+          <button key={filter} type="button">
+            {filter}
+            <DashboardIcon name="chevron-down" size={12} />
+          </button>
+        ))}
+        <span className="booking-records-selected">已选 0 条</span>
+        <button className="booking-records-danger" type="button">
+          <DashboardIcon name="trash" size={13} />
+          批量取消
+        </button>
+      </div>
+
+      <div className="booking-records-layout">
+        <section className="dashboard-card booking-records-table-card">
+          <header className="booking-records-head">
+            <div>
+              <span>今日实时同步</span>
+              <h2>预约记录管理</h2>
+            </div>
+            <div className="booking-records-head-actions">
+              <button type="button">
+                <DashboardIcon name="plus" size={13} />
+                代预约
+              </button>
+              <button type="button">
+                <DashboardIcon name="download" size={13} />
+                导出 Excel
+              </button>
+            </div>
+          </header>
+
+          <div className="booking-records-table">
+            <div className="booking-records-table-head">
+              {[
+                '',
+                '预约ID',
+                '学号',
+                '姓名',
+                '自习室',
+                '座位',
+                '日期',
+                '时间段',
+                '签到时间',
+                '状态',
+                '操作'
+              ].map((head, index) => (
+                <span key={`${head}-${index}`}>{head}</span>
+              ))}
+            </div>
+            {ADMIN_BOOKING_RECORDS.map((record) => {
+              const status = ADMIN_BOOKING_STATUS_META[record.status];
+              return (
+                <div className="booking-records-table-row" key={record.id}>
+                  <span>
+                    <i aria-hidden="true" />
+                  </span>
+                  <strong>{record.id}</strong>
+                  <span>{record.uid}</span>
+                  <span>{record.user}</span>
+                  <span>{record.room}</span>
+                  <span>{record.seat}</span>
+                  <span>{record.date}</span>
+                  <span>{record.time}</span>
+                  <span className={record.checkin === '—' ? 'is-missing' : ''}>
+                    {record.checkin}
+                  </span>
+                  <span>
+                    <mark data-variant={status.variant}>{status.label}</mark>
+                  </span>
+                  <span className="booking-records-actions">
+                    <button type="button">
+                      <DashboardIcon name="eye" size={12} />
+                      详情
+                    </button>
+                    {record.status !== 'violation' && (
+                      <button className="is-danger" type="button">
+                        <DashboardIcon name="x" size={12} />
+                        取消
+                      </button>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <aside className="dashboard-card booking-operation-card">
+          <header className="booking-records-head">
+            <div>
+              <span>代操作规则</span>
+              <h2>代预约审计</h2>
+            </div>
+          </header>
+          {[
+            ['完整校验', '代预约仍遵守开放时间、冲突、时长、权限规则'],
+            ['审计留痕', '记录操作者、目标学生、座位与提交结果'],
+            ['代取消', '取消预约必须填写原因并写入操作日志']
+          ].map(([title, desc], index) => (
+            <div className="booking-operation-item" key={title}>
+              <span>{index + 1}</span>
+              <div>
+                <strong>{title}</strong>
+                <small>{desc}</small>
+              </div>
+            </div>
+          ))}
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function ViolationRecordsPanel() {
+  return (
+    <section className="violation-records-panel" aria-label="违约记录管理">
+      <div className="violation-summary-grid" aria-label="违约关键指标">
+        {ADMIN_VIOLATION_SUMMARY.map((item) => (
+          <article className="dashboard-card violation-summary-card" key={item.label}>
+            <span className="violation-summary-icon" style={{ color: item.tone }}>
+              <DashboardIcon name={item.icon} size={15} />
+            </span>
+            <div>
+              <strong>{item.value}</strong>
+              <span>{item.label}</span>
+              <small>{item.note}</small>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="violation-records-toolbar">
+        <label className="violation-records-search">
+          <DashboardIcon name="search" size={14} />
+          <input aria-label="搜索违约记录" placeholder="学生、学号、预约编号" />
+        </label>
+        {ADMIN_VIOLATION_FILTERS.map((filter) => (
+          <button key={filter} type="button">
+            {filter}
+            <DashboardIcon name="chevron-down" size={12} />
+          </button>
+        ))}
+        <button className="violation-records-primary" type="button">
+          <DashboardIcon name="alert" size={13} />
+          处理申诉
+        </button>
+        <button type="button">
+          <DashboardIcon name="download" size={13} />
+          导出违约
+        </button>
+      </div>
+
+      <div className="violation-records-layout">
+        <section className="dashboard-card violation-records-table-card">
+          <header className="violation-records-head">
+            <div>
+              <span>按发生时间倒序</span>
+              <h2>违约记录管理</h2>
+            </div>
+            <small>保留自动规则与人工复核轨迹</small>
+          </header>
+
+          <div className="violation-records-table">
+            <div className="violation-records-table-head">
+              {[
+                '违约ID',
+                '预约编号',
+                '学生',
+                '学号',
+                '自习室',
+                '座位',
+                '原因',
+                '处理动作',
+                '发生时间',
+                '状态',
+                '操作'
+              ].map((head) => (
+                <span key={head}>{head}</span>
+              ))}
+            </div>
+            {ADMIN_VIOLATION_RECORDS.map((record) => {
+              const status = ADMIN_VIOLATION_STATUS_META[record.status];
+              return (
+                <div className="violation-records-table-row" key={record.id}>
+                  <strong>{record.id}</strong>
+                  <span>{record.bookingId}</span>
+                  <span>{record.student}</span>
+                  <span>{record.uid}</span>
+                  <span>{record.room}</span>
+                  <span>{record.seat}</span>
+                  <span>{record.reason}</span>
+                  <span>{record.action}</span>
+                  <span>{record.occurred}</span>
+                  <span>
+                    <mark data-variant={status.variant}>{status.label}</mark>
+                  </span>
+                  <span className="violation-records-actions">
+                    <button type="button">
+                      <DashboardIcon name="eye" size={12} />
+                      详情
+                    </button>
+                    <button type="button">
+                      <DashboardIcon name="edit" size={12} />
+                      追加备注
+                    </button>
+                    {record.status === 'restricted' && (
+                      <button className="is-release" type="button">
+                        <DashboardIcon name="check-circle" size={12} />
+                        解除限制
+                      </button>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <aside className="dashboard-card violation-rule-card">
+          <header className="violation-records-head">
+            <div>
+              <span>处理规则</span>
+              <h2>签到与违约</h2>
+            </div>
+          </header>
+          {[
+            ['开始前 15 分钟提醒', '提醒学生按预约时段到场并准备动态码签到'],
+            ['开始后 10 分钟未签到提醒', '仍未签到时再次推送，管理员可在记录中查看'],
+            ['开始后 15 分钟自动取消', '释放座位，生成违约记录并进入复核队列'],
+            ['连续 3 次违约限制预约', '限制期内仅管理员可人工解除限制']
+          ].map(([title, desc], index) => (
+            <div className="violation-rule-item" key={title}>
+              <span>{index + 1}</span>
+              <div>
+                <strong>{title}</strong>
+                <small>{desc}</small>
+              </div>
+            </div>
+          ))}
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function DynamicCodePanel() {
+  return (
+    <section className="dynamic-code-panel" aria-label="动态码管理">
+      <div className="dynamic-code-summary-grid" aria-label="动态码关键指标">
+        {ADMIN_DYNAMIC_CODE_SUMMARY.map((item) => (
+          <article className="dashboard-card dynamic-code-summary-card" key={item.label}>
+            <span className="dynamic-code-summary-icon" style={{ color: item.tone }}>
+              <DashboardIcon name={item.icon} size={15} />
+            </span>
+            <div>
+              <strong>{item.value}</strong>
+              <span>{item.label}</span>
+              <small>{item.note}</small>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="dynamic-code-toolbar">
+        <label className="dynamic-code-search">
+          <DashboardIcon name="search" size={14} />
+          <input aria-label="搜索动态码" placeholder="自习室、签到码、楼栋" />
+        </label>
+        {ADMIN_DYNAMIC_CODE_FILTERS.map((filter) => (
+          <button key={filter} type="button">
+            {filter}
+            <DashboardIcon name="chevron-down" size={12} />
+          </button>
+        ))}
+        <button className="dynamic-code-primary" type="button">
+          <DashboardIcon name="qr" size={13} />
+          生成动态码
+        </button>
+        <button type="button">
+          <DashboardIcon name="download" size={13} />
+          打印签到码
+        </button>
+      </div>
+
+      <div className="dynamic-code-layout">
+        <section className="dashboard-card dynamic-code-table-card">
+          <header className="dynamic-code-head">
+            <div>
+              <span>按自习室展示</span>
+              <h2>动态码管理</h2>
+            </div>
+            <small>网页动态码与小程序二维码统一生成、打印和审计</small>
+          </header>
+
+          <div className="dynamic-code-table">
+            <div className="dynamic-code-table-head">
+              {[
+                '自习室',
+                '楼栋',
+                '网页动态码',
+                '小程序二维码',
+                '刷新策略',
+                '更新状态',
+                '最近更新',
+                '操作'
+              ].map((head) => (
+                <span key={head}>{head}</span>
+              ))}
+            </div>
+            {ADMIN_DYNAMIC_CODE_RECORDS.map((record) => {
+              const status = ADMIN_DYNAMIC_CODE_STATUS_META[record.status];
+              return (
+                <div className="dynamic-code-table-row" key={record.room}>
+                  <strong>{record.room}</strong>
+                  <span>{record.building}</span>
+                  <code>{record.webCode}</code>
+                  <span>{record.qrStatus}</span>
+                  <span>{record.refresh}</span>
+                  <span>
+                    <mark data-variant={status.variant}>{status.label}</mark>
+                  </span>
+                  <span>{record.updatedAt}</span>
+                  <span className="dynamic-code-actions">
+                    <button type="button">
+                      <DashboardIcon name="refresh" size={12} />
+                      重新生成
+                    </button>
+                    <button type="button">
+                      <DashboardIcon name="download" size={12} />
+                      打印
+                    </button>
+                    <button type="button">
+                      <DashboardIcon name="eye" size={12} />
+                      查看日志
+                    </button>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <aside className="dashboard-card dynamic-code-side-card">
+          <header className="dynamic-code-head">
+            <div>
+              <span>签到码预览</span>
+              <h2>经管自习室 301</h2>
+            </div>
+          </header>
+          <div className="dynamic-code-preview">
+            <div className="dynamic-code-qr" aria-hidden="true">
+              {Array.from({ length: 25 }).map((_, index) => (
+                <i key={index} data-on={index % 3 !== 1 || index === 12 ? 'true' : 'false'} />
+              ))}
+            </div>
+            <strong>FD-301-7K2</strong>
+            <span>网页动态码 · 小程序二维码</span>
+          </div>
+          {[
+            ['每日 00:00 自动更新', '每间自习室生成当日签到凭证'],
+            ['60 秒刷新', '网页动态码按刷新窗口滚动失效'],
+            ['截图复用拦截', '同一图片重复提交会进入异常上报'],
+            ['操作留痕', '重新生成、打印、查看日志均写入审计']
+          ].map(([title, desc]) => (
+            <div className="dynamic-code-rule" key={title}>
+              <span />
+              <div>
+                <strong>{title}</strong>
+                <small>{desc}</small>
+              </div>
+            </div>
+          ))}
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function UserManagementPanel() {
+  return (
+    <section className="user-management-panel" aria-label="用户管理">
+      <div className="user-management-summary-grid" aria-label="用户关键指标">
+        {ADMIN_USER_SUMMARY.map((item) => (
+          <article className="dashboard-card user-management-summary-card" key={item.label}>
+            <span className="user-management-summary-icon" style={{ color: item.tone }}>
+              <DashboardIcon name={item.icon} size={15} />
+            </span>
+            <div>
+              <strong>{item.value}</strong>
+              <span>{item.label}</span>
+              <small>{item.note}</small>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="user-management-toolbar">
+        <label className="user-management-search">
+          <DashboardIcon name="search" size={14} />
+          <input aria-label="搜索用户" placeholder="姓名、学号、院系" />
+        </label>
+        {ADMIN_USER_FILTERS.map((filter) => (
+          <button key={filter} type="button">
+            {filter}
+            <DashboardIcon name="chevron-down" size={12} />
+          </button>
+        ))}
+        <button className="user-management-primary" type="button">
+          <DashboardIcon name="users" size={13} />
+          新增用户
+        </button>
+        <button type="button">
+          <DashboardIcon name="download" size={13} />
+          导入名单
+        </button>
+      </div>
+
+      <div className="user-management-layout">
+        <section className="dashboard-card user-management-table-card">
+          <header className="user-management-head">
+            <div>
+              <span>展示最近登录用户</span>
+              <h2>账号列表</h2>
+            </div>
+            <small>学生账号、管理员账号与院系归属统一维护</small>
+          </header>
+
+          <div className="user-management-table">
+            <div className="user-management-table-head">
+              {['姓名', '账号', '院系', '角色', '账号来源', '最近登录', '状态', '操作'].map((head) => (
+                <span key={head}>{head}</span>
+              ))}
+            </div>
+            {ADMIN_USER_RECORDS.map((user) => {
+              const status = ADMIN_USER_STATUS_META[user.status];
+              return (
+                <div className="user-management-table-row" key={user.account}>
+                  <strong>{user.name}</strong>
+                  <code>{user.account}</code>
+                  <span>{user.department}</span>
+                  <span>{user.role}</span>
+                  <span>{user.source}</span>
+                  <span>{user.lastLogin}</span>
+                  <span>
+                    <mark data-variant={status.variant}>{status.label}</mark>
+                  </span>
+                  <span className="user-management-actions">
+                    <button type="button">
+                      <DashboardIcon name="shield" size={12} />
+                      分配角色
+                    </button>
+                    <button type="button">
+                      <DashboardIcon name="settings" size={12} />
+                      重置密码
+                    </button>
+                    <button className={user.status === 'disabled' ? 'is-enable' : 'is-disable'} type="button">
+                      <DashboardIcon name={user.status === 'disabled' ? 'check-circle' : 'x'} size={12} />
+                      {user.status === 'disabled' ? '启用' : '停用'}
+                    </button>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <aside className="dashboard-card user-management-side-card">
+          <header className="user-management-head">
+            <div>
+              <span>账号规则</span>
+              <h2>来源与权限</h2>
+            </div>
+          </header>
+          {[
+            ['学工号统一认证同步', '学生账号以统一身份认证信息为准，院系变更自动同步'],
+            ['管理员账号需绑定角色', '后台访问范围由角色和菜单权限共同决定'],
+            ['菜单级权限由角色权限模块控制', '用户管理只维护账号与角色关系'],
+            ['停用账号会阻止登录与预约', '停用后保留历史预约、签到和审计记录']
+          ].map(([title, desc], index) => (
+            <div className="user-management-rule" key={title}>
+              <span>{index + 1}</span>
+              <div>
+                <strong>{title}</strong>
+                <small>{desc}</small>
+              </div>
+            </div>
+          ))}
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function RoleManagementPanel() {
+  return (
+    <section className="role-management-panel" aria-label="角色权限管理">
+      <div className="role-management-summary-grid" aria-label="角色权限关键指标">
+        {ADMIN_ROLE_SUMMARY.map((item) => (
+          <article className="dashboard-card role-management-summary-card" key={item.label}>
+            <span className="role-management-summary-icon" style={{ color: item.tone }}>
+              <DashboardIcon name={item.icon} size={15} />
+            </span>
+            <div>
+              <strong>{item.value}</strong>
+              <span>{item.label}</span>
+              <small>{item.note}</small>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="role-management-toolbar">
+        <label className="role-management-search">
+          <DashboardIcon name="search" size={14} />
+          <input aria-label="搜索角色权限" placeholder="角色名称、权限点、菜单" />
+        </label>
+        {ADMIN_ROLE_FILTERS.map((filter) => (
+          <button key={filter} type="button">
+            {filter}
+            <DashboardIcon name="chevron-down" size={12} />
+          </button>
+        ))}
+        <button className="role-management-primary" type="button">
+          <DashboardIcon name="shield" size={13} />
+          新建角色
+        </button>
+        <button type="button">
+          <DashboardIcon name="settings" size={13} />
+          分配权限
+        </button>
+      </div>
+
+      <div className="role-management-layout">
+        <section className="dashboard-card role-management-table-card">
+          <header className="role-management-head">
+            <div>
+              <span>按权限范围展示</span>
+              <h2>角色列表</h2>
+            </div>
+            <small>RBAC 角色权限模型控制后台菜单与操作范围</small>
+          </header>
+
+          <div className="role-management-table">
+            <div className="role-management-table-head">
+              {['角色', '用户数', '数据范围', '空间管理', '运营管理', '菜单权限', '最近更新', '状态', '操作'].map((head) => (
+                <span key={head}>{head}</span>
+              ))}
+            </div>
+            {ADMIN_ROLE_RECORDS.map((role) => {
+              const status = ADMIN_ROLE_STATUS_META[role.status];
+              return (
+                <div className="role-management-table-row" key={role.name}>
+                  <strong>{role.name}</strong>
+                  <span>{role.users}</span>
+                  <span>{role.scope}</span>
+                  <span>{role.spaceAccess}</span>
+                  <span>{role.operationAccess}</span>
+                  <code>{role.menuAccess}</code>
+                  <span>{role.updatedAt}</span>
+                  <span>
+                    <mark data-variant={status.variant}>{status.label}</mark>
+                  </span>
+                  <span className="role-management-actions">
+                    <button type="button">
+                      <DashboardIcon name="edit" size={12} />
+                      编辑权限
+                    </button>
+                    <button type="button">
+                      <DashboardIcon name="plus" size={12} />
+                      复制角色
+                    </button>
+                    <button className="is-disable" type="button">
+                      <DashboardIcon name="x" size={12} />
+                      禁用
+                    </button>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <aside className="dashboard-card role-management-side-card">
+          <header className="role-management-head">
+            <div>
+              <span>菜单级过滤</span>
+              <h2>权限分组</h2>
+            </div>
+          </header>
+          {ADMIN_ROLE_PERMISSION_GROUPS.map((group) => (
+            <div className="role-permission-group" key={group.group}>
+              <strong>{group.group}</strong>
+              <div>
+                {group.permissions.map((permission) => (
+                  <span key={permission}>{permission}</span>
+                ))}
+              </div>
+            </div>
+          ))}
+          <section className="role-permission-matrix" aria-label="菜单权限矩阵">
+            <strong>菜单权限矩阵</strong>
+            {ADMIN_ROLE_PERMISSION_MATRIX.map((item) => (
+              <div className="role-permission-matrix-row" key={item.title}>
+                <span>{item.title}</span>
+                <mark>{item.scope}</mark>
+                <button type="button">{item.checked}</button>
+              </div>
+            ))}
+          </section>
+          {[
+            ['RBAC 角色权限模型', '用户只绑定角色，权限点由角色集中维护'],
+            ['菜单级过滤', '侧边栏与接口权限同时按角色过滤'],
+            ['最小权限原则', '新增角色默认无权限，需逐项勾选'],
+            ['审批后生效', '高风险权限调整需复核后发布'],
+            ['权限变更需审计留痕', '每次授权、复制、禁用都进入审计日志'],
+            ['高风险角色变更需要二次复核', '超级管理员与角色权限调整必须双人确认']
+          ].map(([title, desc], index) => (
+            <div className="role-management-rule" key={title}>
+              <span>{index + 1}</span>
+              <div>
+                <strong>{title}</strong>
+                <small>{desc}</small>
+              </div>
+            </div>
+          ))}
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function SystemParameterPanel() {
+  return (
+    <section className="system-parameter-panel" aria-label="系统参数管理">
+      <div className="system-parameter-summary-grid" aria-label="系统参数关键指标">
+        {ADMIN_PARAM_SUMMARY.map((item) => (
+          <article className="dashboard-card system-parameter-summary-card" key={item.label}>
+            <span className="system-parameter-summary-icon" style={{ color: item.tone }}>
+              <DashboardIcon name={item.icon} size={15} />
+            </span>
+            <div>
+              <strong>{item.value}</strong>
+              <span>{item.label}</span>
+              <small>{item.note}</small>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="system-parameter-toolbar">
+        <label className="system-parameter-search">
+          <DashboardIcon name="search" size={14} />
+          <input aria-label="搜索系统参数" placeholder="参数名称、取值、适用范围" />
+        </label>
+        {ADMIN_PARAM_FILTERS.map((filter) => (
+          <button key={filter} type="button">
+            {filter}
+            <DashboardIcon name="chevron-down" size={12} />
+          </button>
+        ))}
+        <button className="system-parameter-primary" type="button">
+          <DashboardIcon name="settings" size={13} />
+          保存参数
+        </button>
+        <button type="button">
+          <DashboardIcon name="refresh" size={13} />
+          恢复默认
+        </button>
+      </div>
+
+      <div className="system-parameter-layout">
+        <section className="dashboard-card system-parameter-table-card">
+          <header className="system-parameter-head">
+            <div>
+              <span>与需求文档保持一致</span>
+              <h2>参数配置</h2>
+            </div>
+            <small>修改预约、签到、提醒和违约参数后，需要审批发布才会影响业务规则。</small>
+          </header>
+
+          <div className="system-parameter-table">
+            <div className="system-parameter-table-head">
+              {['参数', '当前值', '默认值', '适用范围', '类型', '状态', '说明'].map((head) => (
+                <span key={head}>{head}</span>
+              ))}
+            </div>
+            {ADMIN_PARAM_RECORDS.map((param) => {
+              const status = ADMIN_PARAM_STATUS_META[param.status];
+              return (
+                <div className="system-parameter-table-row" key={param.name}>
+                  <strong>{param.name}</strong>
+                  <code>{param.value}</code>
+                  <span>{param.defaultValue}</span>
+                  <span>{param.scope}</span>
+                  <span>{param.type}</span>
+                  <span>
+                    <mark data-variant={status.variant}>{status.label}</mark>
+                  </span>
+                  <small>{param.note}</small>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <aside className="dashboard-card system-parameter-side-card">
+          <header className="system-parameter-head">
+            <div>
+              <span>提醒与取消</span>
+              <h2>生效时间线</h2>
+            </div>
+          </header>
+          <div className="system-parameter-timeline">
+            {ADMIN_PARAM_TIMELINE.map(([time, title, desc]) => (
+              <div className="system-parameter-timeline-item" key={time}>
+                <span>{time}</span>
+                <div>
+                  <strong>{title}</strong>
+                  <small>{desc}</small>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <section className="system-parameter-scope-list" aria-label="参数生效范围">
+            <strong>生效范围</strong>
+            {ADMIN_PARAM_SCOPES.map(([scope, desc]) => (
+              <div className="system-parameter-scope-item" key={scope}>
+                <span>{scope}</span>
+                <small>{desc}</small>
+              </div>
+            ))}
+          </section>
+
+          {[
+            ['参数变更需审批发布', '待发布变更不会立即影响预约规则'],
+            ['配置变更需审计留痕', '保存、恢复默认和发布都会进入审计日志'],
+            ['违约策略联动签到记录', '自动取消后同步释放座位并生成违约记录']
+          ].map(([title, desc], index) => (
+            <div className="system-parameter-rule" key={title}>
+              <span>{index + 1}</span>
+              <div>
+                <strong>{title}</strong>
+                <small>{desc}</small>
+              </div>
+            </div>
+          ))}
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function AuditLogPanel() {
+  return (
+    <section className="audit-log-panel" aria-label="审计日志管理">
+      <div className="audit-log-summary-grid" aria-label="审计日志关键指标">
+        {ADMIN_AUDIT_SUMMARY.map((item) => (
+          <article className="dashboard-card audit-log-summary-card" key={item.label}>
+            <span className="audit-log-summary-icon" style={{ color: item.tone }}>
+              <DashboardIcon name={item.icon} size={15} />
+            </span>
+            <div>
+              <strong>{item.value}</strong>
+              <span>{item.label}</span>
+              <small>{item.note}</small>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="audit-log-toolbar">
+        <label className="audit-log-search">
+          <DashboardIcon name="search" size={14} />
+          <input aria-label="搜索审计日志" placeholder="操作者、模块、预约编号" />
+        </label>
+        {ADMIN_AUDIT_FILTERS.map((filter) => (
+          <button key={filter} type="button">
+            {filter}
+            <DashboardIcon name="chevron-down" size={12} />
+          </button>
+        ))}
+        <button className="audit-log-primary" type="button">
+          <DashboardIcon name="eye" size={13} />
+          筛选模块
+        </button>
+        <button type="button">
+          <DashboardIcon name="download" size={13} />
+          导出日志
+        </button>
+      </div>
+
+      <div className="audit-log-layout">
+        <section className="dashboard-card audit-log-table-card">
+          <header className="audit-log-head">
+            <div>
+              <span>保留管理员操作痕迹</span>
+              <h2>审计流水</h2>
+            </div>
+            <small>记录登录、资源变更、权限调整和关键运营操作，支持追踪与复盘。</small>
+          </header>
+
+          <div className="audit-log-table">
+            <div className="audit-log-table-head">
+              {['时间', '操作者', '模块', '动作', '对象', '来源 IP', '结果', '详情'].map((head) => (
+                <span key={head}>{head}</span>
+              ))}
+            </div>
+            {ADMIN_AUDIT_RECORDS.map((record) => {
+              const status = ADMIN_AUDIT_STATUS_META[record.result];
+              return (
+                <div className="audit-log-table-row" key={`${record.time}-${record.action}`}>
+                  <code>{record.time}</code>
+                  <strong>{record.operator}</strong>
+                  <span>{record.module}</span>
+                  <span>{record.action}</span>
+                  <span>{record.target}</span>
+                  <span>{record.ip}</span>
+                  <span>
+                    <mark data-variant={status.variant}>{status.label}</mark>
+                  </span>
+                  <small>{record.detail}</small>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <aside className="dashboard-card audit-log-side-card">
+          <header className="audit-log-head">
+            <div>
+              <span>异常与复核</span>
+              <h2>风险事件</h2>
+            </div>
+          </header>
+          <div className="audit-risk-list">
+            {ADMIN_AUDIT_RISKS.map(([title, meta, desc]) => (
+              <div className="audit-risk-item" key={title}>
+                <strong>{title}</strong>
+                <span>{meta}</span>
+                <small>{desc}</small>
+              </div>
+            ))}
+          </div>
+
+          {ADMIN_AUDIT_RULES.map(([title, desc], index) => (
+            <div className="audit-log-rule" key={title}>
+              <span>{index + 1}</span>
+              <div>
+                <strong>{title}</strong>
+                <small>{desc}</small>
+              </div>
+            </div>
+          ))}
+        </aside>
+      </div>
+    </section>
   );
 }
 

@@ -27,12 +27,6 @@ services:
       - "${API_PORT:-3000}:3000"
     restart: unless-stopped
 
-  web-student:
-    image: ${WEB_STUDENT_IMAGE:-ghcr.io/xumingw/devops_ibooking/web-student:latest}
-    ports:
-      - "${WEB_STUDENT_PORT:-5173}:80"
-    restart: unless-stopped
-
   web-admin:
     image: ${WEB_ADMIN_IMAGE:-ghcr.io/xumingw/devops_ibooking/web-admin:latest}
     ports:
