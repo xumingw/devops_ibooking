@@ -951,6 +951,84 @@ const SCHEDULE_SPECIAL_RULES = [
   }
 ] as const;
 
+const ADMIN_BOOKING_RECORDS = [
+  {
+    id: 'BK-1893',
+    uid: '21307001',
+    user: '林晓明',
+    room: '经管301',
+    seat: 'C3',
+    date: '04-24',
+    time: '14:00–17:00',
+    checkin: '14:02',
+    status: 'active'
+  },
+  {
+    id: 'BK-1892',
+    uid: '21309022',
+    user: '张子涵',
+    room: '理工201',
+    seat: 'F8',
+    date: '04-24',
+    time: '13:00–16:00',
+    checkin: '13:08',
+    status: 'active'
+  },
+  {
+    id: 'BK-1891',
+    uid: '20301055',
+    user: '王芳',
+    room: '图书馆',
+    seat: 'B22',
+    date: '04-24',
+    time: '10:00–12:00',
+    checkin: '10:05',
+    status: 'done'
+  },
+  {
+    id: 'BK-1890',
+    uid: '22310044',
+    user: '陈浩然',
+    room: '文史馆A',
+    seat: 'D5',
+    date: '04-24',
+    time: '09:00–11:00',
+    checkin: '—',
+    status: 'violation'
+  },
+  {
+    id: 'BK-1889',
+    uid: '21306078',
+    user: '赵雪',
+    room: '理工403',
+    seat: 'A11',
+    date: '04-23',
+    time: '19:00–22:00',
+    checkin: '19:04',
+    status: 'done'
+  },
+  {
+    id: 'BK-1888',
+    uid: '20312091',
+    user: '刘明达',
+    room: '经管301',
+    seat: 'G2',
+    date: '04-23',
+    time: '14:00–17:00',
+    checkin: '14:18',
+    status: 'pending'
+  }
+] as const;
+
+const ADMIN_BOOKING_STATUS_META = {
+  active: { label: '使用中', variant: 'green' },
+  done: { label: '已完成', variant: 'gray' },
+  violation: { label: '违约', variant: 'red' },
+  pending: { label: '待签到', variant: 'blue' }
+} as const;
+
+const ADMIN_BOOKING_FILTERS = ['今日', '本周', '全部状态'] as const;
+
 const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
   dashboard: {
     title: '管理仪表盘',
@@ -1059,12 +1137,12 @@ const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
     ]
   },
   bookings: {
-    title: '预约记录',
+    title: '预约记录管理',
     sub: '共 1,247 条记录（今日）',
     description: '查询预约、签到、取消与超时记录，支持按学生、自习室和时段筛选。',
     actions: [
-      { label: '筛选记录', icon: 'settings' },
-      { label: '导出记录', icon: 'download' }
+      { label: '代预约', icon: 'plus' },
+      { label: '导出 Excel', icon: 'download' }
     ],
     metrics: [
       { label: '使用中', value: '892', tone: F.success },
@@ -1411,6 +1489,8 @@ export function AdminDashboard({ accessToken, adminName, initialActive, onLogout
           <FloorEditorPanel />
         ) : activeMenu === 'schedule' ? (
           <ScheduleManagementPanel />
+        ) : activeMenu === 'bookings' ? (
+          <BookingRecordsPanel />
         ) : (
           <AdminModulePanel meta={activeMeta} />
         )}
@@ -2485,6 +2565,128 @@ function ScheduleManagementPanel() {
             </article>
           ))}
         </section>
+      </div>
+    </section>
+  );
+}
+
+function BookingRecordsPanel() {
+  return (
+    <section className="booking-records-panel" aria-label="预约记录管理">
+      <div className="booking-records-toolbar">
+        <label className="booking-records-search">
+          <DashboardIcon name="search" size={14} />
+          <input aria-label="搜索预约记录" placeholder="学号、姓名、座位编号" />
+        </label>
+        {ADMIN_BOOKING_FILTERS.map((filter) => (
+          <button key={filter} type="button">
+            {filter}
+            <DashboardIcon name="chevron-down" size={12} />
+          </button>
+        ))}
+        <span className="booking-records-selected">已选 0 条</span>
+        <button className="booking-records-danger" type="button">
+          <DashboardIcon name="trash" size={13} />
+          批量取消
+        </button>
+      </div>
+
+      <div className="booking-records-layout">
+        <section className="dashboard-card booking-records-table-card">
+          <header className="booking-records-head">
+            <div>
+              <span>今日实时同步</span>
+              <h2>预约记录管理</h2>
+            </div>
+            <div className="booking-records-head-actions">
+              <button type="button">
+                <DashboardIcon name="plus" size={13} />
+                代预约
+              </button>
+              <button type="button">
+                <DashboardIcon name="download" size={13} />
+                导出 Excel
+              </button>
+            </div>
+          </header>
+
+          <div className="booking-records-table">
+            <div className="booking-records-table-head">
+              {[
+                '',
+                '预约ID',
+                '学号',
+                '姓名',
+                '自习室',
+                '座位',
+                '日期',
+                '时间段',
+                '签到时间',
+                '状态',
+                '操作'
+              ].map((head, index) => (
+                <span key={`${head}-${index}`}>{head}</span>
+              ))}
+            </div>
+            {ADMIN_BOOKING_RECORDS.map((record) => {
+              const status = ADMIN_BOOKING_STATUS_META[record.status];
+              return (
+                <div className="booking-records-table-row" key={record.id}>
+                  <span>
+                    <i aria-hidden="true" />
+                  </span>
+                  <strong>{record.id}</strong>
+                  <span>{record.uid}</span>
+                  <span>{record.user}</span>
+                  <span>{record.room}</span>
+                  <span>{record.seat}</span>
+                  <span>{record.date}</span>
+                  <span>{record.time}</span>
+                  <span className={record.checkin === '—' ? 'is-missing' : ''}>
+                    {record.checkin}
+                  </span>
+                  <span>
+                    <mark data-variant={status.variant}>{status.label}</mark>
+                  </span>
+                  <span className="booking-records-actions">
+                    <button type="button">
+                      <DashboardIcon name="eye" size={12} />
+                      详情
+                    </button>
+                    {record.status !== 'violation' && (
+                      <button className="is-danger" type="button">
+                        <DashboardIcon name="x" size={12} />
+                        取消
+                      </button>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <aside className="dashboard-card booking-operation-card">
+          <header className="booking-records-head">
+            <div>
+              <span>代操作规则</span>
+              <h2>代预约审计</h2>
+            </div>
+          </header>
+          {[
+            ['完整校验', '代预约仍遵守开放时间、冲突、时长、权限规则'],
+            ['审计留痕', '记录操作者、目标学生、座位与提交结果'],
+            ['代取消', '取消预约必须填写原因并写入操作日志']
+          ].map(([title, desc], index) => (
+            <div className="booking-operation-item" key={title}>
+              <span>{index + 1}</span>
+              <div>
+                <strong>{title}</strong>
+                <small>{desc}</small>
+              </div>
+            </div>
+          ))}
+        </aside>
       </div>
     </section>
   );
