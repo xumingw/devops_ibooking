@@ -1427,6 +1427,110 @@ const ADMIN_ROLE_PERMISSION_MATRIX = [
 
 const ADMIN_ROLE_FILTERS = ['全部角色', '权限范围', '审批状态'] as const;
 
+const ADMIN_PARAM_SUMMARY = [
+  {
+    label: '单次最长',
+    value: '4 小时',
+    note: '单笔预约不可超过上限',
+    icon: 'calendar',
+    tone: F.success
+  },
+  {
+    label: '签到宽限',
+    value: '15 分钟',
+    note: '超时自动取消并记录违约',
+    icon: 'check-circle',
+    tone: '#3A6FA8'
+  },
+  {
+    label: '提醒规则',
+    value: '3 条',
+    note: '开始前、开始后、取消前',
+    icon: 'alert',
+    tone: '#C8820A'
+  },
+  {
+    label: '待发布变更',
+    value: '2',
+    note: '参数变更需审批发布',
+    icon: 'settings',
+    tone: F.gold
+  }
+] satisfies Array<{
+  label: string;
+  value: string;
+  note: string;
+  icon: DashboardIconName;
+  tone: string;
+}>;
+
+const ADMIN_PARAM_RECORDS = [
+  {
+    name: '最大预约时长',
+    value: '4 小时',
+    defaultValue: '4 小时',
+    scope: '全校',
+    type: '预约规则',
+    status: 'active',
+    note: '单次预约按整点开始结束，不允许超过 4 小时'
+  },
+  {
+    name: '默认开放时间',
+    value: '07:00-22:00',
+    defaultValue: '07:00-22:00',
+    scope: '普通自习室',
+    type: '开放时间',
+    status: 'active',
+    note: '夜间开放自习室可单独覆盖默认时段'
+  },
+  {
+    name: '开始前 15 分钟提醒',
+    value: '15 分钟',
+    defaultValue: '15 分钟',
+    scope: '全校',
+    type: '提醒策略',
+    status: 'active',
+    note: '预约开始前通过站内通知和小程序提醒'
+  },
+  {
+    name: '开始后 10 分钟未签到提醒',
+    value: '10 分钟',
+    defaultValue: '10 分钟',
+    scope: '全校',
+    type: '提醒策略',
+    status: 'active',
+    note: '学生仍未签到时追加未签到提醒'
+  },
+  {
+    name: '开始后 15 分钟自动取消',
+    value: '15 分钟',
+    defaultValue: '15 分钟',
+    scope: '全校',
+    type: '违约策略',
+    status: 'review',
+    note: '释放座位并生成违约记录'
+  }
+] as const;
+
+const ADMIN_PARAM_STATUS_META = {
+  active: { label: '已生效', variant: 'green' },
+  review: { label: '待发布', variant: 'gold' }
+} as const;
+
+const ADMIN_PARAM_TIMELINE = [
+  ['T-15', '开始前 15 分钟提醒', '提醒学生准备前往自习室'],
+  ['T+10', '开始后 10 分钟未签到提醒', '提示尽快完成动态码或二维码签到'],
+  ['T+15', '开始后 15 分钟自动取消', '释放座位并生成违约记录']
+] as const;
+
+const ADMIN_PARAM_SCOPES = [
+  ['全校', '统一预约时长、签到宽限和违约策略'],
+  ['院系自习室', '可继承全校规则并叠加院系限制'],
+  ['夜间开放', '覆盖默认 07:00-22:00 开放时间']
+] as const;
+
+const ADMIN_PARAM_FILTERS = ['全部参数', '生效范围', '发布状态'] as const;
+
 const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
   dashboard: {
     title: '管理仪表盘',
@@ -1650,7 +1754,7 @@ const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
     ]
   },
   params: {
-    title: '系统参数',
+    title: '系统参数管理',
     sub: '预约规则与提醒策略',
     description: '维护最大预约时长、签到窗口、提醒节奏和违约限制参数。',
     actions: [
@@ -1897,6 +2001,8 @@ export function AdminDashboard({ accessToken, adminName, initialActive, onLogout
           <UserManagementPanel />
         ) : activeMenu === 'roles' ? (
           <RoleManagementPanel />
+        ) : activeMenu === 'params' ? (
+          <SystemParameterPanel />
         ) : (
           <AdminModulePanel meta={activeMeta} />
         )}
@@ -3603,6 +3709,128 @@ function RoleManagementPanel() {
             ['高风险角色变更需要二次复核', '超级管理员与角色权限调整必须双人确认']
           ].map(([title, desc], index) => (
             <div className="role-management-rule" key={title}>
+              <span>{index + 1}</span>
+              <div>
+                <strong>{title}</strong>
+                <small>{desc}</small>
+              </div>
+            </div>
+          ))}
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function SystemParameterPanel() {
+  return (
+    <section className="system-parameter-panel" aria-label="系统参数管理">
+      <div className="system-parameter-summary-grid" aria-label="系统参数关键指标">
+        {ADMIN_PARAM_SUMMARY.map((item) => (
+          <article className="dashboard-card system-parameter-summary-card" key={item.label}>
+            <span className="system-parameter-summary-icon" style={{ color: item.tone }}>
+              <DashboardIcon name={item.icon} size={15} />
+            </span>
+            <div>
+              <strong>{item.value}</strong>
+              <span>{item.label}</span>
+              <small>{item.note}</small>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="system-parameter-toolbar">
+        <label className="system-parameter-search">
+          <DashboardIcon name="search" size={14} />
+          <input aria-label="搜索系统参数" placeholder="参数名称、取值、适用范围" />
+        </label>
+        {ADMIN_PARAM_FILTERS.map((filter) => (
+          <button key={filter} type="button">
+            {filter}
+            <DashboardIcon name="chevron-down" size={12} />
+          </button>
+        ))}
+        <button className="system-parameter-primary" type="button">
+          <DashboardIcon name="settings" size={13} />
+          保存参数
+        </button>
+        <button type="button">
+          <DashboardIcon name="refresh" size={13} />
+          恢复默认
+        </button>
+      </div>
+
+      <div className="system-parameter-layout">
+        <section className="dashboard-card system-parameter-table-card">
+          <header className="system-parameter-head">
+            <div>
+              <span>与需求文档保持一致</span>
+              <h2>参数配置</h2>
+            </div>
+            <small>修改预约、签到、提醒和违约参数后，需要审批发布才会影响业务规则。</small>
+          </header>
+
+          <div className="system-parameter-table">
+            <div className="system-parameter-table-head">
+              {['参数', '当前值', '默认值', '适用范围', '类型', '状态', '说明'].map((head) => (
+                <span key={head}>{head}</span>
+              ))}
+            </div>
+            {ADMIN_PARAM_RECORDS.map((param) => {
+              const status = ADMIN_PARAM_STATUS_META[param.status];
+              return (
+                <div className="system-parameter-table-row" key={param.name}>
+                  <strong>{param.name}</strong>
+                  <code>{param.value}</code>
+                  <span>{param.defaultValue}</span>
+                  <span>{param.scope}</span>
+                  <span>{param.type}</span>
+                  <span>
+                    <mark data-variant={status.variant}>{status.label}</mark>
+                  </span>
+                  <small>{param.note}</small>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <aside className="dashboard-card system-parameter-side-card">
+          <header className="system-parameter-head">
+            <div>
+              <span>提醒与取消</span>
+              <h2>生效时间线</h2>
+            </div>
+          </header>
+          <div className="system-parameter-timeline">
+            {ADMIN_PARAM_TIMELINE.map(([time, title, desc]) => (
+              <div className="system-parameter-timeline-item" key={time}>
+                <span>{time}</span>
+                <div>
+                  <strong>{title}</strong>
+                  <small>{desc}</small>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <section className="system-parameter-scope-list" aria-label="参数生效范围">
+            <strong>生效范围</strong>
+            {ADMIN_PARAM_SCOPES.map(([scope, desc]) => (
+              <div className="system-parameter-scope-item" key={scope}>
+                <span>{scope}</span>
+                <small>{desc}</small>
+              </div>
+            ))}
+          </section>
+
+          {[
+            ['参数变更需审批发布', '待发布变更不会立即影响预约规则'],
+            ['配置变更需审计留痕', '保存、恢复默认和发布都会进入审计日志'],
+            ['违约策略联动签到记录', '自动取消后同步释放座位并生成违约记录']
+          ].map(([title, desc], index) => (
+            <div className="system-parameter-rule" key={title}>
               <span>{index + 1}</span>
               <div>
                 <strong>{title}</strong>
