@@ -358,6 +358,27 @@ describe('统一登录页', () => {
     expect(html).not.toContain('管理模块');
   });
 
+  it('渲染违约记录管理页面', () => {
+    const html = renderToStaticMarkup(
+      <AdminDashboard adminName="系统管理员" initialActive="violations" />
+    );
+
+    expect(html).toContain('违约记录管理');
+    expect(html).toContain('今日新增 18 条');
+    expect(html).toContain('处理申诉');
+    expect(html).toContain('导出违约');
+    expect(html).toContain('学生、学号、预约编号');
+    expect(html).toContain('未签到');
+    expect(html).toContain('超时取消');
+    expect(html).toContain('限制中');
+    expect(html).toContain('开始后 15 分钟未签到');
+    expect(html).toContain('自动取消');
+    expect(html).toContain('申诉中');
+    expect(html).toContain('追加备注');
+    expect(html).toContain('解除限制');
+    expect(html).not.toContain('管理模块');
+  });
+
   it('生产 CI/CD 只构建和部署统一 Web 入口', () => {
     const workflow = readFileSync(resolve(repoRoot, '.github/workflows/ci.yml'), 'utf8');
     const compose = readFileSync(resolve(repoRoot, 'infra/docker-compose.prod.yml'), 'utf8');

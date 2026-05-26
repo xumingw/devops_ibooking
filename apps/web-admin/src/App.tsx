@@ -1029,6 +1029,115 @@ const ADMIN_BOOKING_STATUS_META = {
 
 const ADMIN_BOOKING_FILTERS = ['今日', '本周', '全部状态'] as const;
 
+const ADMIN_VIOLATION_SUMMARY = [
+  {
+    label: '未签到',
+    value: '14',
+    note: '开始后 15 分钟自动取消',
+    icon: 'alert',
+    tone: '#C84040'
+  },
+  {
+    label: '超时取消',
+    value: '4',
+    note: '座位已释放并生成记录',
+    icon: 'refresh',
+    tone: '#C8820A'
+  },
+  {
+    label: '限制中',
+    value: '27',
+    note: '连续 3 次违约限制预约',
+    icon: 'shield',
+    tone: '#3A6FA8'
+  },
+  {
+    label: '申诉中',
+    value: '3',
+    note: '等待管理员复核',
+    icon: 'log',
+    tone: F.gold
+  }
+] satisfies Array<{
+  label: string;
+  value: string;
+  note: string;
+  icon: DashboardIconName;
+  tone: string;
+}>;
+
+const ADMIN_VIOLATION_RECORDS = [
+  {
+    id: 'V-1027',
+    bookingId: 'BK-1890',
+    student: '陈浩然',
+    uid: '22310044',
+    room: '文史馆A',
+    seat: 'D5',
+    reason: '开始后 15 分钟未签到',
+    action: '自动取消',
+    occurred: '04-24 09:15',
+    status: 'recorded'
+  },
+  {
+    id: 'V-1026',
+    bookingId: 'BK-1884',
+    student: '刘同学',
+    uid: '21307019',
+    room: '经管301',
+    seat: 'C3',
+    reason: '开始后 15 分钟未签到',
+    action: '自动取消',
+    occurred: '04-24 10:15',
+    status: 'recorded'
+  },
+  {
+    id: 'V-1025',
+    bookingId: 'BK-1876',
+    student: '赵同学',
+    uid: '21309081',
+    room: '理工201',
+    seat: 'F8',
+    reason: '重复取消',
+    action: '人工复核',
+    occurred: '04-24 09:42',
+    status: 'review'
+  },
+  {
+    id: 'V-1024',
+    bookingId: 'BK-1862',
+    student: '钱同学',
+    uid: '20301036',
+    room: '文史馆A',
+    seat: 'D5',
+    reason: '签到码异常',
+    action: '申诉处理',
+    occurred: '昨天',
+    status: 'appeal'
+  },
+  {
+    id: 'V-1023',
+    bookingId: 'BK-1859',
+    student: '孙同学',
+    uid: '20312078',
+    room: '图书馆区',
+    seat: 'B22',
+    reason: '连续未签到',
+    action: '限制预约',
+    occurred: '昨天',
+    status: 'restricted'
+  }
+] as const;
+
+const ADMIN_VIOLATION_STATUS_META = {
+  recorded: { label: '已记录', variant: 'red' },
+  review: { label: '待复核', variant: 'gold' },
+  appeal: { label: '申诉中', variant: 'blue' },
+  restricted: { label: '限制中', variant: 'gray' }
+} as const;
+
+const ADMIN_VIOLATION_FILTERS = ['今日', '全部原因', '全部状态'] as const;
+
 const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
   dashboard: {
     title: '管理仪表盘',
@@ -1160,7 +1269,7 @@ const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
     ]
   },
   violations: {
-    title: '违约记录',
+    title: '违约记录管理',
     sub: '今日新增 18 条',
     description: '跟踪未签到、超时取消和限制预约记录，支持人工复核与申诉处理。',
     actions: [
@@ -1491,6 +1600,8 @@ export function AdminDashboard({ accessToken, adminName, initialActive, onLogout
           <ScheduleManagementPanel />
         ) : activeMenu === 'bookings' ? (
           <BookingRecordsPanel />
+        ) : activeMenu === 'violations' ? (
+          <ViolationRecordsPanel />
         ) : (
           <AdminModulePanel meta={activeMeta} />
         )}
@@ -2679,6 +2790,138 @@ function BookingRecordsPanel() {
             ['代取消', '取消预约必须填写原因并写入操作日志']
           ].map(([title, desc], index) => (
             <div className="booking-operation-item" key={title}>
+              <span>{index + 1}</span>
+              <div>
+                <strong>{title}</strong>
+                <small>{desc}</small>
+              </div>
+            </div>
+          ))}
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function ViolationRecordsPanel() {
+  return (
+    <section className="violation-records-panel" aria-label="违约记录管理">
+      <div className="violation-summary-grid" aria-label="违约关键指标">
+        {ADMIN_VIOLATION_SUMMARY.map((item) => (
+          <article className="dashboard-card violation-summary-card" key={item.label}>
+            <span className="violation-summary-icon" style={{ color: item.tone }}>
+              <DashboardIcon name={item.icon} size={15} />
+            </span>
+            <div>
+              <strong>{item.value}</strong>
+              <span>{item.label}</span>
+              <small>{item.note}</small>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="violation-records-toolbar">
+        <label className="violation-records-search">
+          <DashboardIcon name="search" size={14} />
+          <input aria-label="搜索违约记录" placeholder="学生、学号、预约编号" />
+        </label>
+        {ADMIN_VIOLATION_FILTERS.map((filter) => (
+          <button key={filter} type="button">
+            {filter}
+            <DashboardIcon name="chevron-down" size={12} />
+          </button>
+        ))}
+        <button className="violation-records-primary" type="button">
+          <DashboardIcon name="alert" size={13} />
+          处理申诉
+        </button>
+        <button type="button">
+          <DashboardIcon name="download" size={13} />
+          导出违约
+        </button>
+      </div>
+
+      <div className="violation-records-layout">
+        <section className="dashboard-card violation-records-table-card">
+          <header className="violation-records-head">
+            <div>
+              <span>按发生时间倒序</span>
+              <h2>违约记录管理</h2>
+            </div>
+            <small>保留自动规则与人工复核轨迹</small>
+          </header>
+
+          <div className="violation-records-table">
+            <div className="violation-records-table-head">
+              {[
+                '违约ID',
+                '预约编号',
+                '学生',
+                '学号',
+                '自习室',
+                '座位',
+                '原因',
+                '处理动作',
+                '发生时间',
+                '状态',
+                '操作'
+              ].map((head) => (
+                <span key={head}>{head}</span>
+              ))}
+            </div>
+            {ADMIN_VIOLATION_RECORDS.map((record) => {
+              const status = ADMIN_VIOLATION_STATUS_META[record.status];
+              return (
+                <div className="violation-records-table-row" key={record.id}>
+                  <strong>{record.id}</strong>
+                  <span>{record.bookingId}</span>
+                  <span>{record.student}</span>
+                  <span>{record.uid}</span>
+                  <span>{record.room}</span>
+                  <span>{record.seat}</span>
+                  <span>{record.reason}</span>
+                  <span>{record.action}</span>
+                  <span>{record.occurred}</span>
+                  <span>
+                    <mark data-variant={status.variant}>{status.label}</mark>
+                  </span>
+                  <span className="violation-records-actions">
+                    <button type="button">
+                      <DashboardIcon name="eye" size={12} />
+                      详情
+                    </button>
+                    <button type="button">
+                      <DashboardIcon name="edit" size={12} />
+                      追加备注
+                    </button>
+                    {record.status === 'restricted' && (
+                      <button className="is-release" type="button">
+                        <DashboardIcon name="check-circle" size={12} />
+                        解除限制
+                      </button>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <aside className="dashboard-card violation-rule-card">
+          <header className="violation-records-head">
+            <div>
+              <span>处理规则</span>
+              <h2>签到与违约</h2>
+            </div>
+          </header>
+          {[
+            ['开始前 15 分钟提醒', '提醒学生按预约时段到场并准备动态码签到'],
+            ['开始后 10 分钟未签到提醒', '仍未签到时再次推送，管理员可在记录中查看'],
+            ['开始后 15 分钟自动取消', '释放座位，生成违约记录并进入复核队列'],
+            ['连续 3 次违约限制预约', '限制期内仅管理员可人工解除限制']
+          ].map(([title, desc], index) => (
+            <div className="violation-rule-item" key={title}>
               <span>{index + 1}</span>
               <div>
                 <strong>{title}</strong>
