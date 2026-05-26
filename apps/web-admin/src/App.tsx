@@ -563,6 +563,12 @@ type DashboardProps = {
   onLogout?: () => void;
 };
 
+type StudentDashboardProps = {
+  studentName: string;
+  initialActive?: StudentMenuId;
+  onLogout?: () => void;
+};
+
 const ADMIN_MENU_IDS = [
   'dashboard',
   'rooms',
@@ -581,6 +587,19 @@ const ADMIN_MENU_IDS = [
 
 type AdminMenuId = (typeof ADMIN_MENU_IDS)[number];
 
+const STUDENT_MENU_IDS = [
+  'home',
+  'rooms',
+  'select',
+  'bookings',
+  'checkin',
+  'assistant',
+  'notify',
+  'violation'
+] as const;
+
+type StudentMenuId = (typeof STUDENT_MENU_IDS)[number];
+
 type AdminMenuAction = {
   id?: 'create-room' | 'refresh-rooms' | 'create-seat';
   label: string;
@@ -588,7 +607,7 @@ type AdminMenuAction = {
 };
 
 type StudentMenuItem = {
-  id: string;
+  id: StudentMenuId;
   label: string;
   icon: DashboardIconName;
   badge?: string;
@@ -1821,6 +1840,93 @@ const STUDENT_RECOMMENDED_ROOMS = [
   }
 ] as const;
 
+const STUDENT_ROOM_LIST = [
+  {
+    name: '经管自习室 301',
+    building: '光华楼 A座',
+    floor: '3楼',
+    capacity: 48,
+    available: 12,
+    hours: '08:00–22:00',
+    scope: '全校开放',
+    tags: ['插座', '靠窗', '安静区'],
+    status: 'open'
+  },
+  {
+    name: '理工自习室 201',
+    building: '逸夫楼',
+    floor: '2楼',
+    capacity: 64,
+    available: 31,
+    hours: '00:00–24:00',
+    scope: '全校开放',
+    tags: ['24小时', '插座', '白板'],
+    status: 'open'
+  },
+  {
+    name: '文史馆阅览室 A',
+    building: '文史馆',
+    floor: '1楼',
+    capacity: 80,
+    available: 5,
+    hours: '08:00–21:00',
+    scope: '文理兼容',
+    tags: ['靠窗', '低噪音'],
+    status: 'busy'
+  },
+  {
+    name: '新闻学院研讨室',
+    building: '新闻学院楼',
+    floor: '4楼',
+    capacity: 20,
+    available: 0,
+    hours: '09:00–20:00',
+    scope: '仅新闻学院',
+    tags: ['白板', '投影'],
+    status: 'full'
+  },
+  {
+    name: '理工自习室 403',
+    building: '逸夫楼',
+    floor: '4楼',
+    capacity: 56,
+    available: 28,
+    hours: '08:00–23:00',
+    scope: '全校开放',
+    tags: ['插座', '安静区'],
+    status: 'open'
+  },
+  {
+    name: '图书馆自习区',
+    building: '李兆基图书馆',
+    floor: '2楼',
+    capacity: 120,
+    available: 44,
+    hours: '08:00–22:00',
+    scope: '全校开放',
+    tags: ['插座', '靠窗', '安静区'],
+    status: 'open'
+  }
+] satisfies Array<{
+  name: string;
+  building: string;
+  floor: string;
+  capacity: number;
+  available: number;
+  hours: string;
+  scope: string;
+  tags: string[];
+  status: 'open' | 'busy' | 'full';
+}>;
+
+const STUDENT_ROOM_STATUS_META = {
+  open: { label: '开放中', variant: 'green' },
+  busy: { label: '较繁忙', variant: 'gold' },
+  full: { label: '已满座', variant: 'red' }
+} as const;
+
+const STUDENT_ROOM_FILTERS = ['全部楼栋', '全校开放', '有空位', '有插座', '靠窗'] as const;
+
 const STUDENT_QUICK_ACTIONS = [
   { label: '立即找座', icon: 'search', tone: F.navy },
   { label: '扫码签到', icon: 'scan', tone: F.success },
@@ -2187,6 +2293,9 @@ const BOOKING_STATUS_META = {
 const isAdminMenuId = (value: string | undefined): value is AdminMenuId =>
   ADMIN_MENU_IDS.includes(value as AdminMenuId);
 
+const isStudentMenuId = (value: string | undefined): value is StudentMenuId =>
+  STUDENT_MENU_IDS.includes(value as StudentMenuId);
+
 const resolveInitialAdminMenu = (): AdminMenuId => {
   if (typeof window === 'undefined') {
     return 'dashboard';
@@ -2194,6 +2303,15 @@ const resolveInitialAdminMenu = (): AdminMenuId => {
 
   const [, section] = window.location.pathname.match(/^\/dashboard\/([^/]+)/) ?? [];
   return isAdminMenuId(section) ? section : 'dashboard';
+};
+
+const resolveInitialStudentMenu = (): StudentMenuId => {
+  if (typeof window === 'undefined') {
+    return 'home';
+  }
+
+  const [, section] = window.location.pathname.match(/^\/student\/([^/]+)/) ?? [];
+  return isStudentMenuId(section) ? section : 'home';
 };
 
 export function AdminDashboard({ accessToken, adminName, initialActive, onLogout }: DashboardProps) {
@@ -4410,11 +4528,18 @@ function DataReportsPanel() {
 
 export function StudentHomePreview({
   studentName,
+  initialActive,
   onLogout
-}: {
-  studentName: string;
-  onLogout?: () => void;
-}) {
+}: StudentDashboardProps) {
+  const [activeMenu, setActiveMenu] = useState<StudentMenuId>(
+    () => initialActive ?? resolveInitialStudentMenu()
+  );
+
+  const handleStudentMenuChange = (nextMenu: StudentMenuId) => {
+    setActiveMenu(nextMenu);
+    pushAppPath(nextMenu === 'home' ? '/student' : `/student/${nextMenu}`);
+  };
+
   return (
     <main className="student-home-page">
       <aside className="student-home-sidebar">
@@ -4431,9 +4556,10 @@ export function StudentHomePreview({
               <div className="student-home-nav-label">{group.label}</div>
               {group.items.map((item) => (
                 <button
-                  aria-current={item.id === 'home' ? 'page' : undefined}
-                  className={item.id === 'home' ? 'is-active' : ''}
+                  aria-current={item.id === activeMenu ? 'page' : undefined}
+                  className={item.id === activeMenu ? 'is-active' : ''}
                   key={item.id}
+                  onClick={() => handleStudentMenuChange(item.id)}
                   type="button"
                 >
                   <DashboardIcon name={item.icon} size={13} />
@@ -4456,24 +4582,47 @@ export function StudentHomePreview({
       <section className="student-home-main">
         <header className="student-home-topbar">
           <div>
-            <h1>首页概览</h1>
-            <p>2026年5月26日 · 学习空间实时状态</p>
+            <h1>{activeMenu === 'rooms' ? '自习室列表' : '首页概览'}</h1>
+            <p>
+              {activeMenu === 'rooms'
+                ? `共 ${STUDENT_ROOM_LIST.length} 个自习室`
+                : '2026年5月26日 · 学习空间实时状态'}
+            </p>
           </div>
           <div className="student-home-actions">
-            <button type="button">
-              <DashboardIcon name="search" size={13} />
-              搜索自习室
-            </button>
-            <button type="button">
-              <DashboardIcon name="bell" size={13} />
-              通知
-            </button>
+            {activeMenu === 'rooms' ? (
+              <>
+                <button type="button">
+                  <DashboardIcon name="search" size={13} />
+                  筛选
+                </button>
+                <button type="button">
+                  <DashboardIcon name="grid" size={13} />
+                  列表视图
+                </button>
+              </>
+            ) : (
+              <>
+                <button type="button">
+                  <DashboardIcon name="search" size={13} />
+                  搜索自习室
+                </button>
+                <button type="button">
+                  <DashboardIcon name="bell" size={13} />
+                  通知
+                </button>
+              </>
+            )}
             <button type="button" onClick={onLogout}>
               退出登录
             </button>
           </div>
         </header>
 
+        {activeMenu === 'rooms' ? (
+          <StudentRoomsPanel />
+        ) : (
+          <>
         <section className="student-home-booking-banner" aria-label="下一场预约">
           <span className="student-home-banner-icon">
             <DashboardIcon name="calendar" size={24} />
@@ -4572,7 +4721,79 @@ export function StudentHomePreview({
             </section>
           </aside>
         </div>
+          </>
+        )}
       </section>
     </main>
+  );
+}
+
+function StudentRoomsPanel() {
+  return (
+    <section className="student-rooms-panel" aria-label="学生自习室列表">
+      <div className="student-rooms-filterbar">
+        <div className="student-rooms-filterchips">
+          {STUDENT_ROOM_FILTERS.map((filter, index) => (
+            <button className={index === 0 ? 'is-active' : ''} key={filter} type="button">
+              {filter}
+            </button>
+          ))}
+        </div>
+        <span>今日 08:00 – 22:00 · 明日可预约</span>
+      </div>
+
+      <div className="student-rooms-grid">
+        {STUDENT_ROOM_LIST.map((room) => {
+          const status = STUDENT_ROOM_STATUS_META[room.status];
+          const occupiedPercent = Math.round(((room.capacity - room.available) / room.capacity) * 100);
+
+          return (
+            <article className="dashboard-card student-room-card" key={room.name}>
+              <header>
+                <span className="student-room-icon">
+                  <DashboardIcon name="building" size={20} />
+                </span>
+                <mark data-variant={status.variant}>{status.label}</mark>
+              </header>
+
+              <strong>{room.name}</strong>
+              <small>
+                <DashboardIcon name="pin" size={11} />
+                {room.building} · {room.floor}
+              </small>
+
+              <div className="student-room-seat-meter">
+                <div>
+                  <span>座位占用</span>
+                  <strong>
+                    {room.available} 空余 / {room.capacity}
+                  </strong>
+                </div>
+                <i>
+                  <b data-variant={status.variant} style={{ width: `${occupiedPercent}%` }} />
+                </i>
+              </div>
+
+              <div className="student-room-tags">
+                <span>{room.scope}</span>
+                {room.tags.map((tag) => (
+                  <span key={tag}>{tag}</span>
+                ))}
+              </div>
+
+              <footer>
+                <span>
+                  <DashboardIcon name="clock" size={11} />
+                  {room.hours}
+                </span>
+                <button className={room.status === 'full' ? 'is-waitlist' : ''} type="button">
+                  {room.status === 'full' ? '加入候补' : '立即预约'}
+                </button>
+              </footer>
+            </article>
+          );
+        })}
+      </div>
+    </section>
   );
 }

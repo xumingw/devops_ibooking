@@ -212,6 +212,31 @@ describe('统一登录页', () => {
     expect(html).not.toContain('查看自习室');
   });
 
+  it('渲染学生自习室列表页面', () => {
+    const html = renderToStaticMarkup(
+      <StudentHomePreview studentName="林晓明" initialActive="rooms" />
+    );
+
+    expect(html).toContain('自习室列表');
+    expect(html).toContain('共 6 个自习室');
+    expect(html).toContain('筛选');
+    expect(html).toContain('列表视图');
+    expect(html).toContain('全部楼栋');
+    expect(html).toContain('全校开放');
+    expect(html).toContain('有空位');
+    expect(html).toContain('有插座');
+    expect(html).toContain('靠窗');
+    expect(html).toContain('今日 08:00 – 22:00 · 明日可预约');
+    expect(html).toContain('经管自习室 301');
+    expect(html).toContain('08:00–22:00');
+    expect(html).toContain('开放中');
+    expect(html).toContain('新闻学院研讨室');
+    expect(html).toContain('仅新闻学院');
+    expect(html).toContain('加入候补');
+    expect(html).toContain('立即预约');
+    expect(html).not.toContain('下一场预约');
+  });
+
   it('生产构建缺少 VITE_API_BASE_URL 时不能回退到 localhost', () => {
     expect(() => resolveApiBaseUrl({ PROD: true })).toThrow(
       '生产构建缺少 VITE_API_BASE_URL'
