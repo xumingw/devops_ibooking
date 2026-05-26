@@ -1531,6 +1531,116 @@ const ADMIN_PARAM_SCOPES = [
 
 const ADMIN_PARAM_FILTERS = ['全部参数', '生效范围', '发布状态'] as const;
 
+const ADMIN_AUDIT_SUMMARY = [
+  {
+    label: '资源变更',
+    value: '74',
+    note: '自习室、座位、开放时间',
+    icon: 'building',
+    tone: '#3A6FA8'
+  },
+  {
+    label: '权限变更',
+    value: '9',
+    note: '角色权限调整需复核',
+    icon: 'shield',
+    tone: '#C8820A'
+  },
+  {
+    label: '失败登录',
+    value: '4',
+    note: '异常账号与 IP 已标记',
+    icon: 'alert',
+    tone: '#C84040'
+  },
+  {
+    label: '风险事件',
+    value: '6',
+    note: '待安全管理员确认',
+    icon: 'eye',
+    tone: F.gold
+  }
+] satisfies Array<{
+  label: string;
+  value: string;
+  note: string;
+  icon: DashboardIconName;
+  tone: string;
+}>;
+
+const ADMIN_AUDIT_RECORDS = [
+  {
+    time: '10:31:22',
+    operator: '王老师',
+    module: '自习室管理',
+    action: '更新开放时间',
+    target: '经管自习室 301',
+    ip: '10.28.4.12',
+    result: 'success',
+    detail: '07:00-22:00 调整为 07:00-23:00'
+  },
+  {
+    time: '10:08:41',
+    operator: '张老师',
+    module: '座位管理',
+    action: '停用座位 C-018',
+    target: '理工自习室 201',
+    ip: '10.28.4.33',
+    result: 'success',
+    detail: '电源插座检修，停用至 2026-05-27'
+  },
+  {
+    time: '09:42:09',
+    operator: '李老师',
+    module: '角色权限',
+    action: '新增权限点',
+    target: 'ROLE_ROOM_ADMIN',
+    ip: '10.28.4.16',
+    result: 'review',
+    detail: '权限调整需二次复核'
+  },
+  {
+    time: '09:16:00',
+    operator: '系统任务',
+    module: '签到任务',
+    action: '自动取消预约',
+    target: 'BK-20260526-0916',
+    ip: 'system',
+    result: 'success',
+    detail: '开始后 15 分钟未签到，释放座位并记录违约'
+  },
+  {
+    time: '08:52:18',
+    operator: 'admin_full',
+    module: '统一登录',
+    action: '登录失败 4 次',
+    target: '后台登录',
+    ip: '10.28.4.16',
+    result: 'risk',
+    detail: '同一 IP 短时间连续失败，已加入风险事件'
+  }
+] as const;
+
+const ADMIN_AUDIT_STATUS_META = {
+  success: { label: '成功', variant: 'green' },
+  review: { label: '待审批', variant: 'gold' },
+  risk: { label: '异常', variant: 'red' }
+} as const;
+
+const ADMIN_AUDIT_RISKS = [
+  ['登录失败 4 次', 'IP 10.28.4.16', '需要确认是否为管理员本人操作'],
+  ['权限调整需二次复核', 'ROLE_ROOM_ADMIN 新增权限点', '等待超级管理员审批'],
+  ['高频导出日志', '30 分钟内导出 3 次', '建议核对数据使用目的']
+] as const;
+
+const ADMIN_AUDIT_RULES = [
+  ['操作留痕不可删除', '管理员、系统任务和规则引擎动作都保留完整流水'],
+  ['审计数据保留 180 天', '满足课程要求中的操作追踪和问题复盘'],
+  ['导出需要记录用途', '导出审计日志会同步生成二次审计记录']
+] as const;
+
+const ADMIN_AUDIT_FILTERS = ['全部模块', '全部结果', '最近 24 小时'] as const;
+
 const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
   dashboard: {
     title: '管理仪表盘',
@@ -1777,7 +1887,7 @@ const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
     ]
   },
   audit: {
-    title: '审计日志',
+    title: '审计日志管理',
     sub: '最近 24 小时 386 条',
     description: '记录登录、资源变更、权限调整和关键运营操作，便于追踪。',
     actions: [
@@ -2003,6 +2113,8 @@ export function AdminDashboard({ accessToken, adminName, initialActive, onLogout
           <RoleManagementPanel />
         ) : activeMenu === 'params' ? (
           <SystemParameterPanel />
+        ) : activeMenu === 'audit' ? (
+          <AuditLogPanel />
         ) : (
           <AdminModulePanel meta={activeMeta} />
         )}
@@ -3831,6 +3943,113 @@ function SystemParameterPanel() {
             ['违约策略联动签到记录', '自动取消后同步释放座位并生成违约记录']
           ].map(([title, desc], index) => (
             <div className="system-parameter-rule" key={title}>
+              <span>{index + 1}</span>
+              <div>
+                <strong>{title}</strong>
+                <small>{desc}</small>
+              </div>
+            </div>
+          ))}
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function AuditLogPanel() {
+  return (
+    <section className="audit-log-panel" aria-label="审计日志管理">
+      <div className="audit-log-summary-grid" aria-label="审计日志关键指标">
+        {ADMIN_AUDIT_SUMMARY.map((item) => (
+          <article className="dashboard-card audit-log-summary-card" key={item.label}>
+            <span className="audit-log-summary-icon" style={{ color: item.tone }}>
+              <DashboardIcon name={item.icon} size={15} />
+            </span>
+            <div>
+              <strong>{item.value}</strong>
+              <span>{item.label}</span>
+              <small>{item.note}</small>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="audit-log-toolbar">
+        <label className="audit-log-search">
+          <DashboardIcon name="search" size={14} />
+          <input aria-label="搜索审计日志" placeholder="操作者、模块、预约编号" />
+        </label>
+        {ADMIN_AUDIT_FILTERS.map((filter) => (
+          <button key={filter} type="button">
+            {filter}
+            <DashboardIcon name="chevron-down" size={12} />
+          </button>
+        ))}
+        <button className="audit-log-primary" type="button">
+          <DashboardIcon name="eye" size={13} />
+          筛选模块
+        </button>
+        <button type="button">
+          <DashboardIcon name="download" size={13} />
+          导出日志
+        </button>
+      </div>
+
+      <div className="audit-log-layout">
+        <section className="dashboard-card audit-log-table-card">
+          <header className="audit-log-head">
+            <div>
+              <span>保留管理员操作痕迹</span>
+              <h2>审计流水</h2>
+            </div>
+            <small>记录登录、资源变更、权限调整和关键运营操作，支持追踪与复盘。</small>
+          </header>
+
+          <div className="audit-log-table">
+            <div className="audit-log-table-head">
+              {['时间', '操作者', '模块', '动作', '对象', '来源 IP', '结果', '详情'].map((head) => (
+                <span key={head}>{head}</span>
+              ))}
+            </div>
+            {ADMIN_AUDIT_RECORDS.map((record) => {
+              const status = ADMIN_AUDIT_STATUS_META[record.result];
+              return (
+                <div className="audit-log-table-row" key={`${record.time}-${record.action}`}>
+                  <code>{record.time}</code>
+                  <strong>{record.operator}</strong>
+                  <span>{record.module}</span>
+                  <span>{record.action}</span>
+                  <span>{record.target}</span>
+                  <span>{record.ip}</span>
+                  <span>
+                    <mark data-variant={status.variant}>{status.label}</mark>
+                  </span>
+                  <small>{record.detail}</small>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <aside className="dashboard-card audit-log-side-card">
+          <header className="audit-log-head">
+            <div>
+              <span>异常与复核</span>
+              <h2>风险事件</h2>
+            </div>
+          </header>
+          <div className="audit-risk-list">
+            {ADMIN_AUDIT_RISKS.map(([title, meta, desc]) => (
+              <div className="audit-risk-item" key={title}>
+                <strong>{title}</strong>
+                <span>{meta}</span>
+                <small>{desc}</small>
+              </div>
+            ))}
+          </div>
+
+          {ADMIN_AUDIT_RULES.map(([title, desc], index) => (
+            <div className="audit-log-rule" key={title}>
               <span>{index + 1}</span>
               <div>
                 <strong>{title}</strong>
