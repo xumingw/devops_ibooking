@@ -302,6 +302,35 @@ describe('统一登录页', () => {
     expect(html).not.toContain('下一场预约');
   });
 
+  it('渲染学生我的预约页面', () => {
+    const html = renderToStaticMarkup(
+      <StudentHomePreview studentName="林晓明" initialActive="bookings" />
+    );
+
+    expect(html).toContain('我的预约');
+    expect(html).toContain('本学期共 18 次预约 · 16 次完成');
+    expect(html).toContain('筛选状态');
+    expect(html).toContain('导出记录');
+    expect(html).toContain('全部');
+    expect(html).toContain('待签到');
+    expect(html).toContain('使用中');
+    expect(html).toContain('已完成');
+    expect(html).toContain('已取消');
+    expect(html).toContain('违约');
+    expect(html).toContain('今日 14:00–17:00');
+    expect(html).toContain('C3');
+    expect(html).toContain('经管自习室 301');
+    expect(html).toContain('光华楼 A座');
+    expect(html).toContain('立即签到');
+    expect(html).toContain('取消');
+    expect(html).toContain('F12');
+    expect(html).toContain('再次预约');
+    expect(html).toContain('D8');
+    expect(html).toContain('查看原因');
+    expect(html).toContain('B3');
+    expect(html).not.toContain('下一场预约');
+  });
+
   it('生产构建缺少 VITE_API_BASE_URL 时不能回退到 localhost', () => {
     expect(() => resolveApiBaseUrl({ PROD: true })).toThrow(
       '生产构建缺少 VITE_API_BASE_URL'

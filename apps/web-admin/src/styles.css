@@ -6663,6 +6663,216 @@ button {
   letter-spacing: 1px;
 }
 
+.student-bookings-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.student-booking-filter-tabs {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.student-booking-filter-tabs button {
+  min-height: 30px;
+  border: 1px solid #d8e8e5;
+  border-radius: 999px;
+  padding: 5px 14px;
+  background: #ffffff;
+  color: #4a6b64;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.student-booking-filter-tabs button.is-active {
+  border-color: #2d7a6e;
+  background: #2d7a6e;
+  color: #ffffff;
+}
+
+.student-booking-timeline {
+  position: relative;
+  display: grid;
+  gap: 14px;
+}
+
+.student-booking-timeline::before {
+  content: "";
+  width: 2px;
+  position: absolute;
+  top: 18px;
+  bottom: 18px;
+  left: 19px;
+  background: linear-gradient(to bottom, #2d7a6e, #d8e8e5);
+}
+
+.student-booking-timeline-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.student-booking-dot {
+  width: 40px;
+  height: 40px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  border: 2px solid #d8e8e5;
+  border-radius: 999px;
+  background: #ecf4f2;
+  color: #8aaaa4;
+}
+
+.student-booking-dot[data-status="upcoming"] {
+  border-color: #2d7a6e;
+  background: #ecf4f2;
+  color: #2d7a6e;
+}
+
+.student-booking-dot[data-status="completed"] {
+  border-color: #2d9a5c;
+  background: #f0faf4;
+  color: #2d9a5c;
+}
+
+.student-booking-dot[data-status="violation"] {
+  border-color: #c84040;
+  background: #fef2f2;
+  color: #c84040;
+}
+
+.student-booking-card {
+  padding: 16px;
+}
+
+.student-booking-card-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.student-booking-card header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 5px;
+}
+
+.student-booking-card header strong {
+  color: #1a2e2a;
+  font-family: Inter, sans-serif;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.student-booking-card h2 {
+  margin: 0;
+  color: #1a2e2a;
+  font-size: 13px;
+}
+
+.student-booking-card mark {
+  border: 1px solid #d8e8e5;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: #ecf4f2;
+  color: #4a6b64;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.student-booking-card mark[data-variant="blue"] {
+  border-color: rgba(45, 122, 110, 0.18);
+  background: #ecf4f2;
+  color: #2d7a6e;
+}
+
+.student-booking-card mark[data-variant="green"] {
+  border-color: #bbf7d0;
+  background: #f0faf4;
+  color: #2d9a5c;
+}
+
+.student-booking-card mark[data-variant="red"] {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #c84040;
+}
+
+.student-booking-card mark[data-variant="gray"] {
+  border-color: #d8e8e5;
+  background: #f3f4f6;
+  color: #8aaaa4;
+}
+
+.student-booking-card p {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0;
+  color: #8aaaa4;
+  font-size: 11px;
+}
+
+.student-booking-card p span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.student-booking-tags {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.student-booking-tags span {
+  border: 1px solid #d8e8e5;
+  border-radius: 999px;
+  padding: 2px 7px;
+  background: #f3f4f6;
+  color: #4a6b64;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.student-booking-card-actions {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.student-booking-card-actions button {
+  min-height: 31px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1.5px solid #d8e8e5;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #ffffff;
+  color: #2d7a6e;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.student-booking-card-actions button.is-primary {
+  border-color: #2d7a6e;
+  background: #2d7a6e;
+  color: #ffffff;
+}
+
 @media (max-width: 860px) {
   .admin-login-page {
     grid-template-columns: 1fr;
@@ -6797,6 +7007,14 @@ button {
 
   .student-seat-booking-panel {
     border-top: 1px solid #d8e8e5;
+  }
+
+  .student-booking-card-main {
+    flex-direction: column;
+  }
+
+  .student-booking-card-actions {
+    justify-content: flex-start;
   }
 
   .admin-brand-panel {
