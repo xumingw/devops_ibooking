@@ -1989,6 +1989,74 @@ const STUDENT_BOOKING_RULES = [
 
 const STUDENT_REMINDER_OPTIONS = ['微信服务通知', '邮件提醒', '不提醒'] as const;
 
+type StudentBookingStatus = 'upcoming' | 'completed' | 'violation' | 'cancelled';
+
+const STUDENT_BOOKING_FILTERS = ['全部', '待签到', '使用中', '已完成', '已取消', '违约'] as const;
+
+const STUDENT_BOOKING_LIST = [
+  {
+    seat: 'C3',
+    room: '经管自习室 301',
+    location: '光华楼 A座',
+    time: '今日 14:00–17:00',
+    status: 'upcoming',
+    tags: ['插座']
+  },
+  {
+    seat: 'F12',
+    room: '理工自习室 201',
+    location: '逸夫楼 2楼',
+    time: '4月22日 09:00–12:00',
+    status: 'completed',
+    tags: ['24小时']
+  },
+  {
+    seat: 'A5',
+    room: '文史馆阅览室',
+    location: '文史馆 1楼',
+    time: '4月20日 14:00–16:00',
+    status: 'completed',
+    tags: ['靠窗']
+  },
+  {
+    seat: 'D8',
+    room: '经管自习室 301',
+    location: '光华楼 A座',
+    time: '4月18日 10:00–12:00',
+    status: 'violation',
+    tags: []
+  },
+  {
+    seat: 'B3',
+    room: '理工自习室 201',
+    location: '逸夫楼 2楼',
+    time: '4月15日 19:00–22:00',
+    status: 'cancelled',
+    tags: []
+  }
+] satisfies Array<{
+  seat: string;
+  room: string;
+  location: string;
+  time: string;
+  status: StudentBookingStatus;
+  tags: string[];
+}>;
+
+const STUDENT_BOOKING_STATUS_META: Record<
+  StudentBookingStatus,
+  {
+    label: string;
+    variant: 'blue' | 'green' | 'red' | 'gray';
+    icon: DashboardIconName;
+  }
+> = {
+  upcoming: { label: '待签到', variant: 'blue', icon: 'clock' },
+  completed: { label: '已完成', variant: 'green', icon: 'check-circle' },
+  violation: { label: '违约', variant: 'red', icon: 'alert' },
+  cancelled: { label: '已取消', variant: 'gray', icon: 'x' }
+};
+
 const getStudentSeatNumber = (rowIndex: number, colIndex: number) =>
   `${String.fromCharCode(65 + rowIndex)}${colIndex + 1}`;
 
@@ -4621,6 +4689,8 @@ export function StudentHomePreview({
         ? '选座预约'
         : activeMenu === 'confirm'
           ? '确认预约'
+          : activeMenu === 'bookings'
+            ? '我的预约'
           : '首页概览';
   const pageSubtitle =
     activeMenu === 'rooms'
@@ -4629,6 +4699,8 @@ export function StudentHomePreview({
         ? '光华楼 A座 · 3楼 · 经管自习室 301'
         : activeMenu === 'confirm'
           ? '请仔细核对信息后提交'
+          : activeMenu === 'bookings'
+            ? '本学期共 18 次预约 · 16 次完成'
           : '2026年5月26日 · 学习空间实时状态';
 
   return (
@@ -4677,7 +4749,18 @@ export function StudentHomePreview({
             <p>{pageSubtitle}</p>
           </div>
           <div className="student-home-actions">
-            {activeMenu === 'confirm' ? (
+            {activeMenu === 'bookings' ? (
+              <>
+                <button type="button">
+                  <DashboardIcon name="search" size={13} />
+                  筛选状态
+                </button>
+                <button type="button">
+                  <DashboardIcon name="download" size={13} />
+                  导出记录
+                </button>
+              </>
+            ) : activeMenu === 'confirm' ? (
               <>
                 <button type="button" onClick={() => handleStudentPageChange('select')}>
                   <DashboardIcon name="arrow-right" size={13} />
@@ -4734,6 +4817,8 @@ export function StudentHomePreview({
           <StudentSeatSelectorPanel onConfirm={() => handleStudentPageChange('confirm')} />
         ) : activeMenu === 'confirm' ? (
           <StudentBookingConfirmPanel onBack={() => handleStudentPageChange('select')} />
+        ) : activeMenu === 'bookings' ? (
+          <StudentBookingsPanel />
         ) : (
           <>
         <section className="student-home-booking-banner" aria-label="下一场预约">
@@ -5169,6 +5254,85 @@ function StudentBookingConfirmPanel({ onBack }: { onBack?: () => void }) {
           </button>
           <button type="button">确认提交预约</button>
         </div>
+      </div>
+    </section>
+  );
+}
+
+function StudentBookingsPanel() {
+  return (
+    <section className="student-bookings-panel" aria-label="学生我的预约">
+      <div className="student-booking-filter-tabs">
+        {STUDENT_BOOKING_FILTERS.map((filter, index) => (
+          <button className={index === 0 ? 'is-active' : ''} key={filter} type="button">
+            {filter}
+          </button>
+        ))}
+      </div>
+
+      <div className="student-booking-timeline">
+        {STUDENT_BOOKING_LIST.map((booking) => {
+          const status = STUDENT_BOOKING_STATUS_META[booking.status];
+
+          return (
+            <article className="student-booking-timeline-item" key={`${booking.seat}-${booking.time}`}>
+              <span className="student-booking-dot" data-status={booking.status}>
+                <DashboardIcon name={status.icon} size={16} />
+              </span>
+
+              <div className="dashboard-card student-booking-card">
+                <div className="student-booking-card-main">
+                  <div>
+                    <header>
+                      <strong>{booking.seat}</strong>
+                      <h2>{booking.room}</h2>
+                      <mark data-variant={status.variant}>{status.label}</mark>
+                    </header>
+
+                    <p>
+                      <span>
+                        <DashboardIcon name="pin" size={10} />
+                        {booking.location}
+                      </span>
+                      <span>
+                        <DashboardIcon name="clock" size={10} />
+                        {booking.time}
+                      </span>
+                    </p>
+
+                    {booking.tags.length > 0 ? (
+                      <div className="student-booking-tags">
+                        {booking.tags.map((tag) => (
+                          <span key={tag}>{tag}</span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="student-booking-card-actions">
+                    {booking.status === 'upcoming' ? (
+                      <>
+                        <button className="is-primary" type="button">
+                          立即签到
+                        </button>
+                        <button type="button">取消</button>
+                      </>
+                    ) : null}
+                    {booking.status === 'completed' ? (
+                      <button type="button">再次预约</button>
+                    ) : null}
+                    {booking.status === 'violation' ? (
+                      <button type="button">
+                        <DashboardIcon name="info" size={12} />
+                        查看原因
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </article>
+          );
+        })}
       </div>
     </section>
   );
