@@ -6873,6 +6873,175 @@ button {
   color: #ffffff;
 }
 
+.student-checkin-panel {
+  min-height: calc(100vh - 102px);
+  display: grid;
+  place-items: start center;
+  padding: 22px 0 38px;
+}
+
+.student-checkin-card {
+  width: min(100%, 520px);
+  text-align: center;
+}
+
+.student-checkin-timer {
+  width: 140px;
+  height: 140px;
+  position: relative;
+  margin: 8px auto 32px;
+}
+
+.student-checkin-timer svg {
+  width: 140px;
+  height: 140px;
+  display: block;
+  transform: rotate(-90deg);
+}
+
+.student-checkin-timer circle {
+  fill: none;
+  stroke: #ecf4f2;
+  stroke-width: 6;
+}
+
+.student-checkin-timer circle:last-child {
+  stroke: #2d7a6e;
+  stroke-dasharray: 389.56;
+  stroke-dashoffset: 148;
+  stroke-linecap: round;
+}
+
+.student-checkin-timer > div {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  place-items: center;
+}
+
+.student-checkin-timer strong {
+  color: #2d7a6e;
+  font-family: Inter, sans-serif;
+  font-size: 32px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.student-checkin-timer span {
+  margin-top: 4px;
+  color: #8aaaa4;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.student-checkin-card h2 {
+  margin: 0 0 8px;
+  color: #4a6b64;
+  font-size: 13px;
+}
+
+.student-checkin-card p {
+  margin: 0 0 30px;
+  color: #8aaaa4;
+  font-size: 12px;
+}
+
+.student-checkin-code {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+
+.student-checkin-code > span:not(.student-checkin-code-break) {
+  width: 52px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #d8e8e5;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #2d7a6e;
+  font-family: Inter, sans-serif;
+  font-size: 26px;
+  font-weight: 900;
+}
+
+.student-checkin-code > span.is-filled {
+  border-color: #2d7a6e;
+  background: #ecf4f2;
+}
+
+.student-checkin-code > span.is-active {
+  border-color: #2d7a6e;
+  box-shadow: 0 0 0 3px rgba(45, 122, 110, 0.16);
+}
+
+.student-checkin-code-break {
+  width: 16px;
+  height: 2px;
+  border-radius: 999px;
+  background: #b6cbc6;
+}
+
+.student-checkin-keypad {
+  width: min(100%, 260px);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 auto 24px;
+}
+
+.student-checkin-keypad button {
+  min-height: 52px;
+  border: 1.5px solid #d8e8e5;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #1a2e2a;
+  font-family: Inter, sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.student-checkin-keypad button:disabled {
+  border-color: transparent;
+  background: transparent;
+  cursor: default;
+}
+
+.student-checkin-submit {
+  width: min(100%, 260px);
+  min-height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #2d7a6e, #1f5f55);
+  box-shadow: 0 12px 28px rgba(45, 122, 110, 0.24);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  cursor: pointer;
+}
+
+.student-checkin-help {
+  margin-top: 20px;
+  color: #8aaaa4;
+  font-size: 12px;
+}
+
+.student-checkin-help button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #3a6fa8;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 @media (max-width: 860px) {
   .admin-login-page {
     grid-template-columns: 1fr;
@@ -7162,6 +7331,20 @@ button {
     width: 30px;
     height: 30px;
     font-size: 9px;
+  }
+
+  .student-checkin-panel {
+    padding-inline: 0;
+  }
+
+  .student-checkin-code {
+    gap: 6px;
+  }
+
+  .student-checkin-code > span:not(.student-checkin-code-break) {
+    width: 42px;
+    height: 50px;
+    font-size: 22px;
   }
 
   .student-seat-column-labels {
