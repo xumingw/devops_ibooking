@@ -1,0 +1,149 @@
+.rooms-page {
+  padding: 0 36rpx 160rpx;
+}
+
+.search-panel {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  margin: 0 -36rpx 28rpx;
+  padding: 8rpx 36rpx 28rpx;
+  background: #f2f7f6;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  height: 84rpx;
+  padding: 0 24rpx;
+  border: 1rpx solid #d8e8e5;
+  border-radius: 22rpx;
+  color: #2d7a6e;
+  font-size: 28rpx;
+  font-weight: 900;
+  background: #fafeff;
+}
+
+.search-box input {
+  flex: 1;
+  color: #1a2e2a;
+  font-size: 26rpx;
+  font-weight: 600;
+}
+
+.input-placeholder {
+  color: #8aaaa4;
+  font-weight: 500;
+}
+
+.filter-row {
+  display: flex;
+  gap: 14rpx;
+  margin-top: 20rpx;
+  overflow-x: auto;
+}
+
+.filter-chip {
+  flex-shrink: 0;
+  padding: 12rpx 24rpx;
+  border-radius: 999rpx;
+  color: #4a6b64;
+  font-size: 24rpx;
+  font-weight: 600;
+  background: #fafeff;
+}
+
+.filter-active {
+  color: #ffffff;
+  background: #2d7a6e;
+}
+
+.room-count {
+  margin-bottom: 18rpx;
+  color: #4a6b64;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.room-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.room-card {
+  padding: 26rpx 28rpx;
+  border-radius: 28rpx;
+}
+
+.room-top,
+.room-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+
+.room-name {
+  color: #1a2e2a;
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.room-meta {
+  margin-top: 8rpx;
+  color: #8aaaa4;
+  font-size: 23rpx;
+}
+
+.availability {
+  min-width: 86rpx;
+  text-align: right;
+}
+
+.availability view {
+  color: #2d9a5c;
+  font-size: 36rpx;
+  font-weight: 800;
+}
+
+.availability text {
+  color: #8aaaa4;
+  font-size: 20rpx;
+}
+
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-top: 22rpx;
+}
+
+.mini-tag {
+  padding: 5rpx 13rpx;
+  border-radius: 999rpx;
+  color: #2d7a6e;
+  font-size: 21rpx;
+  font-weight: 600;
+  background: #ebf6f4;
+}
+
+.room-footer {
+  align-items: center;
+  margin-top: 24rpx;
+  padding-top: 22rpx;
+  border-top: 1rpx solid #ecf4f2;
+}
+
+.room-footer text {
+  flex: 1;
+  color: #4a6b64;
+  font-size: 22rpx;
+  line-height: 1.45;
+}
+
+.room-footer button {
+  width: 132rpx;
+  min-height: 64rpx;
+  font-size: 24rpx;
+}

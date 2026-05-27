@@ -1,0 +1,9 @@
+{
+  "name": "ibooking-miniprogram",
+  "version": "0.1.0",
+  "private": true,
+  "description": "复旦大学自习室预约系统微信小程序演示端",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

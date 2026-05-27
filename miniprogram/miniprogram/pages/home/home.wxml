@@ -1,0 +1,72 @@
+<view class="page home-page">
+  <view class="hero">
+    <view class="hero-top">
+      <view>
+        <view class="greeting">早上好，{{userName}}</view>
+        <view class="hero-title">今日还有 <text>{{availableTotal}}</text> 个空座</view>
+      </view>
+      <view class="avatar">{{avatarName}}</view>
+    </view>
+
+    <view class="next-card">
+      <view>
+        <view class="next-label">下一场预约</view>
+        <view class="next-title">经管自习室 301 · C3</view>
+        <view class="next-time">今日 14:00-17:00 · <text>2h18m 后</text></view>
+      </view>
+      <button class="checkin-pill" bindtap="goCheckin">签 到</button>
+    </view>
+  </view>
+
+  <view class="content">
+    <view class="quick-grid">
+      <view class="quick-item" bindtap="goRooms">
+        <view class="quick-icon">找</view>
+        <text>找座位</text>
+      </view>
+      <view class="quick-item" bindtap="goCheckin">
+        <view class="quick-icon green">扫</view>
+        <text>扫码签到</text>
+      </view>
+      <view class="quick-item" bindtap="goBookings">
+        <view class="quick-icon blue">约</view>
+        <text>我的预约</text>
+      </view>
+      <view class="quick-item" bindtap="goAssistant">
+        <view class="quick-icon gold">问</view>
+        <text>智能推荐</text>
+      </view>
+    </view>
+
+    <view class="section-head">
+      <view class="section-title">附近自习室</view>
+      <text bindtap="goRooms">全部</text>
+    </view>
+
+    <view class="room-list">
+      <view
+        wx:for="{{rooms}}"
+        wx:key="id"
+        class="room-card card"
+        data-id="{{item.id}}"
+        data-name="{{item.name}}"
+        bindtap="openRoom"
+      >
+        <view class="room-icon">楼</view>
+        <view class="room-main">
+          <view class="room-name">{{item.name}}</view>
+          <view class="room-meta">
+            <text class="room-distance">{{item.distanceLabel}}</text>
+            <text wx:for="{{item.tags}}" wx:key="*this" class="mini-tag">{{item}}</text>
+          </view>
+        </view>
+        <view class="room-free">
+          <view>{{item.available}}</view>
+          <text>空余</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <mobile-tab active="home" />
+</view>

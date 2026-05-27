@@ -1,0 +1,47 @@
+<view class="page rooms-page">
+  <view class="search-panel">
+    <view class="search-box">
+      <text>搜</text>
+      <input value="{{query}}" placeholder="搜索楼栋、自习室、插座、靠窗" placeholder-class="input-placeholder" bindinput="onSearchInput" />
+    </view>
+    <view class="filter-row">
+      <view class="filter-chip {{activeFilter === 'all' ? 'filter-active' : ''}}" data-key="all" bindtap="chooseFilter">全部</view>
+      <view class="filter-chip {{activeFilter === 'power' ? 'filter-active' : ''}}" data-key="power" bindtap="chooseFilter">有插座</view>
+      <view class="filter-chip {{activeFilter === 'window' ? 'filter-active' : ''}}" data-key="window" bindtap="chooseFilter">靠窗</view>
+      <view class="filter-chip {{activeFilter === 'overnight' ? 'filter-active' : ''}}" data-key="overnight" bindtap="chooseFilter">通宵</view>
+    </view>
+  </view>
+
+  <view class="room-count">共 {{visibleRooms.length}} 间自习室可查看</view>
+
+  <view class="room-list">
+    <view
+      wx:for="{{visibleRooms}}"
+      wx:key="id"
+      class="room-card card"
+      data-id="{{item.id}}"
+      data-name="{{item.name}}"
+      bindtap="openRoom"
+    >
+      <view class="room-top">
+        <view>
+          <view class="room-name">{{item.name}}</view>
+          <view class="room-meta">{{item.distanceLabel}} · 容量 {{item.capacity}}</view>
+        </view>
+        <view class="availability">
+          <view>{{item.available}}</view>
+          <text>空座</text>
+        </view>
+      </view>
+      <view class="tag-row">
+        <text wx:for="{{item.tags}}" wx:key="*this" class="mini-tag">{{item}}</text>
+      </view>
+      <view class="room-footer">
+        <text>{{item.scopeType === 'DEPARTMENT' ? '院系自习室，按学生院系限制预约' : '全校学生可预约'}}</text>
+        <button class="secondary-button">选座</button>
+      </view>
+    </view>
+  </view>
+
+  <mobile-tab active="rooms" />
+</view>

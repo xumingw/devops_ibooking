@@ -1,0 +1,41 @@
+<view class="page profile-page">
+  <view class="profile-header">
+    <view class="avatar">{{avatarName}}</view>
+    <view class="profile-info">
+      <view class="profile-name">{{userName}}</view>
+      <view class="profile-subtitle">{{studentNo}} · {{departmentName}}</view>
+      <view class="badge-row">
+        <text class="identity-badge">本科生</text>
+        <text class="credit-badge">{{creditLabel}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="stats-row">
+    <view wx:for="{{stats}}" wx:key="label" class="stat-card">
+      <view>{{item.value}}</view>
+      <text>{{item.label}}</text>
+    </view>
+  </view>
+
+  <view wx:for="{{menuGroups}}" wx:key="title" class="menu-section">
+    <view class="menu-title">{{item.title}}</view>
+    <view class="menu-card">
+      <view
+        wx:for="{{item.items}}"
+        wx:for-item="menu"
+        wx:key="label"
+        class="menu-item"
+        data-action="{{menu.action}}"
+        bindtap="onMenuTap"
+      >
+        <view class="menu-icon">{{menu.mark}}</view>
+        <view class="menu-label">{{menu.label}}</view>
+        <text wx:if="{{menu.sub}}" class="menu-sub">{{menu.sub}}</text>
+        <text class="menu-arrow">›</text>
+      </view>
+    </view>
+  </view>
+
+  <mobile-tab active="profile" />
+</view>

@@ -1,0 +1,29 @@
+<view class="checkin-page">
+  <view class="scan-subtitle">将镜头对准教室屏幕上的二维码</view>
+
+  <view class="scanner-frame" bindtap="scanCode">
+    <view class="corner corner-tl"></view>
+    <view class="corner corner-tr"></view>
+    <view class="corner corner-bl"></view>
+    <view class="corner corner-br"></view>
+    <view class="scan-line"></view>
+    <view class="camera-placeholder">
+      <view class="scan-mark">▦</view>
+    </view>
+  </view>
+
+  <view class="countdown">签到时间剩余 <text>9:22</text></view>
+
+  <view class="manual-card">
+    <view class="manual-title">扫码失败？手动输入 6 位动态码</view>
+    <view class="code-row">
+      <block wx:for="{{codeDigits}}" wx:for-item="digit" wx:for-index="digitIndex" wx:key="id">
+        <view wx:if="{{digitIndex === 3}}" class="code-separator"></view>
+        <view class="code-cell {{digit.value ? 'code-filled' : ''}}">{{digit.value}}</view>
+      </block>
+    </view>
+    <button class="confirm-button" bindtap="confirmCheckIn">确认签到</button>
+  </view>
+
+  <mobile-tab active="bookings" />
+</view>
