@@ -565,7 +565,7 @@ type DashboardProps = {
 
 type StudentDashboardProps = {
   studentName: string;
-  initialActive?: StudentMenuId;
+  initialActive?: StudentPageId;
   onLogout?: () => void;
 };
 
@@ -599,6 +599,7 @@ const STUDENT_MENU_IDS = [
 ] as const;
 
 type StudentMenuId = (typeof STUDENT_MENU_IDS)[number];
+type StudentPageId = StudentMenuId | 'confirm';
 
 type AdminMenuAction = {
   id?: 'create-room' | 'refresh-rooms' | 'create-seat';
@@ -1968,6 +1969,26 @@ const STUDENT_SEAT_TIME_SLOTS = [
   { time: '17:00–22:00', label: '空闲', status: 'available' }
 ] as const;
 
+const STUDENT_BOOKING_CONFIRM_STEPS = ['选择时间', '选择座位', '确认信息', '完成'] as const;
+
+const STUDENT_BOOKING_CONFIRM_DETAILS = [
+  ['自习室', '经管自习室 301'],
+  ['楼栋位置', '光华楼 A座 3楼'],
+  ['座位编号', 'C3（插座 · 安静区）'],
+  ['预约日期', '2026年4月24日（周四）'],
+  ['开始时间', '14:00'],
+  ['结束时间', '17:00（共3小时）']
+] as const;
+
+const STUDENT_BOOKING_RULES = [
+  ['签到规则', '开始时间后 15 分钟内扫码/输码签到，逾期自动取消并记录违约 1 次'],
+  ['提前离开', '可通过系统提前结束，不记违约；无故离席超 30 分钟视同违约'],
+  ['取消规则', '开始前 1 小时以上取消不记违约；1 小时内取消记违约 0.5 次'],
+  ['违约累计', '本学期累计 3 次违约将被限制预约 7 天；5 次限制 30 天']
+] as const;
+
+const STUDENT_REMINDER_OPTIONS = ['微信服务通知', '邮件提醒', '不提醒'] as const;
+
 const getStudentSeatNumber = (rowIndex: number, colIndex: number) =>
   `${String.fromCharCode(65 + rowIndex)}${colIndex + 1}`;
 
@@ -2340,6 +2361,9 @@ const isAdminMenuId = (value: string | undefined): value is AdminMenuId =>
 const isStudentMenuId = (value: string | undefined): value is StudentMenuId =>
   STUDENT_MENU_IDS.includes(value as StudentMenuId);
 
+const isStudentPageId = (value: string | undefined): value is StudentPageId =>
+  value === 'confirm' || isStudentMenuId(value);
+
 const resolveInitialAdminMenu = (): AdminMenuId => {
   if (typeof window === 'undefined') {
     return 'dashboard';
@@ -2349,13 +2373,13 @@ const resolveInitialAdminMenu = (): AdminMenuId => {
   return isAdminMenuId(section) ? section : 'dashboard';
 };
 
-const resolveInitialStudentMenu = (): StudentMenuId => {
+const resolveInitialStudentMenu = (): StudentPageId => {
   if (typeof window === 'undefined') {
     return 'home';
   }
 
   const [, section] = window.location.pathname.match(/^\/student\/([^/]+)/) ?? [];
-  return isStudentMenuId(section) ? section : 'home';
+  return isStudentPageId(section) ? section : 'home';
 };
 
 export function AdminDashboard({ accessToken, adminName, initialActive, onLogout }: DashboardProps) {
@@ -4575,23 +4599,37 @@ export function StudentHomePreview({
   initialActive,
   onLogout
 }: StudentDashboardProps) {
-  const [activeMenu, setActiveMenu] = useState<StudentMenuId>(
+  const [activeMenu, setActiveMenu] = useState<StudentPageId>(
     () => initialActive ?? resolveInitialStudentMenu()
   );
+  const activeNavMenu: StudentMenuId = activeMenu === 'confirm' ? 'select' : activeMenu;
 
   const handleStudentMenuChange = (nextMenu: StudentMenuId) => {
     setActiveMenu(nextMenu);
     pushAppPath(nextMenu === 'home' ? '/student' : `/student/${nextMenu}`);
   };
 
+  const handleStudentPageChange = (nextPage: StudentPageId) => {
+    setActiveMenu(nextPage);
+    pushAppPath(nextPage === 'home' ? '/student' : `/student/${nextPage}`);
+  };
+
   const pageTitle =
-    activeMenu === 'rooms' ? '自习室列表' : activeMenu === 'select' ? '选座预约' : '首页概览';
+    activeMenu === 'rooms'
+      ? '自习室列表'
+      : activeMenu === 'select'
+        ? '选座预约'
+        : activeMenu === 'confirm'
+          ? '确认预约'
+          : '首页概览';
   const pageSubtitle =
     activeMenu === 'rooms'
       ? `共 ${STUDENT_ROOM_LIST.length} 个自习室`
       : activeMenu === 'select'
         ? '光华楼 A座 · 3楼 · 经管自习室 301'
-        : '2026年5月26日 · 学习空间实时状态';
+        : activeMenu === 'confirm'
+          ? '请仔细核对信息后提交'
+          : '2026年5月26日 · 学习空间实时状态';
 
   return (
     <main className="student-home-page">
@@ -4609,8 +4647,8 @@ export function StudentHomePreview({
               <div className="student-home-nav-label">{group.label}</div>
               {group.items.map((item) => (
                 <button
-                  aria-current={item.id === activeMenu ? 'page' : undefined}
-                  className={item.id === activeMenu ? 'is-active' : ''}
+                  aria-current={item.id === activeNavMenu ? 'page' : undefined}
+                  className={item.id === activeNavMenu ? 'is-active' : ''}
                   key={item.id}
                   onClick={() => handleStudentMenuChange(item.id)}
                   type="button"
@@ -4639,7 +4677,18 @@ export function StudentHomePreview({
             <p>{pageSubtitle}</p>
           </div>
           <div className="student-home-actions">
-            {activeMenu === 'select' ? (
+            {activeMenu === 'confirm' ? (
+              <>
+                <button type="button" onClick={() => handleStudentPageChange('select')}>
+                  <DashboardIcon name="arrow-right" size={13} />
+                  返回选座
+                </button>
+                <button type="button">
+                  <DashboardIcon name="refresh" size={13} />
+                  重新校验
+                </button>
+              </>
+            ) : activeMenu === 'select' ? (
               <>
                 <button type="button">
                   <DashboardIcon name="building" size={13} />
@@ -4682,7 +4731,9 @@ export function StudentHomePreview({
         {activeMenu === 'rooms' ? (
           <StudentRoomsPanel />
         ) : activeMenu === 'select' ? (
-          <StudentSeatSelectorPanel />
+          <StudentSeatSelectorPanel onConfirm={() => handleStudentPageChange('confirm')} />
+        ) : activeMenu === 'confirm' ? (
+          <StudentBookingConfirmPanel onBack={() => handleStudentPageChange('select')} />
         ) : (
           <>
         <section className="student-home-booking-banner" aria-label="下一场预约">
@@ -4860,7 +4911,7 @@ function StudentRoomsPanel() {
   );
 }
 
-function StudentSeatSelectorPanel() {
+function StudentSeatSelectorPanel({ onConfirm }: { onConfirm?: () => void }) {
   return (
     <section className="student-seat-selector-panel" aria-label="学生选座预约">
       <aside className="student-seat-filter-panel">
@@ -5034,7 +5085,7 @@ function StudentSeatSelectorPanel() {
           </span>
         </div>
 
-        <button className="student-seat-primary-action" type="button">
+        <button className="student-seat-primary-action" type="button" onClick={onConfirm}>
           确认预约
         </button>
         <button className="student-seat-secondary-action" type="button">
@@ -5051,6 +5102,74 @@ function StudentSeatSelectorPanel() {
           ))}
         </section>
       </aside>
+    </section>
+  );
+}
+
+function StudentBookingConfirmPanel({ onBack }: { onBack?: () => void }) {
+  return (
+    <section className="student-booking-confirm-panel" aria-label="学生确认预约">
+      <div className="student-booking-confirm-inner">
+        <ol className="student-booking-stepper" aria-label="预约步骤">
+          {STUDENT_BOOKING_CONFIRM_STEPS.map((step, index) => (
+            <li className={index < 3 ? 'is-done' : ''} key={step}>
+              <span>{index < 2 ? <DashboardIcon name="check" size={13} /> : index + 1}</span>
+              <strong>{step}</strong>
+            </li>
+          ))}
+        </ol>
+
+        <article className="dashboard-card student-booking-confirm-card">
+          <header>
+            <DashboardIcon name="calendar" size={16} />
+            <h2>预约详情</h2>
+          </header>
+          <dl className="student-booking-detail-grid">
+            {STUDENT_BOOKING_CONFIRM_DETAILS.map(([label, value]) => (
+              <div key={label}>
+                <dt>{label}</dt>
+                <dd>{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </article>
+
+        <article className="dashboard-card student-booking-confirm-card">
+          <header>
+            <DashboardIcon name="shield" size={16} />
+            <h2>使用规则与违约须知</h2>
+          </header>
+          <div className="student-booking-rule-list">
+            {STUDENT_BOOKING_RULES.map(([title, description]) => (
+              <section key={title}>
+                <i />
+                <div>
+                  <h3>{title}</h3>
+                  <p>{description}</p>
+                </div>
+              </section>
+            ))}
+          </div>
+        </article>
+
+        <article className="dashboard-card student-booking-reminder-card">
+          <h2>提醒方式</h2>
+          <div>
+            {STUDENT_REMINDER_OPTIONS.map((option, index) => (
+              <button className={index === 0 ? 'is-active' : ''} key={option} type="button">
+                {option}
+              </button>
+            ))}
+          </div>
+        </article>
+
+        <div className="student-booking-confirm-actions">
+          <button type="button" onClick={onBack}>
+            返回修改
+          </button>
+          <button type="button">确认提交预约</button>
+        </div>
+      </div>
     </section>
   );
 }

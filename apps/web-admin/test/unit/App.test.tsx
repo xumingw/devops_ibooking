@@ -270,6 +270,38 @@ describe('统一登录页', () => {
     expect(html).not.toContain('下一场预约');
   });
 
+  it('渲染学生确认预约页面', () => {
+    const html = renderToStaticMarkup(
+      <StudentHomePreview studentName="林晓明" initialActive="confirm" />
+    );
+
+    expect(html).toContain('确认预约');
+    expect(html).toContain('请仔细核对信息后提交');
+    expect(html).toContain('选择时间');
+    expect(html).toContain('选择座位');
+    expect(html).toContain('确认信息');
+    expect(html).toContain('完成');
+    expect(html).toContain('预约详情');
+    expect(html).toContain('自习室');
+    expect(html).toContain('经管自习室 301');
+    expect(html).toContain('座位编号');
+    expect(html).toContain('C3（插座 · 安静区）');
+    expect(html).toContain('预约日期');
+    expect(html).toContain('2026年4月24日（周四）');
+    expect(html).toContain('17:00（共3小时）');
+    expect(html).toContain('使用规则与违约须知');
+    expect(html).toContain('签到规则');
+    expect(html).toContain('开始时间后 15 分钟内扫码/输码签到');
+    expect(html).toContain('取消规则');
+    expect(html).toContain('本学期累计 3 次违约');
+    expect(html).toContain('提醒方式');
+    expect(html).toContain('微信服务通知');
+    expect(html).toContain('邮件提醒');
+    expect(html).toContain('返回修改');
+    expect(html).toContain('确认提交预约');
+    expect(html).not.toContain('下一场预约');
+  });
+
   it('生产构建缺少 VITE_API_BASE_URL 时不能回退到 localhost', () => {
     expect(() => resolveApiBaseUrl({ PROD: true })).toThrow(
       '生产构建缺少 VITE_API_BASE_URL'
