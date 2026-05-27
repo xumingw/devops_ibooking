@@ -331,6 +331,25 @@ describe('统一登录页', () => {
     expect(html).not.toContain('下一场预约');
   });
 
+  it('渲染学生签到页面', () => {
+    const html = renderToStaticMarkup(
+      <StudentHomePreview studentName="林晓明" initialActive="checkin" />
+    );
+
+    expect(html).toContain('签到');
+    expect(html).toContain('输入动态码或扫码完成签到');
+    expect(html).toContain('9:22');
+    expect(html).toContain('剩余签到时间');
+    expect(html).toContain('经管自习室 301 · C3 座 · 今日 14:00–17:00');
+    expect(html).toContain('请查看教室屏幕上的 6 位动态码');
+    expect(html).toContain('274');
+    expect(html).toContain('确 认 签 到');
+    expect(html).toContain('无法输入？');
+    expect(html).toContain('扫描教室二维码');
+    expect(html).toContain('联系管理员');
+    expect(html).not.toContain('下一场预约');
+  });
+
   it('生产构建缺少 VITE_API_BASE_URL 时不能回退到 localhost', () => {
     expect(() => resolveApiBaseUrl({ PROD: true })).toThrow(
       '生产构建缺少 VITE_API_BASE_URL'

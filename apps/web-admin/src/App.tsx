@@ -1,5 +1,5 @@
 import type { CSSProperties, FormEvent, ReactNode } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { F } from '@ibooking/design-tokens';
 
 export type EntryKind = 'student' | 'admin';
@@ -2056,6 +2056,9 @@ const STUDENT_BOOKING_STATUS_META: Record<
   violation: { label: '违约', variant: 'red', icon: 'alert' },
   cancelled: { label: '已取消', variant: 'gray', icon: 'x' }
 };
+
+const STUDENT_CHECKIN_DIGITS = ['2', '7', '4', '', '', ''] as const;
+const STUDENT_CHECKIN_KEYPAD = [1, 2, 3, 4, 5, 6, 7, 8, 9, '', 0, '⌫'] as const;
 
 const getStudentSeatNumber = (rowIndex: number, colIndex: number) =>
   `${String.fromCharCode(65 + rowIndex)}${colIndex + 1}`;
@@ -4691,6 +4694,8 @@ export function StudentHomePreview({
           ? '确认预约'
           : activeMenu === 'bookings'
             ? '我的预约'
+            : activeMenu === 'checkin'
+              ? '签到'
           : '首页概览';
   const pageSubtitle =
     activeMenu === 'rooms'
@@ -4701,6 +4706,8 @@ export function StudentHomePreview({
           ? '请仔细核对信息后提交'
           : activeMenu === 'bookings'
             ? '本学期共 18 次预约 · 16 次完成'
+            : activeMenu === 'checkin'
+              ? '输入动态码或扫码完成签到'
           : '2026年5月26日 · 学习空间实时状态';
 
   return (
@@ -4749,7 +4756,18 @@ export function StudentHomePreview({
             <p>{pageSubtitle}</p>
           </div>
           <div className="student-home-actions">
-            {activeMenu === 'bookings' ? (
+            {activeMenu === 'checkin' ? (
+              <>
+                <button type="button">
+                  <DashboardIcon name="scan" size={13} />
+                  扫码签到
+                </button>
+                <button type="button">
+                  <DashboardIcon name="info" size={13} />
+                  联系管理员
+                </button>
+              </>
+            ) : activeMenu === 'bookings' ? (
               <>
                 <button type="button">
                   <DashboardIcon name="search" size={13} />
@@ -4819,6 +4837,8 @@ export function StudentHomePreview({
           <StudentBookingConfirmPanel onBack={() => handleStudentPageChange('select')} />
         ) : activeMenu === 'bookings' ? (
           <StudentBookingsPanel />
+        ) : activeMenu === 'checkin' ? (
+          <StudentCheckInPanel />
         ) : (
           <>
         <section className="student-home-booking-banner" aria-label="下一场预约">
@@ -5333,6 +5353,61 @@ function StudentBookingsPanel() {
             </article>
           );
         })}
+      </div>
+    </section>
+  );
+}
+
+function StudentCheckInPanel() {
+  const activeDigitIndex = STUDENT_CHECKIN_DIGITS.findIndex((digit) => digit === '');
+
+  return (
+    <section className="student-checkin-panel" aria-label="学生签到">
+      <div className="student-checkin-card">
+        <div className="student-checkin-timer" aria-label="剩余签到时间 9:22">
+          <svg aria-hidden="true" viewBox="0 0 140 140">
+            <circle cx="70" cy="70" r="62" />
+            <circle cx="70" cy="70" r="62" />
+          </svg>
+          <div>
+            <strong>9:22</strong>
+            <span>剩余签到时间</span>
+          </div>
+        </div>
+
+        <h2>经管自习室 301 · C3 座 · 今日 14:00–17:00</h2>
+        <p>请查看教室屏幕上的 6 位动态码</p>
+
+        <div
+          className="student-checkin-code"
+          aria-label={`当前已输入 ${STUDENT_CHECKIN_DIGITS.filter(Boolean).join('')}`}
+        >
+          {STUDENT_CHECKIN_DIGITS.map((digit, index) => (
+            <Fragment key={`${index}-${digit || 'empty'}`}>
+              {index === 3 ? <span className="student-checkin-code-break" /> : null}
+              <span className={index === activeDigitIndex ? 'is-active' : digit ? 'is-filled' : ''}>
+                {digit}
+              </span>
+            </Fragment>
+          ))}
+        </div>
+
+        <div className="student-checkin-keypad" aria-label="数字键盘">
+          {STUDENT_CHECKIN_KEYPAD.map((key, index) => (
+            <button disabled={key === ''} key={`${key}-${index}`} type="button">
+              {key}
+            </button>
+          ))}
+        </div>
+
+        <button className="student-checkin-submit" type="button">
+          确 认 签 到
+        </button>
+
+        <div className="student-checkin-help">
+          无法输入？<button type="button">扫描教室二维码</button> 或{' '}
+          <button type="button">联系管理员</button>
+        </div>
       </div>
     </section>
   );
