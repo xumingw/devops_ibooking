@@ -19,9 +19,12 @@ export interface User {
   id: string;
   studentNo: string;
   name: string;
+  email?: string | null;
   departmentId: string | null;
   departmentName?: string | null;
   status: UserStatus;
+  roles?: Role[];
+  updatedAt?: string;
 }
 
 export interface Role {
