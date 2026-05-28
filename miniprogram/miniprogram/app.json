@@ -9,6 +9,7 @@
     "pages/assistant/assistant",
     "pages/notifications/notifications",
     "pages/violations/violations",
+    "pages/preferences/preferences",
     "pages/profile/profile"
   ],
   "window": {

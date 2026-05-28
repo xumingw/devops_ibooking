@@ -1,0 +1,103 @@
+<view class="page preferences-page">
+  <view class="top-panel">
+    <view class="section-title">偏好设置</view>
+    <text class="panel-sub">这些偏好会影响座位筛选、提醒和智能推荐</text>
+  </view>
+
+  <view class="tab-row">
+    <view
+      wx:for="{{tabs}}"
+      wx:key="key"
+      class="tab-chip {{activeTab === item.key ? 'tab-active' : ''}}"
+      data-key="{{item.key}}"
+      bindtap="chooseTab"
+    >
+      {{item.label}}
+    </view>
+  </view>
+
+  <view wx:if="{{activeTab === 'seat'}}" class="settings-card card">
+    <view class="card-head">
+      <view>
+        <view class="card-title">座位偏好</view>
+        <text>用于找座位和智能推荐的默认筛选条件</text>
+      </view>
+    </view>
+    <view class="choice-grid">
+      <view
+        wx:for="{{seatChoices}}"
+        wx:key="key"
+        class="choice-chip {{item.active ? 'choice-active' : ''}}"
+        data-key="{{item.key}}"
+        bindtap="toggleSeatFeature"
+      >
+        {{item.label}}
+      </view>
+    </view>
+  </view>
+
+  <view wx:elif="{{activeTab === 'reminder'}}" class="settings-card card">
+    <view class="card-head">
+      <view>
+        <view class="card-title">提醒方式</view>
+        <text>预约开始前和未签到时的提醒渠道</text>
+      </view>
+    </view>
+    <view class="reminder-row">
+      <view
+        wx:for="{{reminderChoices}}"
+        wx:key="key"
+        class="reminder-option {{item.active ? 'reminder-active' : ''}}"
+        data-key="{{item.key}}"
+        bindtap="chooseReminder"
+      >
+        {{item.label}}
+      </view>
+    </view>
+    <view class="switch-list">
+      <view class="switch-item">
+        <view>
+          <view>开始前提醒</view>
+          <text>预约开始前 15 分钟提醒</text>
+        </view>
+        <switch checked="{{preferences.startReminder}}" color="#2D7A6E" data-key="startReminder" bindchange="toggleSwitch" />
+      </view>
+      <view class="switch-item">
+        <view>
+          <view>未签到提醒</view>
+          <text>开始后 10 分钟仍未签到时提醒</text>
+        </view>
+        <switch checked="{{preferences.checkinReminder}}" color="#2D7A6E" data-key="checkinReminder" bindchange="toggleSwitch" />
+      </view>
+    </view>
+  </view>
+
+  <view wx:else class="settings-card card">
+    <view class="card-head">
+      <view>
+        <view class="card-title">智能推荐</view>
+        <text>结合空座、偏好和历史预约生成推荐</text>
+      </view>
+    </view>
+    <view class="switch-list">
+      <view class="switch-item">
+        <view>
+          <view>启用智能推荐</view>
+          <text>在首页和助手中优先展示匹配座位</text>
+        </view>
+        <switch checked="{{preferences.aiRecommendation}}" color="#2D7A6E" data-key="aiRecommendation" bindchange="toggleSwitch" />
+      </view>
+      <view class="switch-item">
+        <view>
+          <view>自动匹配偏好</view>
+          <text>推荐时优先匹配插座、安静区等条件</text>
+        </view>
+        <switch checked="{{preferences.autoMatch}}" color="#2D7A6E" data-key="autoMatch" bindchange="toggleSwitch" />
+      </view>
+    </view>
+  </view>
+
+  <button class="primary-button save-button" bindtap="save">保存设置</button>
+
+  <mobile-tab active="profile" />
+</view>
