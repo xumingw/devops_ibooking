@@ -373,6 +373,31 @@ describe('统一登录页', () => {
     expect(html).not.toContain('下一场预约');
   });
 
+  it('渲染学生通知中心页面', () => {
+    const html = renderToStaticMarkup(
+      <StudentHomePreview studentName="林晓明" initialActive="notify" />
+    );
+
+    expect(html).toContain('通知中心');
+    expect(html).toContain('3 条未读');
+    expect(html).toContain('全部已读');
+    expect(html).toContain('今天');
+    expect(html).toContain('签到成功');
+    expect(html).toContain('经管自习室 301 · C3 · 14:02 签到成功，使用至 17:00');
+    expect(html).toContain('预约提醒');
+    expect(html).toContain('您今日 14:00 在经管自习室 301 的预约将在 15 分钟后开始');
+    expect(html).toContain('预约成功');
+    expect(html).toContain('座位 C3 已成功预约，2026年4月24日 14:00–17:00');
+    expect(html).toContain('昨天');
+    expect(html).toContain('未签到提醒');
+    expect(html).toContain('您在理工自习室 201 的预约（F8）开始后 10 分钟仍未签到');
+    expect(html).toContain('使用结束');
+    expect(html).toContain('系统公告');
+    expect(html).toContain('五一假期安排');
+    expect(html).toContain('标记全部已读');
+    expect(html).not.toContain('下一场预约');
+  });
+
   it('生产构建缺少 VITE_API_BASE_URL 时不能回退到 localhost', () => {
     expect(() => resolveApiBaseUrl({ PROD: true })).toThrow(
       '生产构建缺少 VITE_API_BASE_URL'
