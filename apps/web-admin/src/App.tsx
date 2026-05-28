@@ -2103,6 +2103,90 @@ const STUDENT_ASSISTANT_CAPABILITIES = [
   ['规则问答', '签到规则、违约政策和开放时间可直接查询']
 ] as const;
 
+const STUDENT_NOTIFICATION_GROUPS = [
+  {
+    date: '今天',
+    items: [
+      {
+        icon: 'check-circle',
+        tone: '#2D9A5C',
+        title: '签到成功',
+        desc: '经管自习室 301 · C3 · 14:02 签到成功，使用至 17:00',
+        time: '14:02',
+        read: false
+      },
+      {
+        icon: 'bell',
+        tone: F.navy,
+        title: '预约提醒',
+        desc: '您今日 14:00 在经管自习室 301 的预约将在 15 分钟后开始',
+        time: '13:45',
+        read: false
+      },
+      {
+        icon: 'calendar',
+        tone: '#3A6FA8',
+        title: '预约成功',
+        desc: '座位 C3 已成功预约，2026年4月24日 14:00–17:00',
+        time: '09:15',
+        read: false
+      }
+    ]
+  },
+  {
+    date: '昨天',
+    items: [
+      {
+        icon: 'alert',
+        tone: '#C8820A',
+        title: '未签到提醒',
+        desc: '您在理工自习室 201 的预约（F8）开始后 10 分钟仍未签到',
+        time: '08:10',
+        read: true
+      },
+      {
+        icon: 'check-circle',
+        tone: '#2D9A5C',
+        title: '使用结束',
+        desc: '理工自习室 201 · F8 · 使用已结束，感谢使用',
+        time: '12:02',
+        read: true
+      },
+      {
+        icon: 'alert',
+        tone: '#C84040',
+        title: '预约自动取消',
+        desc: '开始后 15 分钟未签到，座位已释放并记录一次违约',
+        time: '08:15',
+        read: true
+      }
+    ]
+  },
+  {
+    date: '系统公告',
+    items: [
+      {
+        icon: 'info',
+        tone: '#7A52A8',
+        title: '五一假期安排',
+        desc: '5月1日–3日，全校自习室照常开放，预约系统正常运行',
+        time: '4月21日',
+        read: true
+      }
+    ]
+  }
+] satisfies Array<{
+  date: string;
+  items: Array<{
+    icon: DashboardIconName;
+    tone: string;
+    title: string;
+    desc: string;
+    time: string;
+    read: boolean;
+  }>;
+}>;
+
 const getStudentSeatNumber = (rowIndex: number, colIndex: number) =>
   `${String.fromCharCode(65 + rowIndex)}${colIndex + 1}`;
 
@@ -4741,6 +4825,8 @@ export function StudentHomePreview({
               ? '签到'
               : activeMenu === 'assistant'
                 ? '智能助手'
+                : activeMenu === 'notify'
+                  ? '通知中心'
           : '首页概览';
   const pageSubtitle =
     activeMenu === 'rooms'
@@ -4755,6 +4841,8 @@ export function StudentHomePreview({
               ? '输入动态码或扫码完成签到'
               : activeMenu === 'assistant'
                 ? '自然语言找座 · 预约管理 · 规则问答'
+                : activeMenu === 'notify'
+                  ? '3 条未读'
           : '2026年5月26日 · 学习空间实时状态';
 
   return (
@@ -4803,7 +4891,18 @@ export function StudentHomePreview({
             <p>{pageSubtitle}</p>
           </div>
           <div className="student-home-actions">
-            {activeMenu === 'assistant' ? (
+            {activeMenu === 'notify' ? (
+              <>
+                <button type="button">
+                  <DashboardIcon name="check-circle" size={13} />
+                  全部已读
+                </button>
+                <button type="button">
+                  <DashboardIcon name="settings" size={13} />
+                  通知设置
+                </button>
+              </>
+            ) : activeMenu === 'assistant' ? (
               <>
                 <button type="button">
                   <DashboardIcon name="trash" size={13} />
@@ -4899,6 +4998,8 @@ export function StudentHomePreview({
           <StudentCheckInPanel />
         ) : activeMenu === 'assistant' ? (
           <StudentAssistantPanel onConfirm={() => handleStudentPageChange('confirm')} />
+        ) : activeMenu === 'notify' ? (
+          <StudentNotificationPanel />
         ) : (
           <>
         <section className="student-home-booking-banner" aria-label="下一场预约">
@@ -5583,6 +5684,52 @@ function StudentAssistantPanel({ onConfirm }: { onConfirm?: () => void }) {
           ))}
         </section>
       </aside>
+    </section>
+  );
+}
+
+function StudentNotificationPanel() {
+  return (
+    <section className="student-notify-panel" aria-label="学生通知中心">
+      <div className="dashboard-card student-notify-toolbar">
+        <div>
+          <strong>3 条未读</strong>
+          <span>站内提醒会同步展示预约、签到、自动取消和系统公告。</span>
+        </div>
+        <button type="button">
+          <DashboardIcon name="check-circle" size={13} />
+          标记全部已读
+        </button>
+      </div>
+
+      {STUDENT_NOTIFICATION_GROUPS.map((group) => (
+        <section className="student-notify-group" key={group.date}>
+          <h2>{group.date}</h2>
+          <div className="student-notify-list">
+            {group.items.map((item) => (
+              <article
+                className={`dashboard-card student-notify-card${item.read ? ' is-read' : ''}`}
+                key={`${group.date}-${item.title}`}
+              >
+                <span
+                  className="student-notify-icon"
+                  style={{ '--notify-tone': item.tone } as CSSProperties}
+                >
+                  <DashboardIcon name={item.icon} size={17} />
+                </span>
+                <div className="student-notify-body">
+                  <header>
+                    <strong>{item.title}</strong>
+                    {!item.read ? <i aria-label="未读" /> : null}
+                  </header>
+                  <p>{item.desc}</p>
+                </div>
+                <time>{item.time}</time>
+              </article>
+            ))}
+          </div>
+        </section>
+      ))}
     </section>
   );
 }

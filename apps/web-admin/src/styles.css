@@ -7339,6 +7339,132 @@ button {
   line-height: 1.5;
 }
 
+.student-notify-panel {
+  width: min(100%, 720px);
+  display: grid;
+  gap: 22px;
+  margin: 0 auto;
+}
+
+.student-notify-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+}
+
+.student-notify-toolbar div {
+  display: grid;
+  gap: 3px;
+}
+
+.student-notify-toolbar strong {
+  color: #1a2e2a;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.student-notify-toolbar span {
+  color: #8aaaa4;
+  font-size: 12px;
+}
+
+.student-notify-toolbar button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1.5px solid #d8e8e5;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #ffffff;
+  color: #2d7a6e;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.student-notify-group {
+  display: grid;
+  gap: 10px;
+}
+
+.student-notify-group h2 {
+  margin: 0;
+  padding: 0 4px;
+  color: #8aaaa4;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.student-notify-list {
+  display: grid;
+  gap: 8px;
+}
+
+.student-notify-card {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px;
+}
+
+.student-notify-card.is-read {
+  opacity: 0.68;
+}
+
+.student-notify-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--notify-tone) 12%, transparent);
+  color: var(--notify-tone);
+}
+
+.student-notify-body {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.student-notify-body header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.student-notify-body strong {
+  color: #1a2e2a;
+  font-size: 13px;
+}
+
+.student-notify-body i {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #c84040;
+}
+
+.student-notify-body p {
+  margin: 0;
+  color: #4a6b64;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.student-notify-card time {
+  color: #8aaaa4;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 @media (max-width: 860px) {
   .admin-login-page {
     grid-template-columns: 1fr;
@@ -7495,6 +7621,10 @@ button {
   .student-assistant-side {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .student-notify-panel {
+    width: 100%;
   }
 
   .admin-brand-panel {
@@ -7669,6 +7799,23 @@ button {
 
   .student-assistant-side {
     grid-template-columns: 1fr;
+  }
+
+  .student-notify-toolbar,
+  .student-notify-card {
+    align-items: flex-start;
+  }
+
+  .student-notify-toolbar {
+    flex-direction: column;
+  }
+
+  .student-notify-card {
+    grid-template-columns: 38px minmax(0, 1fr);
+  }
+
+  .student-notify-card time {
+    grid-column: 2;
   }
 
   .student-checkin-panel {
