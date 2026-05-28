@@ -31,6 +31,9 @@ export interface Role {
   id: string;
   code: string;
   name: string;
+  userCount?: number;
+  permissions?: Permission[];
+  updatedAt?: string;
 }
 
 export interface Permission {

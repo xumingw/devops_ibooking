@@ -10,6 +10,7 @@ import { AuthModule } from './auth/auth.module';
 import { RoomsModule } from './rooms/rooms.module';
 import { SeatsModule } from './seats/seats.module';
 import { UsersModule } from './users/users.module';
+import { RolesModule } from './roles/roles.module';
 
 @Module({
   imports: [
@@ -17,7 +18,8 @@ import { UsersModule } from './users/users.module';
     AuthModule,
     RoomsModule,
     SeatsModule,
-    UsersModule
+    UsersModule,
+    RolesModule
   ],
   controllers: [HealthController],
   providers: [
