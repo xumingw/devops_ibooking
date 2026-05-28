@@ -91,6 +91,7 @@ type SaveRoomOptions = {
 
 type AdminSeat = {
   id: string;
+  roomId: string;
   roomName: string;
   code: string;
   x: number;
@@ -103,7 +104,7 @@ type AdminSeat = {
 };
 
 type AdminSeatFormState = {
-  roomName: string;
+  roomId: string;
   code: string;
   x: number;
   y: number;
@@ -116,6 +117,17 @@ type AdminSeatFormState = {
 type AdminSeatEditor =
   | { mode: 'create'; seat: null }
   | { mode: 'edit'; seat: AdminSeat };
+
+type SaveSeatOptions = {
+  accessToken: string;
+  seatId?: string;
+};
+
+type AdminSeatPayload = Omit<AdminSeat, 'roomName' | 'quietZone' | 'updatedAt'> & {
+  roomName?: string;
+  quietZone?: boolean;
+  updatedAt?: string;
+};
 
 const AUTH_REMEMBER_KEY = 'ibooking.auth.remember';
 const ADMIN_ACCESS_TOKEN_KEY = 'ibooking.admin.accessToken';
@@ -220,6 +232,68 @@ export const saveAdminRoom = async (
   }
 
   return payload.data;
+};
+
+export const requestSeats = async (
+  accessToken: string,
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl()
+): Promise<AdminSeat[]> => {
+  const response = await fetcher(`${apiBaseUrl}/api/v1/seats`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: AdminSeatPayload[];
+  } | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
+    throw new Error(payload?.message || '座位列表加载失败');
+  }
+
+  return payload.data.map(toAdminSeat);
+};
+
+export const saveAdminSeat = async (
+  input: AdminSeatFormState,
+  options: SaveSeatOptions,
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl()
+): Promise<AdminSeat> => {
+  const isEdit = Boolean(options.seatId);
+  const response = await fetcher(
+    isEdit ? `${apiBaseUrl}/api/v1/seats/${options.seatId}` : `${apiBaseUrl}/api/v1/seats`,
+    {
+      method: isEdit ? 'PATCH' : 'POST',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${options.accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        roomId: input.roomId,
+        code: input.code.trim(),
+        x: Number(input.x),
+        y: Number(input.y),
+        hasPower: Boolean(input.hasPower),
+        nearWindow: Boolean(input.nearWindow),
+        quietZone: Boolean(input.quietZone),
+        status: input.status
+      })
+    }
+  );
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: AdminSeatPayload;
+  } | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
+    throw new Error(payload?.message || '保存失败');
+  }
+
+  return toAdminSeat(payload.data);
 };
 
 const ADMIN_ROLE_CODES = new Set([
@@ -771,6 +845,7 @@ const roomToForm = (room: AdminRoom): AdminRoomFormState => ({
 const ADMIN_SEAT_FALLBACKS: AdminSeat[] = [
   {
     id: 'seat-gm-301-a012',
+    roomId: 'room-gm-301',
     roomName: '经管自习室 301',
     code: 'A-012',
     x: 118,
@@ -783,6 +858,7 @@ const ADMIN_SEAT_FALLBACKS: AdminSeat[] = [
   },
   {
     id: 'seat-science-201-c018',
+    roomId: 'room-science-201',
     roomName: '理工自习室 201',
     code: 'C-018',
     x: 214,
@@ -795,6 +871,7 @@ const ADMIN_SEAT_FALLBACKS: AdminSeat[] = [
   },
   {
     id: 'seat-humanities-a-f006',
+    roomId: 'room-humanities-a',
     roomName: '文史馆阅览室 A',
     code: 'F-006',
     x: 326,
@@ -807,6 +884,7 @@ const ADMIN_SEAT_FALLBACKS: AdminSeat[] = [
   },
   {
     id: 'seat-library-b022',
+    roomId: 'room-library-zone',
     roomName: '图书馆自习区',
     code: 'B-022',
     x: 168,
@@ -819,6 +897,7 @@ const ADMIN_SEAT_FALLBACKS: AdminSeat[] = [
   },
   {
     id: 'seat-gm-301-g002',
+    roomId: 'room-gm-301',
     roomName: '经管自习室 301',
     code: 'G-002',
     x: 402,
@@ -832,7 +911,7 @@ const ADMIN_SEAT_FALLBACKS: AdminSeat[] = [
 ];
 
 const newSeatForm = (): AdminSeatFormState => ({
-  roomName: '经管自习室 301',
+  roomId: 'room-gm-301',
   code: '',
   x: 100,
   y: 100,
@@ -843,7 +922,7 @@ const newSeatForm = (): AdminSeatFormState => ({
 });
 
 const seatToForm = (seat: AdminSeat): AdminSeatFormState => ({
-  roomName: seat.roomName,
+  roomId: seat.roomId,
   code: seat.code,
   x: seat.x,
   y: seat.y,
@@ -861,6 +940,30 @@ const getSeatTags = (seat: Pick<AdminSeat, 'hasPower' | 'nearWindow' | 'quietZon
   ].filter(Boolean);
   return tags.length > 0 ? tags : ['普通座'];
 };
+
+const getRoomNameById = (roomId: string) =>
+  ADMIN_ROOM_FALLBACKS.find((room) => room.id === roomId)?.name ?? roomId;
+
+const formatSeatUpdatedAt = (updatedAt?: string) => {
+  if (!updatedAt) return '刚刚';
+  const date = new Date(updatedAt);
+  if (Number.isNaN(date.getTime())) return updatedAt;
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+};
+
+const toAdminSeat = (seat: AdminSeatPayload): AdminSeat => ({
+  id: seat.id,
+  roomId: seat.roomId,
+  roomName: seat.roomName || getRoomNameById(seat.roomId),
+  code: seat.code,
+  x: seat.x,
+  y: seat.y,
+  hasPower: seat.hasPower,
+  nearWindow: seat.nearWindow,
+  quietZone: seat.quietZone ?? false,
+  status: seat.status,
+  updatedAt: formatSeatUpdatedAt(seat.updatedAt)
+});
 
 type FloorSeatStatus = 'available' | 'window' | 'taken' | 'selected' | 'disabled';
 
@@ -2705,7 +2808,7 @@ export function AdminDashboard({ accessToken, adminName, initialActive, onLogout
             refreshSignal={roomRefreshSignal}
           />
         ) : activeMenu === 'seats' ? (
-          <SeatManagementPanel createSignal={seatCreateSignal} />
+          <SeatManagementPanel accessToken={accessToken} createSignal={seatCreateSignal} />
         ) : activeMenu === 'editor' ? (
           <FloorEditorPanel />
         ) : activeMenu === 'schedule' ? (
@@ -3251,17 +3354,67 @@ function RoomFormField({
   );
 }
 
-function SeatManagementPanel({ createSignal }: { createSignal: number }) {
+function SeatManagementPanel({
+  accessToken,
+  createSignal
+}: {
+  accessToken?: string;
+  createSignal: number;
+}) {
   const [seats, setSeats] = useState<AdminSeat[]>(ADMIN_SEAT_FALLBACKS);
   const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [editor, setEditor] = useState<AdminSeatEditor | null>(null);
   const [form, setForm] = useState<AdminSeatFormState>(() => newSeatForm());
+  const [formError, setFormError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    if (!accessToken) {
+      setSeats(ADMIN_SEAT_FALLBACKS);
+      setLoadError('');
+      setLoading(false);
+      return () => {
+        alive = false;
+      };
+    }
+
+    setLoading(true);
+    requestSeats(accessToken)
+      .then((nextSeats) => {
+        if (!alive) return;
+        setSeats(nextSeats);
+        setLoadError('');
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setSeats(ADMIN_SEAT_FALLBACKS);
+        setLoadError(error instanceof Error ? error.message : '座位列表加载失败');
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [accessToken]);
 
   useEffect(() => {
     if (createSignal === 0) return;
     setEditor({ mode: 'create', seat: null });
     setForm(newSeatForm());
+    setFormError('');
   }, [createSignal]);
+
+  const roomOptions = useMemo(() => {
+    const options = new Map<string, string>();
+    ADMIN_ROOM_FALLBACKS.forEach((room) => options.set(room.id, room.name));
+    seats.forEach((seat) => options.set(seat.roomId, seat.roomName));
+    return Array.from(options, ([id, name]) => ({ id, name }));
+  }, [seats]);
 
   const filteredSeats = seats.filter((seat) => {
     const keyword = query.trim().toLowerCase();
@@ -3274,11 +3427,13 @@ function SeatManagementPanel({ createSignal }: { createSignal: number }) {
   const openCreate = () => {
     setEditor({ mode: 'create', seat: null });
     setForm(newSeatForm());
+    setFormError('');
   };
 
   const openEdit = (seat: AdminSeat) => {
     setEditor({ mode: 'edit', seat });
     setForm(seatToForm(seat));
+    setFormError('');
   };
 
   const updateForm = <Key extends keyof AdminSeatFormState>(
@@ -3288,28 +3443,32 @@ function SeatManagementPanel({ createSignal }: { createSignal: number }) {
     setForm((current) => ({ ...current, [key]: value }));
   };
 
-  const handleSaveSeat = (event: FormEvent<HTMLFormElement>) => {
+  const handleSaveSeat = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const isEdit = editor?.mode === 'edit';
-    const savedSeat: AdminSeat = {
-      id: isEdit ? editor.seat.id : `seat-local-${Date.now()}`,
-      roomName: form.roomName,
-      code: form.code.trim() || 'NEW-001',
-      x: Number(form.x),
-      y: Number(form.y),
-      hasPower: form.hasPower,
-      nearWindow: form.nearWindow,
-      quietZone: form.quietZone,
-      status: form.status,
-      updatedAt: '刚刚'
-    };
+    if (!accessToken) {
+      setFormError('请先使用管理账号登录后再保存');
+      return;
+    }
 
-    setSeats((currentSeats) =>
-      isEdit
-        ? currentSeats.map((seat) => (seat.id === savedSeat.id ? savedSeat : seat))
-        : [...currentSeats, savedSeat]
-    );
-    setEditor(null);
+    const isEdit = editor?.mode === 'edit';
+    setSaving(true);
+    setFormError('');
+    try {
+      const savedSeat = await saveAdminSeat(form, {
+        accessToken,
+        seatId: isEdit ? editor.seat.id : undefined
+      });
+      setSeats((currentSeats) =>
+        isEdit
+          ? currentSeats.map((seat) => (seat.id === savedSeat.id ? savedSeat : seat))
+          : [...currentSeats, savedSeat]
+      );
+      setEditor(null);
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : '保存失败');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const totalCount = seats.length;
@@ -3365,6 +3524,13 @@ function SeatManagementPanel({ createSignal }: { createSignal: number }) {
           批量维护
         </button>
       </div>
+
+      {(loading || loadError) && (
+        <div className={`room-message ${loadError ? 'is-error' : ''}`}>
+          <DashboardIcon name={loadError ? 'alert' : 'refresh'} size={14} />
+          {loadError || '正在加载座位列表…'}
+        </div>
+      )}
 
       <div className="dashboard-card seat-table-card">
         <div className="seat-table-head">
@@ -3435,16 +3601,14 @@ function SeatManagementPanel({ createSignal }: { createSignal: number }) {
             </RoomFormField>
             <RoomFormField label="所属自习室">
               <select
-                value={form.roomName}
-                onChange={(event) => updateForm('roomName', event.target.value)}
+                value={form.roomId}
+                onChange={(event) => updateForm('roomId', event.target.value)}
               >
-                {Array.from(new Set(ADMIN_SEAT_FALLBACKS.map((seat) => seat.roomName))).map(
-                  (roomName) => (
-                    <option key={roomName} value={roomName}>
-                      {roomName}
-                    </option>
-                  )
-                )}
+                {roomOptions.map((room) => (
+                  <option key={room.id} value={room.id}>
+                    {room.name}
+                  </option>
+                ))}
               </select>
             </RoomFormField>
             <div className="seat-form-grid">
@@ -3493,13 +3657,15 @@ function SeatManagementPanel({ createSignal }: { createSignal: number }) {
               </label>
             ))}
 
+            {formError && <div className="room-form-error">{formError}</div>}
+
             <div className="seat-editor-actions">
               <button type="button" onClick={() => setEditor(null)}>
                 取消
               </button>
-              <button className="seat-primary-action" type="submit">
+              <button className="seat-primary-action" disabled={saving} type="submit">
                 <DashboardIcon name="check" size={13} />
-                保存
+                {saving ? '保存中…' : '保存'}
               </button>
             </div>
           </form>

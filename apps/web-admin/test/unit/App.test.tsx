@@ -9,9 +9,11 @@ import {
   StudentHomePreview,
   requestLogin,
   requestRooms,
+  requestSeats,
   resolveApiBaseUrl,
   resolveSessionKind,
-  saveAdminRoom
+  saveAdminRoom,
+  saveAdminSeat
 } from '../../src/App';
 
 const repoRoot = resolve(process.cwd(), '../..');
@@ -81,6 +83,58 @@ const successfulRoomResponse = () =>
         closeHour: 7,
         overnight: true,
         status: 'ACTIVE'
+      }
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    }
+  );
+
+const successfulSeatsResponse = () =>
+  new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: [
+        {
+          id: 'seat-gm-301-a001',
+          roomId: 'room-gm-301',
+          roomName: '经管自习室 301',
+          code: 'A001',
+          x: 80,
+          y: 120,
+          hasPower: true,
+          nearWindow: false,
+          quietZone: true,
+          status: 'ACTIVE',
+          updatedAt: '2026-05-28T03:32:35.000Z'
+        }
+      ]
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    }
+  );
+
+const successfulSeatResponse = () =>
+  new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: {
+        id: 'seat-gm-301-a010',
+        roomId: 'room-gm-301',
+        roomName: '经管自习室 301',
+        code: 'A010',
+        x: 220,
+        y: 120,
+        hasPower: true,
+        nearWindow: true,
+        quietZone: false,
+        status: 'ACTIVE',
+        updatedAt: '2026-05-28T03:35:35.000Z'
       }
     }),
     {
@@ -493,6 +547,106 @@ describe('统一登录页', () => {
           'Content-Type': 'application/json'
         },
         method: 'POST'
+      })
+    );
+  });
+
+  it('座位列表请求会携带管理员 token', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(successfulSeatsResponse());
+
+    const seats = await requestSeats('access-token', fetcher, 'http://xmwhzl.love:13000');
+
+    expect(fetcher).toHaveBeenCalledWith(
+      'http://xmwhzl.love:13000/api/v1/seats',
+      expect.objectContaining({
+        credentials: 'include',
+        headers: { Authorization: 'Bearer access-token' },
+        method: 'GET'
+      })
+    );
+    expect(seats[0]).toMatchObject({
+      roomId: 'room-gm-301',
+      roomName: '经管自习室 301',
+      code: 'A001',
+      quietZone: true
+    });
+  });
+
+  it('新增座位会提交所属自习室、坐标和座位属性', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(successfulSeatResponse());
+
+    await saveAdminSeat(
+      {
+        roomId: 'room-gm-301',
+        code: 'A010',
+        x: 220,
+        y: 120,
+        hasPower: true,
+        nearWindow: true,
+        quietZone: false,
+        status: 'ACTIVE'
+      },
+      { accessToken: 'access-token' },
+      fetcher,
+      'http://xmwhzl.love:13000'
+    );
+
+    expect(fetcher).toHaveBeenCalledWith(
+      'http://xmwhzl.love:13000/api/v1/seats',
+      expect.objectContaining({
+        body: JSON.stringify({
+          roomId: 'room-gm-301',
+          code: 'A010',
+          x: 220,
+          y: 120,
+          hasPower: true,
+          nearWindow: true,
+          quietZone: false,
+          status: 'ACTIVE'
+        }),
+        credentials: 'include',
+        headers: {
+          Authorization: 'Bearer access-token',
+          'Content-Type': 'application/json'
+        },
+        method: 'POST'
+      })
+    );
+  });
+
+  it('编辑座位会 PATCH 对应座位记录', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(successfulSeatResponse());
+
+    await saveAdminSeat(
+      {
+        roomId: 'room-gm-301',
+        code: 'A010',
+        x: 260,
+        y: 160,
+        hasPower: false,
+        nearWindow: true,
+        quietZone: true,
+        status: 'INACTIVE'
+      },
+      { accessToken: 'access-token', seatId: 'seat-gm-301-a010' },
+      fetcher,
+      'http://xmwhzl.love:13000'
+    );
+
+    expect(fetcher).toHaveBeenCalledWith(
+      'http://xmwhzl.love:13000/api/v1/seats/seat-gm-301-a010',
+      expect.objectContaining({
+        body: JSON.stringify({
+          roomId: 'room-gm-301',
+          code: 'A010',
+          x: 260,
+          y: 160,
+          hasPower: false,
+          nearWindow: true,
+          quietZone: true,
+          status: 'INACTIVE'
+        }),
+        method: 'PATCH'
       })
     );
   });
