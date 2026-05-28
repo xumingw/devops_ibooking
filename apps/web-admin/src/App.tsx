@@ -129,6 +129,38 @@ type AdminSeatPayload = Omit<AdminSeat, 'roomName' | 'quietZone' | 'updatedAt'> 
   updatedAt?: string;
 };
 
+type AdminUserStatus = 'ACTIVE' | 'DISABLED';
+
+type AdminUser = {
+  id: string;
+  studentNo: string;
+  name: string;
+  email?: string | null;
+  departmentId: string | null;
+  departmentName?: string | null;
+  status: AdminUserStatus;
+  roles?: RoleView[];
+  updatedAt?: string;
+};
+
+type AdminUserFilters = {
+  keyword?: string;
+  status?: AdminUserStatus;
+  departmentId?: string;
+  roleCode?: string;
+};
+
+type AdminUserRow = {
+  id: string;
+  name: string;
+  account: string;
+  department: string;
+  role: string;
+  source: string;
+  lastUpdated: string;
+  status: 'active' | 'disabled';
+};
+
 const AUTH_REMEMBER_KEY = 'ibooking.auth.remember';
 const ADMIN_ACCESS_TOKEN_KEY = 'ibooking.admin.accessToken';
 const STUDENT_ACCESS_TOKEN_KEY = 'ibooking.student.accessToken';
@@ -254,6 +286,41 @@ export const requestSeats = async (
   }
 
   return payload.data.map(toAdminSeat);
+};
+
+export const requestUsers = async (
+  accessToken: string,
+  filters: AdminUserFilters = {},
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl()
+): Promise<AdminUser[]> => {
+  const params = new URLSearchParams();
+  const keyword = filters.keyword?.trim();
+  const status = filters.status?.trim();
+  const departmentId = filters.departmentId?.trim();
+  const roleCode = filters.roleCode?.trim();
+
+  if (keyword) params.set('keyword', keyword);
+  if (status) params.set('status', status);
+  if (departmentId) params.set('departmentId', departmentId);
+  if (roleCode) params.set('roleCode', roleCode);
+
+  const query = params.toString();
+  const response = await fetcher(`${apiBaseUrl}/api/v1/users${query ? `?${query}` : ''}`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: AdminUser[];
+  } | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
+    throw new Error(payload?.message || '用户列表加载失败');
+  }
+
+  return payload.data;
 };
 
 export const saveAdminSeat = async (
@@ -1362,81 +1429,52 @@ const ADMIN_DYNAMIC_CODE_STATUS_META = {
 
 const ADMIN_DYNAMIC_CODE_FILTERS = ['全部楼栋', '全部状态', '刷新策略'] as const;
 
-const ADMIN_USER_SUMMARY = [
+const ADMIN_USER_FALLBACKS: AdminUser[] = [
   {
-    label: '学生账号',
-    value: '18,420',
-    note: '学工号统一认证同步',
-    icon: 'users',
-    tone: '#3A6FA8'
-  },
-  {
-    label: '管理员',
-    value: '36',
-    note: '按角色授权后台菜单',
-    icon: 'shield',
-    tone: F.success
-  },
-  {
-    label: '停用账号',
-    value: '12',
-    note: '阻止登录与预约操作',
-    icon: 'alert',
-    tone: '#C84040'
-  },
-  {
-    label: '本周新增',
-    value: '128',
-    note: '来自院系名单导入',
-    icon: 'download',
-    tone: F.gold
-  }
-] satisfies Array<{
-  label: string;
-  value: string;
-  note: string;
-  icon: DashboardIconName;
-  tone: string;
-}>;
-
-const ADMIN_USER_RECORDS = [
-  {
+    id: 'user-stu-econ-01',
     name: '林晓明',
-    account: '22302010001',
-    department: '经济学院',
-    role: '学生',
-    source: '统一认证',
-    lastLogin: '今天 09:42',
-    status: 'active'
+    studentNo: '22302010001',
+    email: '22302010001@fudan.edu.cn',
+    departmentId: 'dept-econ',
+    departmentName: '经济学院',
+    roles: [{ code: 'ROLE_STUDENT', name: '学生' }],
+    updatedAt: '2026-05-28T01:42:00.000Z',
+    status: 'ACTIVE'
   },
   {
+    id: 'user-admin-full',
     name: '王老师',
-    account: 'admin_full',
-    department: '教务处',
-    role: '超级管理员',
-    source: '后台创建',
-    lastLogin: '今天 08:50',
-    status: 'active'
+    studentNo: 'admin_full',
+    email: 'admin_full@fudan.edu.cn',
+    departmentId: null,
+    departmentName: '教务处',
+    roles: [{ code: 'ROLE_FULL_ADMIN', name: '超级管理员' }],
+    updatedAt: '2026-05-28T00:50:00.000Z',
+    status: 'ACTIVE'
   },
   {
+    id: 'user-room-admin-01',
     name: '张老师',
-    account: 'room_admin_01',
-    department: '后勤保障',
-    role: '自习室管理员',
-    source: '后台创建',
-    lastLogin: '昨天 19:21',
-    status: 'active'
+    studentNo: 'room_admin_01',
+    email: 'room_admin_01@fudan.edu.cn',
+    departmentId: null,
+    departmentName: '后勤保障',
+    roles: [{ code: 'ROLE_ROOM_ADMIN', name: '自习室管理员' }],
+    updatedAt: '2026-05-27T11:21:00.000Z',
+    status: 'ACTIVE'
   },
   {
+    id: 'user-stu-cs-disabled',
     name: '陈同学',
-    account: '22307110012',
-    department: '计算机学院',
-    role: '学生',
-    source: '统一认证',
-    lastLogin: '7天前',
-    status: 'disabled'
+    studentNo: '22307110012',
+    email: '22307110012@fudan.edu.cn',
+    departmentId: 'dept-cs',
+    departmentName: '计算机学院',
+    roles: [{ code: 'ROLE_STUDENT', name: '学生' }],
+    updatedAt: '2026-05-21T03:15:00.000Z',
+    status: 'DISABLED'
   }
-] as const;
+] satisfies AdminUser[];
 
 const ADMIN_USER_STATUS_META = {
   active: { label: '正常', variant: 'green' },
@@ -1444,6 +1482,31 @@ const ADMIN_USER_STATUS_META = {
 } as const;
 
 const ADMIN_USER_FILTERS = ['全部院系', '全部角色', '账号状态'] as const;
+
+const formatAdminUserUpdatedAt = (updatedAt?: string) => {
+  if (!updatedAt) return '未记录';
+  const date = new Date(updatedAt);
+  if (Number.isNaN(date.getTime())) return updatedAt;
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hour = String(date.getHours()).padStart(2, '0');
+  const minute = String(date.getMinutes()).padStart(2, '0');
+  return `${month}-${day} ${hour}:${minute}`;
+};
+
+const getAdminUserSource = (user: Pick<AdminUser, 'roles'>) =>
+  user.roles?.some((role) => role.code === 'ROLE_STUDENT') ? '统一认证' : '后台创建';
+
+const toAdminUserRow = (user: AdminUser): AdminUserRow => ({
+  id: user.id,
+  name: user.name,
+  account: user.studentNo,
+  department: user.departmentName || '未分配',
+  role: user.roles?.map((role) => role.name).join('、') || '未绑定角色',
+  source: getAdminUserSource(user),
+  lastUpdated: formatAdminUserUpdatedAt(user.updatedAt),
+  status: user.status === 'ACTIVE' ? 'active' : 'disabled'
+});
 
 const ADMIN_ROLE_SUMMARY = [
   {
@@ -2517,7 +2580,7 @@ const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
   users: {
     title: '用户管理',
     sub: '学生与管理员账号统一维护',
-    description: '查看用户账号、院系归属、启用状态和最近登录信息。',
+    description: '查看用户账号、院系归属、启用状态和最近更新时间。',
     actions: [
       { label: '新增用户', icon: 'users' },
       { label: '导入名单', icon: 'download' }
@@ -2528,7 +2591,7 @@ const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
       { label: '停用账号', value: '12', tone: '#C84040' }
     ],
     tableTitle: '用户列表',
-    tableNote: '展示最近登录用户',
+    tableNote: '展示账号与角色',
     tableHead: ['姓名', '账号', '院系', '角色', '状态'],
     rows: [
       ['林晓明', '22302010001', '经济学院', '学生', '正常'],
@@ -2820,7 +2883,7 @@ export function AdminDashboard({ accessToken, adminName, initialActive, onLogout
         ) : activeMenu === 'qrcode' ? (
           <DynamicCodePanel />
         ) : activeMenu === 'users' ? (
-          <UserManagementPanel />
+          <UserManagementPanel accessToken={accessToken} />
         ) : activeMenu === 'roles' ? (
           <RoleManagementPanel />
         ) : activeMenu === 'params' ? (
@@ -4358,11 +4421,96 @@ function DynamicCodePanel() {
   );
 }
 
-function UserManagementPanel() {
+function UserManagementPanel({ accessToken }: { accessToken?: string }) {
+  const [users, setUsers] = useState<AdminUserRow[]>(() => ADMIN_USER_FALLBACKS.map(toAdminUserRow));
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    if (!accessToken) {
+      setUsers(ADMIN_USER_FALLBACKS.map(toAdminUserRow));
+      setLoadError('');
+      setLoading(false);
+      return () => {
+        alive = false;
+      };
+    }
+
+    setLoading(true);
+    requestUsers(accessToken, { keyword: query })
+      .then((nextUsers) => {
+        if (!alive) return;
+        setUsers(nextUsers.map(toAdminUserRow));
+        setLoadError('');
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setUsers(ADMIN_USER_FALLBACKS.map(toAdminUserRow));
+        setLoadError(error instanceof Error ? error.message : '用户列表加载失败');
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [accessToken, query]);
+
+  const filteredUsers = users.filter((user) => {
+    const keyword = query.trim().toLowerCase();
+    if (!keyword) return true;
+    return [user.name, user.account, user.department, user.role].some((field) =>
+      field.toLowerCase().includes(keyword)
+    );
+  });
+
+  const studentCount = users.filter((user) => user.source === '统一认证').length;
+  const adminCount = users.length - studentCount;
+  const disabledCount = users.filter((user) => user.status === 'disabled').length;
+  const userSummary = [
+    {
+      label: '学生账号',
+      value: `${studentCount}`,
+      note: '学工号统一认证同步',
+      icon: 'users',
+      tone: '#3A6FA8'
+    },
+    {
+      label: '管理员',
+      value: `${adminCount}`,
+      note: '按角色授权后台菜单',
+      icon: 'shield',
+      tone: F.success
+    },
+    {
+      label: '停用账号',
+      value: `${disabledCount}`,
+      note: '阻止登录与预约操作',
+      icon: 'alert',
+      tone: '#C84040'
+    },
+    {
+      label: '当前展示',
+      value: `${filteredUsers.length}`,
+      note: '按搜索条件实时过滤',
+      icon: 'download',
+      tone: F.gold
+    }
+  ] satisfies Array<{
+    label: string;
+    value: string;
+    note: string;
+    icon: DashboardIconName;
+    tone: string;
+  }>;
+
   return (
     <section className="user-management-panel" aria-label="用户管理">
       <div className="user-management-summary-grid" aria-label="用户关键指标">
-        {ADMIN_USER_SUMMARY.map((item) => (
+        {userSummary.map((item) => (
           <article className="dashboard-card user-management-summary-card" key={item.label}>
             <span className="user-management-summary-icon" style={{ color: item.tone }}>
               <DashboardIcon name={item.icon} size={15} />
@@ -4379,7 +4527,12 @@ function UserManagementPanel() {
       <div className="user-management-toolbar">
         <label className="user-management-search">
           <DashboardIcon name="search" size={14} />
-          <input aria-label="搜索用户" placeholder="姓名、学号、院系" />
+          <input
+            aria-label="搜索用户"
+            placeholder="姓名、学号、院系"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
         </label>
         {ADMIN_USER_FILTERS.map((filter) => (
           <button key={filter} type="button">
@@ -4397,11 +4550,18 @@ function UserManagementPanel() {
         </button>
       </div>
 
+      {(loading || loadError) && (
+        <div className={`room-message ${loadError ? 'is-error' : ''}`}>
+          <DashboardIcon name={loadError ? 'alert' : 'refresh'} size={14} />
+          {loadError || '正在加载用户列表…'}
+        </div>
+      )}
+
       <div className="user-management-layout">
         <section className="dashboard-card user-management-table-card">
           <header className="user-management-head">
             <div>
-              <span>展示最近登录用户</span>
+              <span>展示账号与角色</span>
               <h2>账号列表</h2>
             </div>
             <small>学生账号、管理员账号与院系归属统一维护</small>
@@ -4409,20 +4569,20 @@ function UserManagementPanel() {
 
           <div className="user-management-table">
             <div className="user-management-table-head">
-              {['姓名', '账号', '院系', '角色', '账号来源', '最近登录', '状态', '操作'].map((head) => (
+              {['姓名', '账号', '院系', '角色', '账号来源', '最近更新', '状态', '操作'].map((head) => (
                 <span key={head}>{head}</span>
               ))}
             </div>
-            {ADMIN_USER_RECORDS.map((user) => {
+            {filteredUsers.map((user) => {
               const status = ADMIN_USER_STATUS_META[user.status];
               return (
-                <div className="user-management-table-row" key={user.account}>
+                <div className="user-management-table-row" key={user.id}>
                   <strong>{user.name}</strong>
                   <code>{user.account}</code>
                   <span>{user.department}</span>
                   <span>{user.role}</span>
                   <span>{user.source}</span>
-                  <span>{user.lastLogin}</span>
+                  <span>{user.lastUpdated}</span>
                   <span>
                     <mark data-variant={status.variant}>{status.label}</mark>
                   </span>
@@ -4443,6 +4603,7 @@ function UserManagementPanel() {
                 </div>
               );
             })}
+            {filteredUsers.length === 0 && <div className="room-empty">没有匹配的用户</div>}
           </div>
         </section>
 
