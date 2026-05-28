@@ -1,3 +1,4 @@
+import { loadNotifications } from '../../services/notifications';
 import { loadRoomCards } from '../../services/rooms';
 import { restoreSession } from '../../services/session';
 import { RoomCard } from '../../services/types';
@@ -7,6 +8,7 @@ Page({
     userName: '同学',
     avatarName: '同',
     departmentName: '',
+    hasUnreadNotifications: false,
     rooms: [] as RoomCard[],
     roomCount: 0,
     availableTotal: 0,
@@ -21,7 +23,8 @@ Page({
     this.setData({
       userName: session.user.name,
       avatarName: session.user.name.slice(0, 1),
-      departmentName: session.user.departmentName ?? ''
+      departmentName: session.user.departmentName ?? '',
+      hasUnreadNotifications: loadNotifications().some((notice) => !notice.read)
     });
     void this.loadRooms();
   },
@@ -46,6 +49,9 @@ Page({
   },
   goAssistant() {
     wx.reLaunch({ url: '/pages/assistant/assistant' });
+  },
+  goNotifications() {
+    wx.navigateTo({ url: '/pages/notifications/notifications' });
   },
   openRoom(event: { currentTarget: { dataset: { id?: string; name?: string } } }) {
     const id = event.currentTarget.dataset.id ?? '';

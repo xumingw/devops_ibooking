@@ -1,0 +1,257 @@
+.notifications-page {
+  padding: 0 36rpx 160rpx;
+  background: #f2f7f6;
+}
+
+.top-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+  margin: 0 -36rpx 28rpx;
+  padding: 8rpx 36rpx 30rpx;
+  background: #fafeff;
+}
+
+.panel-copy {
+  min-width: 0;
+}
+
+.panel-sub {
+  display: block;
+  margin-top: 8rpx;
+  color: #8aaaa4;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.mark-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 152rpx;
+  height: 64rpx;
+  padding: 0 26rpx;
+  border-radius: 999rpx;
+  color: #ffffff;
+  font-size: 24rpx;
+  font-weight: 800;
+  background: #2d7a6e;
+}
+
+.mark-button-disabled {
+  color: #8aaaa4;
+  background: #ecf4f2;
+}
+
+.notification-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18rpx;
+}
+
+.group-title {
+  margin: 12rpx 0 -4rpx;
+  color: #8aaaa4;
+  font-size: 22rpx;
+  font-weight: 800;
+}
+
+.notification-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 20rpx;
+  width: 100%;
+  min-width: 0;
+  padding: 28rpx;
+  border-radius: 28rpx;
+}
+
+.notification-read {
+  box-shadow: none;
+}
+
+.notice-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 22rpx;
+}
+
+.tone-teal {
+  color: #d4a843;
+  background: #1a3830;
+}
+
+.tone-gold {
+  color: #8b6520;
+  background: #fdf6e0;
+}
+
+.tone-green {
+  color: #2d9a5c;
+  background: #f0faf4;
+}
+
+.tone-red {
+  color: #c84040;
+  background: #fef2f2;
+}
+
+.icon-symbol {
+  position: relative;
+  width: 42rpx;
+  height: 42rpx;
+}
+
+.icon-body,
+.icon-hand,
+.icon-mark {
+  position: absolute;
+  box-sizing: border-box;
+}
+
+.icon-bell .icon-body {
+  top: 9rpx;
+  left: 9rpx;
+  width: 24rpx;
+  height: 22rpx;
+  border: 4rpx solid currentColor;
+  border-bottom: 0;
+  border-radius: 18rpx 18rpx 6rpx 6rpx;
+}
+
+.icon-bell .icon-hand {
+  top: 31rpx;
+  left: 17rpx;
+  width: 8rpx;
+  height: 8rpx;
+  border-radius: 999rpx;
+  background: currentColor;
+}
+
+.icon-bell .icon-mark {
+  top: 29rpx;
+  left: 5rpx;
+  width: 32rpx;
+  height: 5rpx;
+  border-radius: 999rpx;
+  background: currentColor;
+}
+
+.icon-clock .icon-body,
+.icon-check .icon-body,
+.icon-alert .icon-body {
+  top: 5rpx;
+  left: 5rpx;
+  width: 32rpx;
+  height: 32rpx;
+  border: 4rpx solid currentColor;
+  border-radius: 999rpx;
+}
+
+.icon-clock .icon-hand {
+  top: 12rpx;
+  left: 19rpx;
+  width: 4rpx;
+  height: 13rpx;
+  border-radius: 999rpx;
+  background: currentColor;
+}
+
+.icon-clock .icon-mark {
+  top: 23rpx;
+  left: 19rpx;
+  width: 13rpx;
+  height: 4rpx;
+  border-radius: 999rpx;
+  background: currentColor;
+  transform: rotate(28deg);
+  transform-origin: 0 50%;
+}
+
+.icon-check .icon-mark {
+  top: 14rpx;
+  left: 13rpx;
+  width: 18rpx;
+  height: 10rpx;
+  border-bottom: 5rpx solid currentColor;
+  border-left: 5rpx solid currentColor;
+  transform: rotate(-45deg);
+}
+
+.icon-alert .icon-hand {
+  top: 12rpx;
+  left: 19rpx;
+  width: 4rpx;
+  height: 14rpx;
+  border-radius: 999rpx;
+  background: currentColor;
+}
+
+.icon-alert .icon-mark {
+  top: 29rpx;
+  left: 19rpx;
+  width: 4rpx;
+  height: 4rpx;
+  border-radius: 999rpx;
+  background: currentColor;
+}
+
+.notice-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.notice-head {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  min-width: 0;
+}
+
+.notice-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: #1a2e2a;
+  font-size: 28rpx;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notice-time {
+  flex-shrink: 0;
+  color: #8aaaa4;
+  font-size: 21rpx;
+  font-weight: 700;
+}
+
+.notice-desc {
+  margin-top: 10rpx;
+  color: #4a6b64;
+  font-size: 24rpx;
+  line-height: 1.55;
+}
+
+.notification-read .notice-title,
+.notification-read .notice-desc {
+  color: #8aaaa4;
+}
+
+.unread-dot {
+  position: absolute;
+  top: 26rpx;
+  right: 24rpx;
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 999rpx;
+  background: #d4a843;
+}

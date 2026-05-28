@@ -54,7 +54,8 @@ Page({
     });
   },
   onMenuTap(event: { currentTarget: { dataset: { action?: string } } }) {
-    if (event.currentTarget.dataset.action === 'logout') {
+    const action = event.currentTarget.dataset.action;
+    if (action === 'logout') {
       this.logout();
     }
   },
