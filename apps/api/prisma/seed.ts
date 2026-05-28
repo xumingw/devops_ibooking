@@ -39,7 +39,11 @@ async function main() {
     permissions.map((permission) => [permission.code, permission])
   );
 
-  await linkRolePermissions(studentRole.id, [permissionByCode['booking.create'].id]);
+  await linkRolePermissions(studentRole.id, [
+    permissionByCode['booking.create'].id,
+    permissionByCode['room.read'].id,
+    permissionByCode['seat.read'].id
+  ]);
   await linkRolePermissions(fullAdminRole.id, permissions.map((permission) => permission.id));
   await linkRolePermissions(roomAdminRole.id, [
     permissionByCode['room.read'].id,

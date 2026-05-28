@@ -23,6 +23,12 @@ export default tseslint.config(
         ...globals.browser,
         ...globals.node,
         ...globals.jest,
+        App: 'readonly',
+        Component: 'readonly',
+        Page: 'readonly',
+        getApp: 'readonly',
+        getCurrentPages: 'readonly',
+        wx: 'readonly',
       },
     },
     rules: {

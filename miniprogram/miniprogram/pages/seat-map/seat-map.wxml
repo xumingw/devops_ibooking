@@ -1,0 +1,51 @@
+<view class="seat-page">
+  <view class="seat-header">
+    <view class="room-name">{{roomName}}</view>
+    <view class="room-time">今日 14:00-17:00 · 最长预约 4 小时</view>
+    <view class="legend-row">
+      <view><text class="legend available"></text>空闲</view>
+      <view><text class="legend taken"></text>占用</view>
+      <view><text class="legend selected"></text>已选</view>
+      <view><text class="legend maintenance"></text>维护</view>
+    </view>
+  </view>
+
+  <view class="map-wrap">
+    <view class="map-card card">
+      <view class="entrance">入 口</view>
+      <view wx:for="{{rows}}" wx:for-index="rowIndex" wx:key="rowIndex" class="seat-row">
+        <text class="row-label">{{rowLabels[rowIndex]}}</text>
+        <view
+          wx:for="{{item}}"
+          wx:key="code"
+          class="seat-cell seat-{{item.status}}"
+          data-code="{{item.code}}"
+          data-status="{{item.status}}"
+          data-power="{{item.hasPower}}"
+          data-window="{{item.nearWindow}}"
+          bindtap="chooseSeat"
+        >
+          <text>{{item.code}}</text>
+          <view wx:if="{{item.hasPower}}" class="power-dot"></view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view class="drawer">
+    <view class="drawer-handle"></view>
+    <view class="seat-summary">
+      <view class="seat-code">{{selectedSeat}}</view>
+      <view class="seat-detail">
+        <view>{{selectedSeat}} 号座位</view>
+        <view class="feature-row">
+          <text wx:for="{{selectedFeatures}}" wx:key="*this" class="mini-tag">{{item}}</text>
+        </view>
+      </view>
+      <view class="badge badge-green">可预约</view>
+    </view>
+    <button class="primary-button" bindtap="confirmBooking">立即预约此座位</button>
+  </view>
+
+  <mobile-tab active="rooms" />
+</view>

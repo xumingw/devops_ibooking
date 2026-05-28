@@ -1,0 +1,182 @@
+.checkin-page {
+  position: relative;
+  min-height: 100vh;
+  padding: 16rpx 48rpx 160rpx;
+  overflow: hidden;
+  background: #1a3830;
+}
+
+.checkin-page::before {
+  position: absolute;
+  top: -120rpx;
+  right: -100rpx;
+  width: 420rpx;
+  height: 420rpx;
+  border-radius: 999rpx;
+  background: rgba(45, 122, 110, 0.42);
+  content: "";
+}
+
+.checkin-page::after {
+  position: absolute;
+  bottom: 180rpx;
+  left: -120rpx;
+  width: 320rpx;
+  height: 320rpx;
+  border-radius: 999rpx;
+  background: rgba(212, 168, 67, 0.14);
+  content: "";
+}
+
+.scan-subtitle,
+.scanner-frame,
+.countdown,
+.manual-card {
+  position: relative;
+  z-index: 1;
+}
+
+.scan-subtitle {
+  margin-bottom: 56rpx;
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 26rpx;
+  text-align: center;
+}
+
+.scanner-frame {
+  width: 480rpx;
+  height: 480rpx;
+  margin: 0 auto 52rpx;
+}
+
+.corner {
+  position: absolute;
+  width: 56rpx;
+  height: 56rpx;
+}
+
+.corner-tl {
+  top: 0;
+  left: 0;
+  border-top: 6rpx solid #d4a843;
+  border-left: 6rpx solid #d4a843;
+}
+
+.corner-tr {
+  top: 0;
+  right: 0;
+  border-top: 6rpx solid #d4a843;
+  border-right: 6rpx solid #d4a843;
+}
+
+.corner-bl {
+  bottom: 0;
+  left: 0;
+  border-bottom: 6rpx solid #d4a843;
+  border-left: 6rpx solid #d4a843;
+}
+
+.corner-br {
+  right: 0;
+  bottom: 0;
+  border-right: 6rpx solid #d4a843;
+  border-bottom: 6rpx solid #d4a843;
+}
+
+.scan-line {
+  position: absolute;
+  top: 45%;
+  right: 20rpx;
+  left: 20rpx;
+  height: 4rpx;
+  background: linear-gradient(90deg, transparent, #d4a843, transparent);
+}
+
+.camera-placeholder {
+  position: absolute;
+  inset: 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18rpx;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.scan-mark {
+  color: rgba(255, 255, 255, 0.12);
+  font-size: 84rpx;
+  font-weight: 900;
+}
+
+.countdown {
+  margin-bottom: 52rpx;
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 24rpx;
+  text-align: center;
+}
+
+.countdown text {
+  color: #d4a843;
+  font-weight: 900;
+}
+
+.manual-card {
+  padding: 32rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.1);
+  border-radius: 28rpx;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.manual-title {
+  margin-bottom: 22rpx;
+  color: rgba(255, 255, 255, 0.54);
+  font-size: 24rpx;
+  text-align: center;
+}
+
+.code-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12rpx;
+  margin-bottom: 26rpx;
+}
+
+.code-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 76rpx;
+  height: 84rpx;
+  border: 3rpx solid rgba(255, 255, 255, 0.16);
+  border-radius: 16rpx;
+  color: #d4a843;
+  font-size: 40rpx;
+  font-weight: 900;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.code-filled {
+  border-color: #d4a843;
+  background: rgba(212, 168, 67, 0.15);
+}
+
+.code-separator {
+  width: 20rpx;
+  height: 3rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.confirm-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 84rpx;
+  border-radius: 20rpx;
+  color: #1a3830;
+  font-size: 28rpx;
+  font-weight: 900;
+  background: #d4a843;
+}

@@ -1,0 +1,53 @@
+<view class="page bookings-page">
+  <view class="top-panel">
+    <view class="section-title">我的预约</view>
+    <view class="filter-row">
+      <view
+        wx:for="{{filters}}"
+        wx:key="*this"
+        class="filter-chip {{activeFilter === item ? 'filter-active' : ''}}"
+        data-value="{{item}}"
+        bindtap="chooseFilter"
+      >
+        {{item}}
+      </view>
+    </view>
+  </view>
+
+  <view class="booking-list">
+    <view wx:if="{{visibleBookings.length === 0}}" class="empty card">
+      <view>当前筛选下暂无预约</view>
+      <button class="primary-button" bindtap="goRooms">去找座位</button>
+    </view>
+
+    <view wx:for="{{visibleBookings}}" wx:key="id" class="booking-card card">
+      <view class="booking-head">
+        <view class="booking-main">
+          <view class="seat-box status-bg-{{item.statusTone}}">{{item.seat}}</view>
+          <view>
+            <view class="room-name">{{item.room}}</view>
+            <view class="booking-time">{{item.time}}</view>
+          </view>
+        </view>
+        <view class="status status-{{item.statusTone}}">{{item.status}}</view>
+      </view>
+      <view wx:if="{{item.status === '待签到'}}" class="actions">
+        <button
+          class="primary-button compact"
+          data-roomid="{{item.roomId}}"
+          data-room="{{item.room}}"
+          data-seat="{{item.seat}}"
+          bindtap="goCheckin"
+        >
+          签到
+        </button>
+        <button class="secondary-button compact">取消</button>
+      </view>
+      <view wx:elif="{{item.status === '已完成'}}" class="actions single">
+        <button class="secondary-button compact">再次预约</button>
+      </view>
+    </view>
+  </view>
+
+  <mobile-tab active="bookings" />
+</view>
