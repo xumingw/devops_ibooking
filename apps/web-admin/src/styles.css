@@ -7465,6 +7465,229 @@ button {
   white-space: nowrap;
 }
 
+.student-violation-panel {
+  width: min(100%, 720px);
+  display: grid;
+  gap: 20px;
+  margin: 0 auto;
+}
+
+.student-violation-summary {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  border: 1px solid #fde68a;
+  border-radius: 12px;
+  padding: 18px 22px;
+  background: linear-gradient(120deg, #fffbeb, #fef3c7);
+}
+
+.student-violation-summary-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #fde68a;
+  border-radius: 12px;
+  background: #fef3c7;
+  color: #c8820a;
+}
+
+.student-violation-summary strong {
+  color: #92400e;
+}
+
+.student-violation-summary > div > strong {
+  font-size: 14px;
+}
+
+.student-violation-summary p {
+  margin: 4px 0 0;
+  color: #b45309;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.student-violation-summary aside {
+  display: grid;
+  justify-items: center;
+}
+
+.student-violation-summary aside strong {
+  color: #c8820a;
+  font-family: Inter, sans-serif;
+  font-size: 32px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.student-violation-summary aside span {
+  margin-top: 4px;
+  color: #b45309;
+  font-size: 10px;
+}
+
+.student-violation-progress-card {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+}
+
+.student-violation-progress-card header,
+.student-violation-progress-card footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.student-violation-progress-card header {
+  color: #4a6b64;
+  font-size: 11px;
+}
+
+.student-violation-progress-card header span {
+  color: #c8820a;
+  font-weight: 900;
+}
+
+.student-violation-progress {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #ecf4f2;
+}
+
+.student-violation-progress span {
+  width: 40%;
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #c8820a, #f59e0b);
+}
+
+.student-violation-progress-card footer {
+  color: #8aaaa4;
+  font-size: 10px;
+}
+
+.student-violation-progress-card footer strong:first-of-type {
+  color: #c8820a;
+}
+
+.student-violation-progress-card footer strong:last-of-type {
+  color: #c84040;
+}
+
+.student-violation-record-list {
+  display: grid;
+  gap: 10px;
+}
+
+.student-violation-record-card {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 18px;
+}
+
+.student-violation-record-icon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: #fef2f2;
+  color: #c84040;
+}
+
+.student-violation-record-icon[data-status="appealed"] {
+  background: #f3eef9;
+  color: #7a52a8;
+}
+
+.student-violation-record-main {
+  display: grid;
+  gap: 5px;
+}
+
+.student-violation-record-main h2 {
+  margin: 0;
+  color: #1a2e2a;
+  font-size: 13px;
+}
+
+.student-violation-record-main p {
+  margin: 0;
+  color: #4a6b64;
+  font-size: 12px;
+}
+
+.student-violation-record-main div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.student-violation-record-main div span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #8aaaa4;
+  font-size: 11px;
+}
+
+.student-violation-record-main mark {
+  border-radius: 999px;
+  padding: 2px 7px;
+  background: #fef2f2;
+  color: #c84040;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.student-violation-record-main mark[data-status="appealed"] {
+  background: #f3eef9;
+  color: #7a52a8;
+}
+
+.student-violation-record-count {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+}
+
+.student-violation-record-count strong {
+  color: #c84040;
+  font-family: Inter, sans-serif;
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.student-violation-record-card:has([data-status="appealed"]) .student-violation-record-count strong {
+  color: #7a52a8;
+}
+
+.student-violation-record-count span {
+  color: #8aaaa4;
+  font-size: 10px;
+}
+
+.student-violation-record-count button {
+  min-height: 26px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #3a6fa8;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
 @media (max-width: 860px) {
   .admin-login-page {
     grid-template-columns: 1fr;
@@ -7624,6 +7847,10 @@ button {
   }
 
   .student-notify-panel {
+    width: 100%;
+  }
+
+  .student-violation-panel {
     width: 100%;
   }
 
@@ -7816,6 +8043,22 @@ button {
 
   .student-notify-card time {
     grid-column: 2;
+  }
+
+  .student-violation-summary,
+  .student-violation-record-card {
+    grid-template-columns: 38px minmax(0, 1fr);
+  }
+
+  .student-violation-summary aside,
+  .student-violation-record-count {
+    grid-column: 2;
+    justify-items: start;
+  }
+
+  .student-violation-progress-card footer {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .student-checkin-panel {
