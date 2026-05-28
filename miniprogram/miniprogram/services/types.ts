@@ -80,6 +80,19 @@ export type DemoBooking = {
   statusTone: 'blue' | 'green' | 'gray' | 'red';
 };
 
+export type DemoNotification = {
+  id: string;
+  group: '今天' | '昨天' | '更早';
+  iconType: 'bell' | 'clock' | 'check' | 'alert';
+  tone: 'teal' | 'gold' | 'green' | 'red';
+  title: string;
+  description: string;
+  timeLabel: string;
+  read: boolean;
+  targetMode?: 'navigateTo' | 'reLaunch';
+  targetUrl?: string;
+};
+
 export type ApiState = {
   source: 'backend' | 'mock';
   message: string;

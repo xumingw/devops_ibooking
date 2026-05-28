@@ -1,0 +1,49 @@
+<view class="page notifications-page">
+  <view class="top-panel">
+    <view class="panel-copy">
+      <view class="section-title">通知中心</view>
+      <text class="panel-sub">{{unreadCount}} 条未读</text>
+    </view>
+    <button
+      class="mark-button {{unreadCount === 0 ? 'mark-button-disabled' : ''}}"
+      disabled="{{unreadCount === 0}}"
+      bindtap="markAllRead"
+    >
+      全部已读
+    </button>
+  </view>
+
+  <view class="notification-list">
+    <block wx:for="{{groups}}" wx:key="title">
+      <view class="group-title">{{item.title}}</view>
+      <view
+        wx:for="{{item.items}}"
+        wx:for-item="notice"
+        wx:key="id"
+        class="notification-card card {{notice.read ? 'notification-read' : 'notification-unread'}}"
+        data-id="{{notice.id}}"
+        data-mode="{{notice.targetMode}}"
+        data-url="{{notice.targetUrl}}"
+        bindtap="openNotification"
+      >
+        <view class="notice-icon tone-{{notice.tone}}">
+          <view class="icon-symbol icon-{{notice.iconType}}">
+            <view class="icon-body"></view>
+            <view class="icon-hand"></view>
+            <view class="icon-mark"></view>
+          </view>
+        </view>
+        <view class="notice-content">
+          <view class="notice-head">
+            <view class="notice-title">{{notice.title}}</view>
+            <text class="notice-time">{{notice.timeLabel}}</text>
+          </view>
+          <view class="notice-desc">{{notice.description}}</view>
+        </view>
+        <view wx:if="{{!notice.read}}" class="unread-dot"></view>
+      </view>
+    </block>
+  </view>
+
+  <mobile-tab active="profile" />
+</view>

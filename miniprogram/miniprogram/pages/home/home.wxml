@@ -5,7 +5,10 @@
         <view class="greeting">早上好，{{userName}}</view>
         <view class="hero-title">今日还有 <text>{{availableTotal}}</text> 个空座</view>
       </view>
-      <view class="avatar">{{avatarName}}</view>
+      <view class="avatar" bindtap="goNotifications">
+        <text>{{avatarName}}</text>
+        <view wx:if="{{hasUnreadNotifications}}" class="avatar-dot"></view>
+      </view>
     </view>
 
     <view class="next-card">
