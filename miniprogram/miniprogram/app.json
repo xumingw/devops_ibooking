@@ -1,0 +1,30 @@
+{
+  "pages": [
+    "pages/login/login",
+    "pages/home/home",
+    "pages/rooms/rooms",
+    "pages/seat-map/seat-map",
+    "pages/bookings/bookings",
+    "pages/checkin/checkin",
+    "pages/assistant/assistant",
+    "pages/notifications/notifications",
+    "pages/violations/violations",
+    "pages/profile/profile"
+  ],
+  "window": {
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "复旦自习室预约",
+    "navigationBarBackgroundColor": "#1A3830",
+    "backgroundColor": "#F2F7F6"
+  },
+  "usingComponents": {
+    "mobile-tab": "/components/mobile-tab/mobile-tab"
+  },
+  "style": "v2",
+  "lazyCodeLoading": "requiredComponents",
+  "permission": {
+    "scope.camera": {
+      "desc": "用于扫码签到"
+    }
+  }
+}

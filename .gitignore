@@ -1,4 +1,5 @@
 node_modules/
+.pnpm-store/
 dist/
 coverage/
 .turbo/
@@ -12,3 +13,4 @@ infra/.deploy-images.env
 apps/api/generated/
 apps/api/prisma/dev.db
 apps/api/prisma/dev.db-journal
+miniprogram/project.private.config.json

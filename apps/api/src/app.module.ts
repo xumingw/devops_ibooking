@@ -8,9 +8,21 @@ import { HealthController } from './health/health.controller';
 import { HealthService } from './health/health.service';
 import { AuthModule } from './auth/auth.module';
 import { RoomsModule } from './rooms/rooms.module';
+import { SeatsModule } from './seats/seats.module';
+import { UsersModule } from './users/users.module';
+import { RolesModule } from './roles/roles.module';
+import { ViolationsModule } from './violations/violations.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule, RoomsModule],
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    AuthModule,
+    RoomsModule,
+    SeatsModule,
+    UsersModule,
+    RolesModule,
+    ViolationsModule
+  ],
   controllers: [HealthController],
   providers: [
     HealthService,

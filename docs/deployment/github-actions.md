@@ -71,6 +71,8 @@ Ruleset 建议：
 | `PROD_API_IMAGE_REPOSITORY` | `${PROD_IMAGE_REGISTRY}/${PROD_IMAGE_NAMESPACE}/api` | 可选；API 镜像完整仓库名，不含 tag |
 | `PROD_WEB_ADMIN_IMAGE_REPOSITORY` | `${PROD_IMAGE_REGISTRY}/${PROD_IMAGE_NAMESPACE}/web-admin` | 可选；统一 Web 入口镜像完整仓库名，不含 tag |
 | `PROD_API_PUBLIC_URL` | 无默认值 | 生产 Web 构建注入的 API 公网地址，例如 `http://xmwhzl.love:13000` |
+| `PROD_API_PORT` | `3000` | 可选；服务器上的 API 端口映射，支持纯端口或 `127.0.0.1:13000` 这种仅本机监听的绑定 |
+| `PROD_WEB_ADMIN_PORT` | `5174` | 可选；服务器上的 Web 端口映射，支持纯端口或 `127.0.0.1:15175` 这种仅本机监听的绑定 |
 
 两个完整仓库名必须使用同一个 Registry host，便于 workflow 用同一组凭证登录并推送 / 拉取。
 

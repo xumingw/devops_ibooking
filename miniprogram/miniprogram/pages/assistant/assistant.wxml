@@ -1,0 +1,43 @@
+<view class="page assistant-page">
+  <view class="assistant-header">
+    <view class="assistant-avatar">✦</view>
+    <view>
+      <view class="assistant-title">智能助手</view>
+      <view class="assistant-status"><text></text>在线</view>
+    </view>
+  </view>
+
+  <scroll-view class="chat-list" scroll-y>
+    <view wx:for="{{messages}}" wx:key="id" class="message {{item.role === 'user' ? 'message-user' : 'message-assistant'}}">
+      <view wx:if="{{item.role === 'assistant'}}" class="assistant-mini">✦</view>
+      <view class="message-body">
+        <view class="bubble">
+          <text class="bubble-text">{{item.text}}</text>
+        </view>
+        <view wx:if="{{item.cards}}" class="suggestion-list">
+          <view wx:for="{{item.cards}}" wx:for-item="card" wx:key="name" class="suggestion-card">
+            <view>
+              <view class="suggestion-name">{{card.name}}</view>
+              <view class="suggestion-tags">
+                <text wx:for="{{card.tags}}" wx:for-item="tag" wx:key="*this" class="mini-tag">{{tag}}</text>
+              </view>
+              <view class="suggestion-time">{{card.time}}</view>
+            </view>
+            <view class="reserve-pill">预约</view>
+          </view>
+        </view>
+      </view>
+    </view>
+  </scroll-view>
+
+  <view class="shortcut-row">
+    <view wx:for="{{quickQuestions}}" wx:key="*this" class="quick-chip" data-text="{{item}}" bindtap="useQuick">{{item}}</view>
+  </view>
+
+  <view class="composer">
+    <input value="{{input}}" placeholder="例如：今晚还有空座吗？" placeholder-class="input-placeholder" bindinput="onInput" confirm-type="send" bindconfirm="send" />
+    <button bindtap="send">➤</button>
+  </view>
+
+  <mobile-tab active="assistant" />
+</view>

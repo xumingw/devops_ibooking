@@ -1,0 +1,51 @@
+<view class="login-page">
+  <view class="login-bg login-bg-a"></view>
+  <view class="login-bg login-bg-b"></view>
+
+  <view class="brand">
+    <view class="brand-logo">旦</view>
+    <view>
+      <view class="brand-name">复旦大学</view>
+      <view class="brand-subtitle">自习室预约系统</view>
+    </view>
+  </view>
+
+  <view class="headline">
+    <view class="headline-title">欢迎回来</view>
+    <view class="headline-subtitle">使用校园账号登录</view>
+  </view>
+
+  <view class="login-card">
+    <view class="tab-row">
+      <view class="tab-active">学号登录</view>
+      <view>统一认证</view>
+    </view>
+
+    <label class="field">
+      <text class="field-label">学号</text>
+      <input class="field-input" value="{{studentId}}" placeholder="请输入学号" placeholder-class="placeholder" bindinput="onStudentIdInput" />
+    </label>
+
+    <label class="field">
+      <text class="field-label">密码</text>
+      <input class="field-input" value="{{password}}" type="password" placeholder="请输入密码" placeholder-class="placeholder" bindinput="onPasswordInput" />
+    </label>
+
+    <view class="forgot-link">忘记密码？</view>
+
+    <view wx:if="{{message}}" class="error-message">{{message}}</view>
+
+    <button class="primary-button login-button" loading="{{loading}}" bindtap="onLogin">
+      {{loading ? '登录中' : '登 录'}}
+    </button>
+  </view>
+
+  <view class="rule-card">
+    <view class="rule-title">使用须知</view>
+    <view class="rule-line">每人每天最多预约 3 场</view>
+    <view class="rule-line">需在 15 分钟内完成签到</view>
+    <view class="rule-line">连续 3 次违约将被限制预约</view>
+  </view>
+
+  <view class="agreement">登录即代表同意《自习室使用规则》</view>
+</view>

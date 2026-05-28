@@ -1,0 +1,269 @@
+.home-page {
+  min-height: 100vh;
+  padding-bottom: 160rpx;
+  background: #f2f7f6;
+}
+
+.hero {
+  position: relative;
+  padding: 8rpx 44rpx 48rpx;
+  overflow: hidden;
+  background: linear-gradient(160deg, #1a3830 0%, #1f4840 100%);
+}
+
+.hero::after {
+  position: absolute;
+  top: -80rpx;
+  right: -80rpx;
+  width: 400rpx;
+  height: 400rpx;
+  border-radius: 999rpx;
+  background: radial-gradient(circle, rgba(45, 122, 110, 0.35) 0%, rgba(45, 122, 110, 0) 70%);
+  content: "";
+}
+
+.hero::before {
+  position: absolute;
+  bottom: 0;
+  left: -60rpx;
+  width: 300rpx;
+  height: 300rpx;
+  border-radius: 999rpx;
+  background: radial-gradient(circle, rgba(212, 168, 67, 0.12) 0%, rgba(212, 168, 67, 0) 70%);
+  content: "";
+}
+
+.hero-top {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 40rpx;
+}
+
+.greeting {
+  margin-bottom: 6rpx;
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 26rpx;
+}
+
+.hero-title {
+  color: #ffffff;
+  font-size: 36rpx;
+  font-weight: 800;
+}
+
+.hero-title text {
+  color: #d4a843;
+}
+
+.avatar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80rpx;
+  height: 80rpx;
+  border: 4rpx solid rgba(255, 255, 255, 0.2);
+  border-radius: 999rpx;
+  color: #ffffff;
+  font-size: 32rpx;
+  font-weight: 900;
+  background: #3d8c7e;
+}
+
+.avatar-dot {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 20rpx;
+  height: 20rpx;
+  border: 4rpx solid #ffffff;
+  border-radius: 999rpx;
+  background: #c84040;
+}
+
+.next-card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20rpx;
+  padding: 28rpx 32rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.18);
+  border-radius: 24rpx;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.next-label {
+  margin-bottom: 8rpx;
+  color: rgba(255, 255, 255, 0.46);
+  font-size: 20rpx;
+}
+
+.next-title {
+  color: #ffffff;
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.next-time {
+  margin-top: 6rpx;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 22rpx;
+}
+
+.next-time text {
+  color: #d4a843;
+}
+
+.checkin-pill {
+  align-self: center;
+  min-width: 112rpx;
+  height: 56rpx;
+  border-radius: 999rpx;
+  color: #1a3830;
+  font-size: 24rpx;
+  font-weight: 900;
+  background: #d4a843;
+}
+
+.content {
+  min-height: 68vh;
+  padding: 40rpx 36rpx 0;
+  border-radius: 40rpx 40rpx 0 0;
+  background: #f2f7f6;
+}
+
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20rpx;
+  margin-bottom: 44rpx;
+}
+
+.quick-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12rpx;
+  color: #4a6b64;
+  font-size: 22rpx;
+  font-weight: 500;
+}
+
+.quick-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 104rpx;
+  height: 104rpx;
+  border: 1rpx solid #d8e8e5;
+  border-radius: 30rpx;
+  color: #2d7a6e;
+  font-size: 34rpx;
+  font-weight: 900;
+  background: #fafeff;
+  box-shadow: 0 8rpx 28rpx rgba(26, 56, 48, 0.08);
+}
+
+.quick-icon.green {
+  color: #2d9a5c;
+}
+
+.quick-icon.blue {
+  color: #3a6fa8;
+}
+
+.quick-icon.gold {
+  color: #d4a843;
+}
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24rpx;
+}
+
+.section-head text {
+  color: #2d7a6e;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.room-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.room-card {
+  display: flex;
+  align-items: center;
+  gap: 24rpx;
+  padding: 26rpx 28rpx;
+}
+
+.room-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 20rpx;
+  color: #2d7a6e;
+  font-size: 28rpx;
+  font-weight: 900;
+  background: #ebf6f4;
+}
+
+.room-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.room-name {
+  color: #1a2e2a;
+  font-size: 26rpx;
+  font-weight: 700;
+}
+
+.room-meta {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  flex-wrap: wrap;
+  margin-top: 6rpx;
+}
+
+.room-distance {
+  color: #8aaaa4;
+  font-size: 20rpx;
+}
+
+.mini-tag {
+  padding: 3rpx 10rpx;
+  border-radius: 999rpx;
+  color: #4a6b64;
+  font-size: 18rpx;
+  background: #f2f7f6;
+}
+
+.room-free {
+  min-width: 84rpx;
+  text-align: right;
+}
+
+.room-free view {
+  color: #2d9a5c;
+  font-size: 32rpx;
+  font-weight: 800;
+}
+
+.room-free text {
+  color: #8aaaa4;
+  font-size: 20rpx;
+}

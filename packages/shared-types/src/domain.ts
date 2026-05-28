@@ -19,15 +19,21 @@ export interface User {
   id: string;
   studentNo: string;
   name: string;
+  email?: string | null;
   departmentId: string | null;
   departmentName?: string | null;
   status: UserStatus;
+  roles?: Role[];
+  updatedAt?: string;
 }
 
 export interface Role {
   id: string;
   code: string;
   name: string;
+  userCount?: number;
+  permissions?: Permission[];
+  updatedAt?: string;
 }
 
 export interface Permission {
@@ -77,12 +83,15 @@ export interface Room {
 export interface Seat {
   id: string;
   roomId: string;
+  roomName?: string;
   code: string;
   x: number;
   y: number;
   hasPower: boolean;
   nearWindow: boolean;
+  quietZone?: boolean;
   status: ResourceStatus;
+  updatedAt?: string;
 }
 
 export interface Booking {
@@ -101,4 +110,22 @@ export interface Violation {
   bookingId: string;
   reason: 'NO_CHECK_IN' | 'MANUAL';
   occurredAt: string;
+}
+
+export interface StudentViolationRecord {
+  id: string;
+  room: string;
+  seat: string;
+  date: string;
+  reason: string;
+  count: number;
+  status: 'confirmed' | 'appealed';
+  occurredAt: string;
+}
+
+export interface StudentViolationSummary {
+  totalCount: number;
+  restrictionThreshold: number;
+  severeThreshold: number;
+  records: StudentViolationRecord[];
 }
