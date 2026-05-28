@@ -122,3 +122,28 @@ export const successfulSeatResponse = () =>
       status: 200
     }
   );
+
+export const successfulUsersResponse = () =>
+  new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: [
+        {
+          id: 'user-stu-cse-01',
+          studentNo: 'stu_cse_01',
+          name: '林晓明',
+          email: 'stu_cse_01@fudan.edu.cn',
+          departmentId: 'dept-cs',
+          departmentName: '计算机学院',
+          status: 'ACTIVE',
+          roles: [{ id: 'role-student', code: 'ROLE_STUDENT', name: '学生' }],
+          updatedAt: '2026-05-28T03:40:35.000Z'
+        }
+      ]
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    }
+  );
