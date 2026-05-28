@@ -398,6 +398,32 @@ describe('统一登录页', () => {
     expect(html).not.toContain('下一场预约');
   });
 
+  it('渲染学生违约记录页面', () => {
+    const html = renderToStaticMarkup(
+      <StudentHomePreview studentName="林晓明" initialActive="violation" />
+    );
+
+    expect(html).toContain('违约记录');
+    expect(html).toContain('本学期违约 2 次（累计 2.0 次）');
+    expect(html).toContain('本学期已违约 2.0 次');
+    expect(html).toContain('累计达 3 次将被限制预约 7 天');
+    expect(html).toContain('/ 3.0 限制');
+    expect(html).toContain('违约进度');
+    expect(html).toContain('2.0 / 5.0（30天限制）');
+    expect(html).toContain('3次 限7天');
+    expect(html).toContain('5次 限30天');
+    expect(html).toContain('经管自习室 301 · D8');
+    expect(html).toContain('未签到（签到超时自动取消）');
+    expect(html).toContain('文史馆阅览室 · B14');
+    expect(html).toContain('提前离座超 30 分钟');
+    expect(html).toContain('理工自习室 201 · A3');
+    expect(html).toContain('1小时内取消预约');
+    expect(html).toContain('已确认');
+    expect(html).toContain('申诉中');
+    expect(html).toContain('申请申诉');
+    expect(html).not.toContain('下一场预约');
+  });
+
   it('生产构建缺少 VITE_API_BASE_URL 时不能回退到 localhost', () => {
     expect(() => resolveApiBaseUrl({ PROD: true })).toThrow(
       '生产构建缺少 VITE_API_BASE_URL'

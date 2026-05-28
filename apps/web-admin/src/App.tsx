@@ -2187,6 +2187,30 @@ const STUDENT_NOTIFICATION_GROUPS = [
   }>;
 }>;
 
+const STUDENT_VIOLATION_RECORDS = [
+  {
+    date: '4月18日',
+    room: '经管自习室 301 · D8',
+    reason: '未签到（签到超时自动取消）',
+    count: '1',
+    status: 'confirmed'
+  },
+  {
+    date: '3月12日',
+    room: '文史馆阅览室 · B14',
+    reason: '提前离座超 30 分钟',
+    count: '0.5',
+    status: 'confirmed'
+  },
+  {
+    date: '2月28日',
+    room: '理工自习室 201 · A3',
+    reason: '1小时内取消预约',
+    count: '0.5',
+    status: 'appealed'
+  }
+] as const;
+
 const getStudentSeatNumber = (rowIndex: number, colIndex: number) =>
   `${String.fromCharCode(65 + rowIndex)}${colIndex + 1}`;
 
@@ -4827,6 +4851,8 @@ export function StudentHomePreview({
                 ? '智能助手'
                 : activeMenu === 'notify'
                   ? '通知中心'
+                  : activeMenu === 'violation'
+                    ? '违约记录'
           : '首页概览';
   const pageSubtitle =
     activeMenu === 'rooms'
@@ -4843,6 +4869,8 @@ export function StudentHomePreview({
                 ? '自然语言找座 · 预约管理 · 规则问答'
                 : activeMenu === 'notify'
                   ? '3 条未读'
+                  : activeMenu === 'violation'
+                    ? '本学期违约 2 次（累计 2.0 次）'
           : '2026年5月26日 · 学习空间实时状态';
 
   return (
@@ -4891,7 +4919,18 @@ export function StudentHomePreview({
             <p>{pageSubtitle}</p>
           </div>
           <div className="student-home-actions">
-            {activeMenu === 'notify' ? (
+            {activeMenu === 'violation' ? (
+              <>
+                <button type="button">
+                  <DashboardIcon name="info" size={13} />
+                  违约规则
+                </button>
+                <button type="button">
+                  <DashboardIcon name="edit" size={13} />
+                  提交申诉
+                </button>
+              </>
+            ) : activeMenu === 'notify' ? (
               <>
                 <button type="button">
                   <DashboardIcon name="check-circle" size={13} />
@@ -5000,6 +5039,8 @@ export function StudentHomePreview({
           <StudentAssistantPanel onConfirm={() => handleStudentPageChange('confirm')} />
         ) : activeMenu === 'notify' ? (
           <StudentNotificationPanel />
+        ) : activeMenu === 'violation' ? (
+          <StudentViolationPanel />
         ) : (
           <>
         <section className="student-home-booking-banner" aria-label="下一场预约">
@@ -5730,6 +5771,74 @@ function StudentNotificationPanel() {
           </div>
         </section>
       ))}
+    </section>
+  );
+}
+
+function StudentViolationPanel() {
+  return (
+    <section className="student-violation-panel" aria-label="学生违约记录">
+      <div className="student-violation-summary">
+        <span className="student-violation-summary-icon">
+          <DashboardIcon name="alert" size={22} />
+        </span>
+        <div>
+          <strong>本学期已违约 2.0 次</strong>
+          <p>累计达 3 次将被限制预约 7 天。请合理安排预约，按时签到。</p>
+        </div>
+        <aside>
+          <strong>2.0</strong>
+          <span>/ 3.0 限制</span>
+        </aside>
+      </div>
+
+      <section className="dashboard-card student-violation-progress-card">
+        <header>
+          <strong>违约进度</strong>
+          <span>2.0 / 5.0（30天限制）</span>
+        </header>
+        <div className="student-violation-progress" aria-label="违约进度 2.0 / 5.0">
+          <span />
+        </div>
+        <footer>
+          <span>0</span>
+          <strong>3次 限7天</strong>
+          <strong>5次 限30天</strong>
+        </footer>
+      </section>
+
+      <div className="student-violation-record-list">
+        {STUDENT_VIOLATION_RECORDS.map((record) => {
+          const appealed = record.status === 'appealed';
+          return (
+            <article className="dashboard-card student-violation-record-card" key={record.room}>
+              <span
+                className="student-violation-record-icon"
+                data-status={record.status}
+                aria-hidden="true"
+              >
+                <DashboardIcon name="alert" size={16} />
+              </span>
+              <div className="student-violation-record-main">
+                <h2>{record.room}</h2>
+                <p>{record.reason}</p>
+                <div>
+                  <span>
+                    <DashboardIcon name="clock" size={11} />
+                    {record.date}
+                  </span>
+                  <mark data-status={record.status}>{appealed ? '申诉中' : '已确认'}</mark>
+                </div>
+              </div>
+              <aside className="student-violation-record-count">
+                <strong>+{record.count}</strong>
+                <span>违约次数</span>
+                {!appealed ? <button type="button">申请申诉</button> : null}
+              </aside>
+            </article>
+          );
+        })}
+      </div>
     </section>
   );
 }
