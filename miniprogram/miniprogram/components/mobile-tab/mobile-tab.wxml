@@ -3,6 +3,8 @@
     wx:for="{{tabs}}"
     wx:key="key"
     class="tab-item {{active === item.key ? 'tab-item-active' : ''}}"
+    data-active="{{active}}"
+    data-key="{{item.key}}"
     data-url="{{item.url}}"
     bindtap="onTap"
   >

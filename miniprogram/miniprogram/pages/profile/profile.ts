@@ -19,7 +19,7 @@ Page({
         items: [
           { mark: '★', label: '收藏的座位', sub: '3个' },
           { mark: '◷', label: '历史预约', sub: '18条' },
-          { mark: '!', label: '违约记录', sub: '2次' }
+          { mark: '!', label: '违约记录', sub: '2次', action: 'violations' }
         ]
       },
       {
@@ -55,6 +55,10 @@ Page({
   },
   onMenuTap(event: { currentTarget: { dataset: { action?: string } } }) {
     const action = event.currentTarget.dataset.action;
+    if (action === 'violations') {
+      wx.navigateTo({ url: '/pages/violations/violations' });
+      return;
+    }
     if (action === 'logout') {
       this.logout();
     }

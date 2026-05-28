@@ -93,6 +93,24 @@ export type DemoNotification = {
   targetUrl?: string;
 };
 
+export type DemoViolationRecord = {
+  id: string;
+  room: string;
+  seat: string;
+  date: string;
+  reason: string;
+  count: number;
+  status: 'confirmed' | 'appealed';
+  occurredAt?: string;
+};
+
+export type DemoViolationSummary = {
+  totalCount: number;
+  restrictionThreshold: number;
+  severeThreshold: number;
+  records: DemoViolationRecord[];
+};
+
 export type ApiState = {
   source: 'backend' | 'mock';
   message: string;

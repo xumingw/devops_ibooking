@@ -1,0 +1,308 @@
+.violations-page {
+  padding: 0 36rpx 160rpx;
+  background: #f2f7f6;
+}
+
+.top-panel {
+  margin: 0 -36rpx 28rpx;
+  padding: 8rpx 36rpx 30rpx;
+  background: #fafeff;
+}
+
+.panel-sub {
+  display: block;
+  margin-top: 8rpx;
+  color: #8aaaa4;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+
+.summary-card {
+  display: grid;
+  grid-template-columns: 88rpx minmax(0, 1fr) 112rpx;
+  gap: 22rpx;
+  align-items: center;
+  margin-bottom: 24rpx;
+  padding: 30rpx;
+  border: 1rpx solid #fde68a;
+  border-radius: 28rpx;
+  background: linear-gradient(120deg, #fffbeb, #fef3c7);
+}
+
+.summary-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 88rpx;
+  height: 88rpx;
+  border: 3rpx solid #fde68a;
+  border-radius: 24rpx;
+  color: #c8820a;
+  background: #fef3c7;
+}
+
+.alert-icon,
+.mini-alert {
+  position: relative;
+}
+
+.alert-icon {
+  width: 44rpx;
+  height: 44rpx;
+  border: 5rpx solid currentColor;
+  border-radius: 999rpx;
+}
+
+.alert-stem {
+  position: absolute;
+  top: 9rpx;
+  left: 17rpx;
+  width: 5rpx;
+  height: 16rpx;
+  border-radius: 999rpx;
+  background: currentColor;
+}
+
+.alert-dot {
+  position: absolute;
+  left: 17rpx;
+  bottom: 7rpx;
+  width: 5rpx;
+  height: 5rpx;
+  border-radius: 999rpx;
+  background: currentColor;
+}
+
+.summary-main {
+  min-width: 0;
+}
+
+.summary-title {
+  color: #92400e;
+  font-size: 26rpx;
+  font-weight: 850;
+}
+
+.summary-desc {
+  margin-top: 8rpx;
+  color: #b45309;
+  font-size: 23rpx;
+  line-height: 1.55;
+}
+
+.summary-count {
+  text-align: center;
+}
+
+.summary-count view {
+  color: #c8820a;
+  font-size: 48rpx;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.summary-count text {
+  display: block;
+  margin-top: 8rpx;
+  color: #b45309;
+  font-size: 18rpx;
+  font-weight: 700;
+}
+
+.progress-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  margin-bottom: 24rpx;
+  padding: 28rpx;
+  border-radius: 28rpx;
+}
+
+.progress-head,
+.progress-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+}
+
+.progress-head {
+  color: #4a6b64;
+  font-size: 22rpx;
+  font-weight: 800;
+}
+
+.progress-head text:last-child {
+  color: #c8820a;
+}
+
+.progress-track {
+  overflow: hidden;
+  height: 14rpx;
+  border-radius: 999rpx;
+  background: #ecf4f2;
+}
+
+.progress-bar {
+  height: 100%;
+  border-radius: 999rpx;
+  background: linear-gradient(90deg, #c8820a, #f59e0b);
+}
+
+.progress-foot {
+  color: #8aaaa4;
+  font-size: 20rpx;
+  font-weight: 750;
+}
+
+.limit-short {
+  color: #c8820a;
+}
+
+.limit-long {
+  color: #c84040;
+}
+
+.record-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18rpx;
+}
+
+.record-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 20rpx;
+  padding: 28rpx;
+  border-radius: 28rpx;
+}
+
+.record-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 20rpx;
+}
+
+.record-icon-confirmed {
+  color: #c84040;
+  background: #fef2f2;
+}
+
+.record-icon-appealed {
+  color: #7a52a8;
+  background: #f3eef9;
+}
+
+.mini-alert {
+  width: 34rpx;
+  height: 34rpx;
+  border: 4rpx solid currentColor;
+  border-radius: 999rpx;
+}
+
+.mini-alert view {
+  position: absolute;
+  top: 7rpx;
+  left: 13rpx;
+  width: 4rpx;
+  height: 12rpx;
+  border-radius: 999rpx;
+  background: currentColor;
+}
+
+.mini-alert text {
+  position: absolute;
+  left: 13rpx;
+  bottom: 6rpx;
+  width: 4rpx;
+  height: 4rpx;
+  border-radius: 999rpx;
+  background: currentColor;
+}
+
+.record-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.record-room {
+  color: #1a2e2a;
+  font-size: 26rpx;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.record-reason {
+  margin-top: 8rpx;
+  color: #4a6b64;
+  font-size: 23rpx;
+  line-height: 1.45;
+}
+
+.record-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 12rpx;
+  color: #8aaaa4;
+  font-size: 21rpx;
+  font-weight: 700;
+}
+
+.record-status {
+  padding: 4rpx 14rpx;
+  border-radius: 999rpx;
+  font-size: 20rpx;
+  font-weight: 850;
+}
+
+.record-status-confirmed {
+  color: #c84040;
+  background: #fef2f2;
+}
+
+.record-status-appealed {
+  color: #7a52a8;
+  background: #f3eef9;
+}
+
+.record-count {
+  flex: 0 0 112rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6rpx;
+  text-align: right;
+}
+
+.record-count view {
+  color: #c84040;
+  font-size: 34rpx;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.record-icon-appealed ~ .record-count view {
+  color: #7a52a8;
+}
+
+.record-count text {
+  color: #8aaaa4;
+  font-size: 19rpx;
+  font-weight: 700;
+}
+
+.record-count button {
+  min-width: 104rpx;
+  height: 44rpx;
+  padding: 0;
+  color: #3a6fa8;
+  font-size: 20rpx;
+  font-weight: 850;
+  background: transparent;
+}

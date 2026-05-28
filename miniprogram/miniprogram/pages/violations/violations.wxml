@@ -1,0 +1,64 @@
+<view class="page violations-page">
+  <view class="top-panel">
+    <view class="section-title">违约记录</view>
+    <text class="panel-sub">本学期违约 {{semesterCountLabel}} 次（累计 {{totalCountLabel}} 次）</text>
+  </view>
+
+  <view class="summary-card">
+    <view class="summary-icon">
+      <view class="alert-icon">
+        <view class="alert-stem"></view>
+        <view class="alert-dot"></view>
+      </view>
+    </view>
+    <view class="summary-main">
+      <view class="summary-title">本学期已违约 {{totalCountLabel}} 次</view>
+      <view class="summary-desc">累计达 {{summary.restrictionThreshold}} 次将被限制预约 7 天。请合理安排预约，按时签到。</view>
+    </view>
+    <view class="summary-count">
+      <view>{{totalCountLabel}}</view>
+      <text>/ {{summary.restrictionThreshold}}.0 限制</text>
+    </view>
+  </view>
+
+  <view class="progress-card card">
+    <view class="progress-head">
+      <text>违约进度</text>
+      <text>{{totalCountLabel}} / {{summary.severeThreshold}}.0（30天限制）</text>
+    </view>
+    <view class="progress-track">
+      <view class="progress-bar" style="width: {{progressPercent}}%;"></view>
+    </view>
+    <view class="progress-foot">
+      <text>0</text>
+      <text class="limit-short">{{summary.restrictionThreshold}}次 限7天</text>
+      <text class="limit-long">{{summary.severeThreshold}}次 限30天</text>
+    </view>
+  </view>
+
+  <view class="record-list">
+    <view wx:for="{{records}}" wx:key="id" class="record-card card">
+      <view class="record-icon record-icon-{{item.status}}">
+        <view class="mini-alert">
+          <view></view>
+          <text></text>
+        </view>
+      </view>
+      <view class="record-main">
+        <view class="record-room">{{item.room}}</view>
+        <view class="record-reason">{{item.reason}}</view>
+        <view class="record-meta">
+          <text>{{item.date}}</text>
+          <text class="record-status record-status-{{item.status}}">{{item.statusLabel}}</text>
+        </view>
+      </view>
+      <view class="record-count">
+        <view>+{{item.countLabel}}</view>
+        <text>违约次数</text>
+        <button wx:if="{{item.status === 'confirmed'}}" data-id="{{item.id}}" catchtap="applyAppeal">申请申诉</button>
+      </view>
+    </view>
+  </view>
+
+  <mobile-tab active="profile" />
+</view>
