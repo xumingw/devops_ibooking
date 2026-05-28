@@ -147,3 +147,28 @@ export const successfulUsersResponse = () =>
       status: 200
     }
   );
+
+export const successfulRolesResponse = () =>
+  new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: [
+        {
+          id: 'role-full-admin',
+          code: 'ROLE_FULL_ADMIN',
+          name: '超级管理员',
+          userCount: 1,
+          permissions: [
+            { id: 'perm-user-read', code: 'user.read', name: '查看用户', menuKey: 'users' },
+            { id: 'perm-role-assign', code: 'role.assign', name: '分配角色', menuKey: 'roles' }
+          ],
+          updatedAt: '2026-05-28T03:40:35.000Z'
+        }
+      ]
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    }
+  );
