@@ -7472,6 +7472,25 @@ button {
   margin: 0 auto;
 }
 
+.student-violation-message {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #b6dfd8;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #f3fbf9;
+  color: #1d6c5f;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.student-violation-message.is-error {
+  border-color: #f4c4c4;
+  background: #fff5f5;
+  color: #c84040;
+}
+
 .student-violation-summary {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) auto;
@@ -7583,6 +7602,17 @@ button {
 .student-violation-record-list {
   display: grid;
   gap: 10px;
+}
+
+.student-violation-empty {
+  border: 1px dashed #b6dfd8;
+  border-radius: 12px;
+  padding: 18px;
+  background: #f7fcfb;
+  color: #4a6b64;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
 }
 
 .student-violation-record-card {

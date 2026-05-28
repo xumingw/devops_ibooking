@@ -194,6 +194,41 @@ type AdminRoleRow = {
   searchText: string;
 };
 
+type StudentViolationStatus = 'confirmed' | 'appealed';
+
+type StudentViolationRecord = {
+  id: string;
+  room: string;
+  seat: string;
+  date: string;
+  reason: string;
+  count: number;
+  status: StudentViolationStatus;
+  occurredAt?: string;
+};
+
+type StudentViolationSummary = {
+  totalCount: number;
+  restrictionThreshold: number;
+  severeThreshold: number;
+  records: StudentViolationRecord[];
+};
+
+type StudentViolationRecordView = StudentViolationRecord & {
+  countLabel: string;
+  statusLabel: string;
+};
+
+type StudentViolationSummaryView = Omit<StudentViolationSummary, 'records'> & {
+  semesterCountLabel: string;
+  totalCountLabel: string;
+  restrictionLabel: string;
+  severeProgressLabel: string;
+  progressAriaLabel: string;
+  progressPercent: number;
+  records: StudentViolationRecordView[];
+};
+
 const AUTH_REMEMBER_KEY = 'ibooking.auth.remember';
 const ADMIN_ACCESS_TOKEN_KEY = 'ibooking.admin.accessToken';
 const STUDENT_ACCESS_TOKEN_KEY = 'ibooking.student.accessToken';
@@ -379,6 +414,28 @@ export const requestRoles = async (
   } | null;
   if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
     throw new Error(payload?.message || '角色列表加载失败');
+  }
+
+  return payload.data;
+};
+
+export const requestStudentViolationSummary = async (
+  accessToken: string,
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl()
+): Promise<StudentViolationSummary> => {
+  const response = await fetcher(`${apiBaseUrl}/api/v1/violations/me`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: StudentViolationSummary;
+  } | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
+    throw new Error(payload?.message || '违约记录加载失败');
   }
 
   return payload.data;
@@ -620,7 +677,13 @@ export function App() {
   }
 
   if (session?.kind === 'student') {
-    return <StudentHomePreview studentName={session.name} onLogout={handleLogout} />;
+    return (
+      <StudentHomePreview
+        accessToken={session.accessToken}
+        studentName={session.name}
+        onLogout={handleLogout}
+      />
+    );
   }
 
   return (
@@ -768,6 +831,7 @@ type DashboardProps = {
 };
 
 type StudentDashboardProps = {
+  accessToken?: string;
   studentName: string;
   initialActive?: StudentPageId;
   onLogout?: () => void;
@@ -2543,29 +2607,77 @@ const STUDENT_NOTIFICATION_GROUPS = [
   }>;
 }>;
 
-const STUDENT_VIOLATION_RECORDS = [
-  {
-    date: '4月18日',
-    room: '经管自习室 301 · D8',
-    reason: '未签到（签到超时自动取消）',
-    count: '1',
-    status: 'confirmed'
-  },
-  {
-    date: '3月12日',
-    room: '文史馆阅览室 · B14',
-    reason: '提前离座超 30 分钟',
-    count: '0.5',
-    status: 'confirmed'
-  },
-  {
-    date: '2月28日',
-    room: '理工自习室 201 · A3',
-    reason: '1小时内取消预约',
-    count: '0.5',
-    status: 'appealed'
-  }
-] as const;
+const STUDENT_VIOLATION_FALLBACK_SUMMARY: StudentViolationSummary = {
+  totalCount: 2,
+  restrictionThreshold: 3,
+  severeThreshold: 5,
+  records: [
+    {
+      id: 'student-violation-fallback-1',
+      date: '4月18日',
+      room: '经管自习室 301 · D8',
+      seat: 'D8',
+      reason: '未签到（签到超时自动取消）',
+      count: 1,
+      status: 'confirmed',
+      occurredAt: '2026-04-18T06:15:00.000Z'
+    },
+    {
+      id: 'student-violation-fallback-2',
+      date: '3月12日',
+      room: '文史馆阅览室 · B14',
+      seat: 'B14',
+      reason: '提前离座超 30 分钟',
+      count: 0.5,
+      status: 'confirmed',
+      occurredAt: '2026-03-12T09:30:00.000Z'
+    },
+    {
+      id: 'student-violation-fallback-3',
+      date: '2月28日',
+      room: '理工自习室 201 · A3',
+      seat: 'A3',
+      reason: '1小时内取消预约',
+      count: 0.5,
+      status: 'appealed',
+      occurredAt: '2026-02-28T01:10:00.000Z'
+    }
+  ]
+};
+
+const formatStudentViolationCount = (value: number) =>
+  Number.isInteger(value) ? `${value}` : value.toFixed(1);
+
+const formatStudentViolationTotal = (value: number) => value.toFixed(1);
+
+const getStudentViolationProgressPercent = (summary: StudentViolationSummary) => {
+  if (summary.severeThreshold <= 0) return 0;
+  return Math.min(100, Math.round((summary.totalCount / summary.severeThreshold) * 100));
+};
+
+export const mapStudentViolationSummaryToView = (
+  summary: StudentViolationSummary
+): StudentViolationSummaryView => ({
+  ...summary,
+  semesterCountLabel: formatStudentViolationTotal(summary.totalCount),
+  totalCountLabel: formatStudentViolationTotal(summary.totalCount),
+  restrictionLabel: `/ ${formatStudentViolationTotal(summary.restrictionThreshold)} 限制`,
+  severeProgressLabel: `${formatStudentViolationTotal(summary.totalCount)} / ${formatStudentViolationTotal(
+    summary.severeThreshold
+  )}（30天限制）`,
+  progressAriaLabel: `违约进度 ${formatStudentViolationTotal(summary.totalCount)} / ${formatStudentViolationTotal(
+    summary.severeThreshold
+  )}`,
+  progressPercent: getStudentViolationProgressPercent(summary),
+  records: summary.records.map((record) => ({
+    ...record,
+    countLabel: formatStudentViolationCount(record.count),
+    statusLabel: record.status === 'appealed' ? '申诉中' : '已确认'
+  }))
+});
+
+export const formatStudentViolationSubtitle = (summary: StudentViolationSummaryView) =>
+  `本学期违约 ${summary.totalCountLabel} 次（累计 ${summary.totalCountLabel} 次）`;
 
 const getStudentSeatNumber = (rowIndex: number, colIndex: number) =>
   `${String.fromCharCode(65 + rowIndex)}${colIndex + 1}`;
@@ -5440,6 +5552,7 @@ function DataReportsPanel() {
 }
 
 export function StudentHomePreview({
+  accessToken,
   studentName,
   initialActive,
   onLogout
@@ -5447,6 +5560,10 @@ export function StudentHomePreview({
   const [activeMenu, setActiveMenu] = useState<StudentPageId>(
     () => initialActive ?? resolveInitialStudentMenu()
   );
+  const [studentViolationSummary, setStudentViolationSummary] =
+    useState<StudentViolationSummaryView>(() =>
+      mapStudentViolationSummaryToView(STUDENT_VIOLATION_FALLBACK_SUMMARY)
+    );
   const activeNavMenu: StudentMenuId = activeMenu === 'confirm' ? 'select' : activeMenu;
 
   const handleStudentMenuChange = (nextMenu: StudentMenuId) => {
@@ -5491,9 +5608,9 @@ export function StudentHomePreview({
               : activeMenu === 'assistant'
                 ? '自然语言找座 · 预约管理 · 规则问答'
                 : activeMenu === 'notify'
-                  ? '3 条未读'
-                  : activeMenu === 'violation'
-                    ? '本学期违约 2 次（累计 2.0 次）'
+                ? '3 条未读'
+                : activeMenu === 'violation'
+                  ? formatStudentViolationSubtitle(studentViolationSummary)
           : '2026年5月26日 · 学习空间实时状态';
 
   return (
@@ -5663,7 +5780,10 @@ export function StudentHomePreview({
         ) : activeMenu === 'notify' ? (
           <StudentNotificationPanel />
         ) : activeMenu === 'violation' ? (
-          <StudentViolationPanel />
+          <StudentViolationPanel
+            accessToken={accessToken}
+            onSummaryChange={setStudentViolationSummary}
+          />
         ) : (
           <>
         <section className="student-home-booking-banner" aria-label="下一场预约">
@@ -6398,43 +6518,102 @@ function StudentNotificationPanel() {
   );
 }
 
-function StudentViolationPanel() {
+function StudentViolationPanel({
+  accessToken,
+  onSummaryChange
+}: {
+  accessToken?: string;
+  onSummaryChange?: (summary: StudentViolationSummaryView) => void;
+}) {
+  const [summary, setSummary] = useState<StudentViolationSummaryView>(() =>
+    mapStudentViolationSummaryToView(STUDENT_VIOLATION_FALLBACK_SUMMARY)
+  );
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    if (!accessToken) {
+      const fallbackSummary = mapStudentViolationSummaryToView(STUDENT_VIOLATION_FALLBACK_SUMMARY);
+      setSummary(fallbackSummary);
+      onSummaryChange?.(fallbackSummary);
+      setLoading(false);
+      setLoadError('');
+      return () => {
+        alive = false;
+      };
+    }
+
+    setLoading(true);
+    requestStudentViolationSummary(accessToken)
+      .then((nextSummary) => {
+        if (!alive) return;
+        const nextSummaryView = mapStudentViolationSummaryToView(nextSummary);
+        setSummary(nextSummaryView);
+        onSummaryChange?.(nextSummaryView);
+        setLoadError('');
+      })
+      .catch((error) => {
+        if (!alive) return;
+        const fallbackSummary = mapStudentViolationSummaryToView(STUDENT_VIOLATION_FALLBACK_SUMMARY);
+        setSummary(fallbackSummary);
+        onSummaryChange?.(fallbackSummary);
+        setLoadError(error instanceof Error ? error.message : '违约记录加载失败');
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [accessToken, onSummaryChange]);
+
   return (
     <section className="student-violation-panel" aria-label="学生违约记录">
+      {(loading || loadError) && (
+        <div className={`student-violation-message${loadError ? ' is-error' : ''}`}>
+          <DashboardIcon name={loadError ? 'alert' : 'refresh'} size={14} />
+          {loadError || '正在加载违约记录…'}
+        </div>
+      )}
+
       <div className="student-violation-summary">
         <span className="student-violation-summary-icon">
           <DashboardIcon name="alert" size={22} />
         </span>
         <div>
-          <strong>本学期已违约 2.0 次</strong>
-          <p>累计达 3 次将被限制预约 7 天。请合理安排预约，按时签到。</p>
+          <strong>本学期已违约 {summary.semesterCountLabel} 次</strong>
+          <p>
+            累计达 {summary.restrictionThreshold} 次将被限制预约 7 天。请合理安排预约，按时签到。
+          </p>
         </div>
         <aside>
-          <strong>2.0</strong>
-          <span>/ 3.0 限制</span>
+          <strong>{summary.totalCountLabel}</strong>
+          <span>{summary.restrictionLabel}</span>
         </aside>
       </div>
 
       <section className="dashboard-card student-violation-progress-card">
         <header>
           <strong>违约进度</strong>
-          <span>2.0 / 5.0（30天限制）</span>
+          <span>{summary.severeProgressLabel}</span>
         </header>
-        <div className="student-violation-progress" aria-label="违约进度 2.0 / 5.0">
-          <span />
+        <div className="student-violation-progress" aria-label={summary.progressAriaLabel}>
+          <span style={{ width: `${summary.progressPercent}%` }} />
         </div>
         <footer>
           <span>0</span>
-          <strong>3次 限7天</strong>
-          <strong>5次 限30天</strong>
+          <strong>{summary.restrictionThreshold}次 限7天</strong>
+          <strong>{summary.severeThreshold}次 限30天</strong>
         </footer>
       </section>
 
       <div className="student-violation-record-list">
-        {STUDENT_VIOLATION_RECORDS.map((record) => {
+        {summary.records.map((record) => {
           const appealed = record.status === 'appealed';
           return (
-            <article className="dashboard-card student-violation-record-card" key={record.room}>
+            <article className="dashboard-card student-violation-record-card" key={record.id}>
               <span
                 className="student-violation-record-icon"
                 data-status={record.status}
@@ -6450,17 +6629,20 @@ function StudentViolationPanel() {
                     <DashboardIcon name="clock" size={11} />
                     {record.date}
                   </span>
-                  <mark data-status={record.status}>{appealed ? '申诉中' : '已确认'}</mark>
+                  <mark data-status={record.status}>{record.statusLabel}</mark>
                 </div>
               </div>
               <aside className="student-violation-record-count">
-                <strong>+{record.count}</strong>
+                <strong>+{record.countLabel}</strong>
                 <span>违约次数</span>
                 {!appealed ? <button type="button">申请申诉</button> : null}
               </aside>
             </article>
           );
         })}
+        {summary.records.length === 0 && (
+          <div className="student-violation-empty">暂无违约记录，请继续保持按时签到。</div>
+        )}
       </div>
     </section>
   );

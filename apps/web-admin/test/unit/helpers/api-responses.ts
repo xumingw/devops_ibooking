@@ -172,3 +172,42 @@ export const successfulRolesResponse = () =>
       status: 200
     }
   );
+
+export const successfulStudentViolationsResponse = () =>
+  new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: {
+        totalCount: 1.5,
+        restrictionThreshold: 3,
+        severeThreshold: 5,
+        records: [
+          {
+            id: 'violation-no-checkin',
+            room: '经管自习室 301 · D8',
+            seat: 'D8',
+            date: '5月28日',
+            reason: '未签到（签到超时自动取消）',
+            count: 1,
+            status: 'confirmed',
+            occurredAt: '2026-05-28T04:00:00.000Z'
+          },
+          {
+            id: 'violation-appealed',
+            room: '文史馆阅览室 · B14',
+            seat: 'B14',
+            date: '5月20日',
+            reason: '提前离座超 30 分钟',
+            count: 0.5,
+            status: 'appealed',
+            occurredAt: '2026-05-20T09:00:00.000Z'
+          }
+        ]
+      }
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    }
+  );
