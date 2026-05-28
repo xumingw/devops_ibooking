@@ -77,12 +77,15 @@ export interface Room {
 export interface Seat {
   id: string;
   roomId: string;
+  roomName?: string;
   code: string;
   x: number;
   y: number;
   hasPower: boolean;
   nearWindow: boolean;
+  quietZone?: boolean;
   status: ResourceStatus;
+  updatedAt?: string;
 }
 
 export interface Booking {
