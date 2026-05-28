@@ -9,9 +9,16 @@ import { HealthService } from './health/health.service';
 import { AuthModule } from './auth/auth.module';
 import { RoomsModule } from './rooms/rooms.module';
 import { SeatsModule } from './seats/seats.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), AuthModule, RoomsModule, SeatsModule],
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    AuthModule,
+    RoomsModule,
+    SeatsModule,
+    UsersModule
+  ],
   controllers: [HealthController],
   providers: [
     HealthService,
