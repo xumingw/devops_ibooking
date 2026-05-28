@@ -5,6 +5,10 @@ const SESSION_KEY = 'ibooking.session';
 export function restoreSession(): Session | null {
   const session = wx.getStorageSync<Session | ''>(SESSION_KEY);
   if (!session || typeof session !== 'object' || !session.accessToken) return null;
+  if (isExpired(session.expiresAt)) {
+    dropSession();
+    return null;
+  }
   return session;
 }
 
@@ -14,4 +18,9 @@ export function persistSession(session: Session): void {
 
 export function dropSession(): void {
   wx.removeStorageSync(SESSION_KEY);
+}
+
+function isExpired(expiresAt: string): boolean {
+  const timestamp = Date.parse(expiresAt);
+  return !Number.isFinite(timestamp) || timestamp <= Date.now();
 }

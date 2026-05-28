@@ -17,10 +17,10 @@ Component({
     tabs
   },
   methods: {
-    onTap(event: { currentTarget: { dataset: { url?: string } } }) {
-      const url = event.currentTarget.dataset.url;
-      if (!url) return;
-      wx.reLaunch({ url });
+    onTap(event: { currentTarget: { dataset: { active?: string; key?: string; url?: string } } }) {
+      const { active, key, url } = event.currentTarget.dataset;
+      if (!key || !url || key === active) return;
+      wx.redirectTo({ url });
     }
   }
 });

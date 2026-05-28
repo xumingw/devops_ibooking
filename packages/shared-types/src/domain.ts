@@ -111,3 +111,21 @@ export interface Violation {
   reason: 'NO_CHECK_IN' | 'MANUAL';
   occurredAt: string;
 }
+
+export interface StudentViolationRecord {
+  id: string;
+  room: string;
+  seat: string;
+  date: string;
+  reason: string;
+  count: number;
+  status: 'confirmed' | 'appealed';
+  occurredAt: string;
+}
+
+export interface StudentViolationSummary {
+  totalCount: number;
+  restrictionThreshold: number;
+  severeThreshold: number;
+  records: StudentViolationRecord[];
+}

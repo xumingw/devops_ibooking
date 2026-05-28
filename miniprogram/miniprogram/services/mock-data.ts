@@ -1,4 +1,4 @@
-import { DemoBooking, DemoNotification, Room, SeatCell } from './types';
+import { DemoBooking, DemoNotification, DemoViolationRecord, Room, SeatCell } from './types';
 
 export const mockRooms: Room[] = [
   {
@@ -131,8 +131,41 @@ export const mockNotifications: DemoNotification[] = [
     description: '开始后 15 分钟未签到，座位已释放并记录一次违约',
     timeLabel: '4月18日',
     read: true,
-    targetMode: 'reLaunch',
-    targetUrl: '/pages/profile/profile'
+    targetMode: 'navigateTo',
+    targetUrl: '/pages/violations/violations'
+  }
+];
+
+export const mockViolationRecords: DemoViolationRecord[] = [
+  {
+    id: 'violation-gm-301-d8',
+    room: '经管自习室 301 · D8',
+    seat: 'D8',
+    date: '4月18日',
+    reason: '未签到（签到超时自动取消）',
+    count: 1,
+    status: 'confirmed',
+    occurredAt: '2026-04-18T02:15:00.000Z'
+  },
+  {
+    id: 'violation-humanities-b14',
+    room: '文史馆阅览室 · B14',
+    seat: 'B14',
+    date: '3月12日',
+    reason: '提前离座超 30 分钟',
+    count: 0.5,
+    status: 'confirmed',
+    occurredAt: '2026-03-12T07:30:00.000Z'
+  },
+  {
+    id: 'violation-science-a3',
+    room: '理工自习室 201 · A3',
+    seat: 'A3',
+    date: '2月28日',
+    reason: '1小时内取消预约',
+    count: 0.5,
+    status: 'appealed',
+    occurredAt: '2026-02-28T01:30:00.000Z'
   }
 ];
 

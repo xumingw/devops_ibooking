@@ -11,6 +11,7 @@ import { RoomsModule } from './rooms/rooms.module';
 import { SeatsModule } from './seats/seats.module';
 import { UsersModule } from './users/users.module';
 import { RolesModule } from './roles/roles.module';
+import { ViolationsModule } from './violations/violations.module';
 
 @Module({
   imports: [
@@ -19,7 +20,8 @@ import { RolesModule } from './roles/roles.module';
     RoomsModule,
     SeatsModule,
     UsersModule,
-    RolesModule
+    RolesModule,
+    ViolationsModule
   ],
   controllers: [HealthController],
   providers: [

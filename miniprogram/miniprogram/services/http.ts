@@ -1,5 +1,5 @@
 import { getApiBaseUrl } from './config';
-import { restoreSession } from './session';
+import { dropSession, restoreSession } from './session';
 import { ApiResponse } from './types';
 
 type RequestMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
@@ -19,11 +19,12 @@ export function requestApi<T>(
   options: { method?: RequestMethod; data?: unknown; auth?: boolean } = {}
 ): Promise<T> {
   const session = restoreSession();
+  const needsAuth = options.auth !== false;
   const headers: Record<string, string> = {
     'content-type': 'application/json'
   };
 
-  if (options.auth !== false && session?.accessToken) {
+  if (needsAuth && session?.accessToken) {
     headers.authorization = `Bearer ${session.accessToken}`;
   }
 
@@ -48,10 +49,21 @@ export function requestApi<T>(
             payload?.code
           )
         );
+        if (needsAuth && result.statusCode === 401) {
+          handleUnauthorizedSession();
+        }
       },
       fail(error) {
         reject(new ApiError(error.errMsg || '无法连接后端服务', 0, 'NETWORK_FAILED'));
       }
     });
   });
+}
+
+function handleUnauthorizedSession(): void {
+  dropSession();
+  const app = getApp();
+  app.globalData.accessToken = '';
+  app.globalData.userName = '';
+  wx.reLaunch({ url: '/pages/login/login' });
 }
