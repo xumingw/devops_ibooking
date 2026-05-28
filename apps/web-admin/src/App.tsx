@@ -161,6 +161,39 @@ type AdminUserRow = {
   status: 'active' | 'disabled';
 };
 
+type AdminRolePermission = {
+  id: string;
+  code: string;
+  name: string;
+  menuKey?: string | null;
+};
+
+type AdminRole = {
+  id: string;
+  code: string;
+  name: string;
+  userCount?: number;
+  permissions?: AdminRolePermission[];
+  updatedAt?: string;
+};
+
+type AdminRoleFilters = {
+  keyword?: string;
+};
+
+type AdminRoleRow = {
+  id: string;
+  name: string;
+  users: string;
+  scope: string;
+  spaceAccess: string;
+  operationAccess: string;
+  menuAccess: string;
+  updatedAt: string;
+  status: 'active' | 'pending' | 'disabled';
+  searchText: string;
+};
+
 const AUTH_REMEMBER_KEY = 'ibooking.auth.remember';
 const ADMIN_ACCESS_TOKEN_KEY = 'ibooking.admin.accessToken';
 const STUDENT_ACCESS_TOKEN_KEY = 'ibooking.student.accessToken';
@@ -318,6 +351,34 @@ export const requestUsers = async (
   } | null;
   if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
     throw new Error(payload?.message || '用户列表加载失败');
+  }
+
+  return payload.data;
+};
+
+export const requestRoles = async (
+  accessToken: string,
+  filters: AdminRoleFilters = {},
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl()
+): Promise<AdminRole[]> => {
+  const params = new URLSearchParams();
+  const keyword = filters.keyword?.trim();
+  if (keyword) params.set('keyword', keyword);
+
+  const query = params.toString();
+  const response = await fetcher(`${apiBaseUrl}/api/v1/roles${query ? `?${query}` : ''}`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: AdminRole[];
+  } | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
+    throw new Error(payload?.message || '角色列表加载失败');
   }
 
   return payload.data;
@@ -1508,95 +1569,69 @@ const toAdminUserRow = (user: AdminUser): AdminUserRow => ({
   status: user.status === 'ACTIVE' ? 'active' : 'disabled'
 });
 
-const ADMIN_ROLE_SUMMARY = [
-  {
-    label: '角色数',
-    value: '5',
-    note: '覆盖管理员与观察员',
-    icon: 'shield',
-    tone: F.success
-  },
-  {
-    label: '权限点',
-    value: '42',
-    note: '按模块与操作拆分',
-    icon: 'settings',
-    tone: '#3A6FA8'
-  },
-  {
-    label: '待审变更',
-    value: '3',
-    note: '审批后生效',
-    icon: 'alert',
-    tone: '#C8820A'
-  },
-  {
-    label: '菜单级权限',
-    value: '13',
-    note: '后台菜单按角色过滤',
-    icon: 'grid',
-    tone: F.gold
-  }
-] satisfies Array<{
-  label: string;
-  value: string;
-  note: string;
-  icon: DashboardIconName;
-  tone: string;
-}>;
+const rolePermission = (menuKey: AdminMenuId, action = 'read'): AdminRolePermission => ({
+  id: `perm-${menuKey}-${action}`,
+  code: `${menuKey}.${action}`,
+  name: menuKey,
+  menuKey
+});
 
-const ADMIN_ROLE_RECORDS = [
+const ADMIN_ROLE_FALLBACKS: AdminRole[] = [
   {
+    id: 'role-full-admin',
+    code: 'ROLE_FULL_ADMIN',
     name: '超级管理员',
-    users: '3',
-    scope: '全部院系',
-    spaceAccess: '全部',
-    operationAccess: '全部',
-    menuAccess: '13/13',
-    updatedAt: '今天 08:50',
-    status: 'active'
+    userCount: 3,
+    permissions: ADMIN_MENU_IDS.map((menuKey) => rolePermission(menuKey, 'manage')),
+    updatedAt: '今天 08:50'
   },
   {
+    id: 'role-room-admin',
+    code: 'ROLE_ROOM_ADMIN',
     name: '自习室管理员',
-    users: '14',
-    scope: '全校空间',
-    spaceAccess: '可编辑',
-    operationAccess: '可处理',
-    menuAccess: '8/13',
-    updatedAt: '昨天 19:21',
-    status: 'active'
+    userCount: 14,
+    permissions: ['dashboard', 'rooms', 'seats', 'editor', 'schedule', 'bookings', 'violations', 'qrcode'].map(
+      (menuKey) =>
+        rolePermission(
+          menuKey as AdminMenuId,
+          ['rooms', 'seats', 'bookings', 'violations'].includes(menuKey)
+            ? 'write'
+            : menuKey === 'qrcode'
+              ? 'manage'
+              : 'read'
+        )
+    ),
+    updatedAt: '昨天 19:21'
   },
   {
+    id: 'role-department-admin',
+    code: 'ROLE_DEPARTMENT_ADMIN',
     name: '院系管理员',
-    users: '9',
-    scope: '院系范围',
-    spaceAccess: '院系编辑',
-    operationAccess: '只读',
-    menuAccess: '6/13',
-    updatedAt: '昨天',
-    status: 'active'
+    userCount: 9,
+    permissions: ['dashboard', 'rooms', 'seats', 'schedule', 'bookings', 'users'].map((menuKey) =>
+      rolePermission(menuKey as AdminMenuId, 'read')
+    ),
+    updatedAt: '昨天'
   },
   {
+    id: 'role-readonly',
+    code: 'ROLE_READONLY',
     name: '只读观察员',
-    users: '10',
-    scope: '全校只读',
-    spaceAccess: '只读',
-    operationAccess: '只读',
-    menuAccess: '5/13',
-    updatedAt: '04-23',
-    status: 'active'
+    userCount: 10,
+    permissions: ['dashboard', 'rooms', 'seats', 'bookings', 'reports'].map((menuKey) =>
+      rolePermission(menuKey as AdminMenuId, 'read')
+    ),
+    updatedAt: '04-23'
   },
   {
+    id: 'role-temp-audit',
+    code: 'ROLE_TEMP_AUDIT',
     name: '临时审计员',
-    users: '0',
-    scope: '审计范围',
-    spaceAccess: '无',
-    operationAccess: '只读',
-    menuAccess: '2/13',
-    updatedAt: '待审批',
-    status: 'pending'
+    userCount: 0,
+    permissions: ['audit', 'reports'].map((menuKey) => rolePermission(menuKey as AdminMenuId, 'read')),
+    updatedAt: '待审批'
   }
-] as const;
+];
 
 const ADMIN_ROLE_STATUS_META = {
   active: { label: '启用', variant: 'green' },
@@ -1629,6 +1664,161 @@ const ADMIN_ROLE_PERMISSION_MATRIX = [
 ] as const;
 
 const ADMIN_ROLE_FILTERS = ['全部角色', '权限范围', '审批状态'] as const;
+
+const formatAdminRoleUpdatedAt = (updatedAt?: string) => {
+  if (!updatedAt) return '未记录';
+  const date = new Date(updatedAt);
+  if (Number.isNaN(date.getTime())) return updatedAt;
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hour = String(date.getHours()).padStart(2, '0');
+  const minute = String(date.getMinutes()).padStart(2, '0');
+  return `${month}-${day} ${hour}:${minute}`;
+};
+
+const getRolePermissionCodes = (role: Pick<AdminRole, 'permissions'>) =>
+  new Set((role.permissions ?? []).map((permission) => permission.code));
+
+const getRoleMenuKeys = (role: Pick<AdminRole, 'permissions'>) =>
+  Array.from(
+    new Set(
+      (role.permissions ?? [])
+        .map((permission) => permission.menuKey)
+        .filter((menuKey): menuKey is string => Boolean(menuKey))
+    )
+  );
+
+const hasAnyPermission = (permissionCodes: Set<string>, codes: string[]) =>
+  codes.some((code) => permissionCodes.has(code));
+
+const getRoleScope = (role: Pick<AdminRole, 'code' | 'name' | 'permissions'>) => {
+  const permissionCodes = getRolePermissionCodes(role);
+  if (role.code === 'ROLE_FULL_ADMIN') return '全部院系';
+  if (role.name.includes('院系')) return '院系范围';
+  if (hasAnyPermission(permissionCodes, ['audit.read', 'reports.read'])) return '审计范围';
+  if (
+    hasAnyPermission(permissionCodes, [
+      'room.read',
+      'room.write',
+      'room.manage',
+      'rooms.read',
+      'rooms.write',
+      'rooms.manage',
+      'seat.read',
+      'seat.write',
+      'seat.manage',
+      'seats.read',
+      'seats.write',
+      'seats.manage'
+    ])
+  ) {
+    return '全校空间';
+  }
+  return '未配置';
+};
+
+const getRoleSpaceAccess = (role: Pick<AdminRole, 'code' | 'permissions'>) => {
+  const permissionCodes = getRolePermissionCodes(role);
+  if (role.code === 'ROLE_FULL_ADMIN') return '全部';
+  if (
+    hasAnyPermission(permissionCodes, [
+      'room.manage',
+      'rooms.manage',
+      'seat.manage',
+      'seats.manage'
+    ])
+  ) {
+    return '全部';
+  }
+  if (
+    hasAnyPermission(permissionCodes, [
+      'room.write',
+      'rooms.write',
+      'seat.write',
+      'seats.write'
+    ])
+  ) {
+    return '可编辑';
+  }
+  if (
+    hasAnyPermission(permissionCodes, [
+      'room.read',
+      'rooms.read',
+      'seat.read',
+      'seats.read'
+    ])
+  ) {
+    return '只读';
+  }
+  return '无';
+};
+
+const getRoleOperationAccess = (role: Pick<AdminRole, 'code' | 'permissions'>) => {
+  const permissionCodes = getRolePermissionCodes(role);
+  if (role.code === 'ROLE_FULL_ADMIN') return '全部';
+  if (
+    hasAnyPermission(permissionCodes, [
+      'booking.manage',
+      'bookings.manage',
+      'violation.manage',
+      'violations.manage'
+    ])
+  ) {
+    return '全部';
+  }
+  if (
+    hasAnyPermission(permissionCodes, [
+      'checkin_code.manage',
+      'booking.create',
+      'booking.write',
+      'bookings.write',
+      'violation.write',
+      'violations.write',
+      'qrcode.manage',
+      'qrcode.write'
+    ])
+  ) {
+    return '可处理';
+  }
+  if (
+    hasAnyPermission(permissionCodes, [
+      'booking.read',
+      'bookings.read',
+      'violation.read',
+      'violations.read',
+      'audit.read',
+      'reports.read'
+    ])
+  ) {
+    return '只读';
+  }
+  return '无';
+};
+
+export const mapAdminRoleToRow = (role: AdminRole): AdminRoleRow => {
+  const menuKeys = role.code === 'ROLE_FULL_ADMIN' ? ADMIN_MENU_IDS : getRoleMenuKeys(role);
+  const status = role.name.includes('临时') || menuKeys.length === 0 ? 'pending' : 'active';
+  return {
+    id: role.id,
+    name: role.name,
+    users: `${role.userCount ?? 0}`,
+    scope: getRoleScope(role),
+    spaceAccess: getRoleSpaceAccess(role),
+    operationAccess: getRoleOperationAccess(role),
+    menuAccess: `${menuKeys.length}/${ADMIN_MENU_IDS.length}`,
+    updatedAt: formatAdminRoleUpdatedAt(role.updatedAt),
+    status,
+    searchText: [
+      role.name,
+      role.code,
+      ...(role.permissions ?? []).map((permission) => permission.name),
+      ...(role.permissions ?? []).map((permission) => permission.code),
+      ...menuKeys
+    ]
+      .join(' ')
+      .toLowerCase()
+  };
+};
 
 const ADMIN_PARAM_SUMMARY = [
   {
@@ -2602,7 +2792,7 @@ const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
   },
   roles: {
     title: '角色权限管理',
-    sub: '5 个角色 · 菜单级权限',
+    sub: '角色权限 · 菜单级过滤',
     description: '配置管理员角色、权限边界和菜单可见范围，符合 RBAC 要求。',
     actions: [
       { label: '新建角色', icon: 'shield' },
@@ -2885,7 +3075,7 @@ export function AdminDashboard({ accessToken, adminName, initialActive, onLogout
         ) : activeMenu === 'users' ? (
           <UserManagementPanel accessToken={accessToken} />
         ) : activeMenu === 'roles' ? (
-          <RoleManagementPanel />
+          <RoleManagementPanel accessToken={accessToken} />
         ) : activeMenu === 'params' ? (
           <SystemParameterPanel />
         ) : activeMenu === 'audit' ? (
@@ -4634,11 +4824,104 @@ function UserManagementPanel({ accessToken }: { accessToken?: string }) {
   );
 }
 
-function RoleManagementPanel() {
+function RoleManagementPanel({ accessToken }: { accessToken?: string }) {
+  const [roles, setRoles] = useState<AdminRoleRow[]>(() =>
+    ADMIN_ROLE_FALLBACKS.map(mapAdminRoleToRow)
+  );
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    if (!accessToken) {
+      setRoles(ADMIN_ROLE_FALLBACKS.map(mapAdminRoleToRow));
+      setLoadError('');
+      setLoading(false);
+      return () => {
+        alive = false;
+      };
+    }
+
+    setLoading(true);
+    requestRoles(accessToken, { keyword: query })
+      .then((nextRoles) => {
+        if (!alive) return;
+        setRoles(nextRoles.map(mapAdminRoleToRow));
+        setLoadError('');
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setRoles(ADMIN_ROLE_FALLBACKS.map(mapAdminRoleToRow));
+        setLoadError(error instanceof Error ? error.message : '角色列表加载失败');
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [accessToken, query]);
+
+  const filteredRoles = roles.filter((role) => {
+    const keyword = query.trim().toLowerCase();
+    if (!keyword) return true;
+    return role.searchText.includes(keyword);
+  });
+
+  const permissionCount = new Set(
+    roles.flatMap((role) =>
+      role.searchText
+        .split(' ')
+        .filter((part) => part.includes('.') && !part.includes('/'))
+    )
+  ).size;
+  const maxMenuCount = roles.reduce((max, role) => {
+    const [current] = role.menuAccess.split('/').map((value) => Number(value));
+    return Math.max(max, Number.isFinite(current) ? current : 0);
+  }, 0);
+  const roleSummary = [
+    {
+      label: '角色数',
+      value: `${roles.length}`,
+      note: '覆盖管理员与观察员',
+      icon: 'shield',
+      tone: F.success
+    },
+    {
+      label: '权限点',
+      value: `${permissionCount}`,
+      note: '按模块与操作拆分',
+      icon: 'settings',
+      tone: '#3A6FA8'
+    },
+    {
+      label: '待审变更',
+      value: `${roles.filter((role) => role.status === 'pending').length}`,
+      note: '审批后生效',
+      icon: 'alert',
+      tone: '#C8820A'
+    },
+    {
+      label: '菜单级权限',
+      value: `${maxMenuCount}/${ADMIN_MENU_IDS.length}`,
+      note: '后台菜单按角色过滤',
+      icon: 'grid',
+      tone: F.gold
+    }
+  ] satisfies Array<{
+    label: string;
+    value: string;
+    note: string;
+    icon: DashboardIconName;
+    tone: string;
+  }>;
+
   return (
     <section className="role-management-panel" aria-label="角色权限管理">
       <div className="role-management-summary-grid" aria-label="角色权限关键指标">
-        {ADMIN_ROLE_SUMMARY.map((item) => (
+        {roleSummary.map((item) => (
           <article className="dashboard-card role-management-summary-card" key={item.label}>
             <span className="role-management-summary-icon" style={{ color: item.tone }}>
               <DashboardIcon name={item.icon} size={15} />
@@ -4655,7 +4938,12 @@ function RoleManagementPanel() {
       <div className="role-management-toolbar">
         <label className="role-management-search">
           <DashboardIcon name="search" size={14} />
-          <input aria-label="搜索角色权限" placeholder="角色名称、权限点、菜单" />
+          <input
+            aria-label="搜索角色权限"
+            placeholder="角色名称、权限点、菜单"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
         </label>
         {ADMIN_ROLE_FILTERS.map((filter) => (
           <button key={filter} type="button">
@@ -4673,6 +4961,13 @@ function RoleManagementPanel() {
         </button>
       </div>
 
+      {(loading || loadError) && (
+        <div className={`room-message ${loadError ? 'is-error' : ''}`}>
+          <DashboardIcon name={loadError ? 'alert' : 'refresh'} size={14} />
+          {loadError || '正在加载角色列表…'}
+        </div>
+      )}
+
       <div className="role-management-layout">
         <section className="dashboard-card role-management-table-card">
           <header className="role-management-head">
@@ -4689,10 +4984,10 @@ function RoleManagementPanel() {
                 <span key={head}>{head}</span>
               ))}
             </div>
-            {ADMIN_ROLE_RECORDS.map((role) => {
+            {filteredRoles.map((role) => {
               const status = ADMIN_ROLE_STATUS_META[role.status];
               return (
-                <div className="role-management-table-row" key={role.name}>
+                <div className="role-management-table-row" key={role.id}>
                   <strong>{role.name}</strong>
                   <span>{role.users}</span>
                   <span>{role.scope}</span>
@@ -4720,6 +5015,7 @@ function RoleManagementPanel() {
                 </div>
               );
             })}
+            {filteredRoles.length === 0 && <div className="room-empty">没有匹配的角色</div>}
           </div>
         </section>
 
