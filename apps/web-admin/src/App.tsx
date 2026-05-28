@@ -302,6 +302,8 @@ const DASHBOARD_ICON_PATHS = {
   clock: 'M12 22a10 10 0 100-20 10 10 0 000 20z M12 6v6l4 2',
   zap: 'M13 2L3 14h7l-1 8 10-12h-7l1-8z',
   bell: 'M18 8a6 6 0 00-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9 M13.73 21a2 2 0 01-3.46 0',
+  mic: 'M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z M19 10v2a7 7 0 01-14 0v-2 M12 19v4 M8 23h8',
+  send: 'M22 2L11 13 M22 2l-7 20-4-9-9-4 20-7z',
   edit: 'M12 20h9 M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4 12.5-12.5z',
   x: 'M18 6L6 18 M6 6l12 12',
   check: 'M20 6L9 17l-5-5',
@@ -2059,6 +2061,47 @@ const STUDENT_BOOKING_STATUS_META: Record<
 
 const STUDENT_CHECKIN_DIGITS = ['2', '7', '4', '', '', ''] as const;
 const STUDENT_CHECKIN_KEYPAD = [1, 2, 3, 4, 5, 6, 7, 8, 9, '', 0, '⌫'] as const;
+
+const STUDENT_ASSISTANT_CARDS = [
+  {
+    name: '经管自习室 301 · C3',
+    tags: ['插座', '安静区'],
+    avail: '14:00–22:00',
+    dist: '光华楼'
+  },
+  {
+    name: '理工自习室 201 · F8',
+    tags: ['插座', '24小时'],
+    avail: '全天可用',
+    dist: '逸夫楼'
+  },
+  {
+    name: '图书馆自习区 · B22',
+    tags: ['插座', '靠窗'],
+    avail: '14:00–20:00',
+    dist: '图书馆'
+  }
+] as const;
+
+const STUDENT_ASSISTANT_SHORTCUTS = [
+  '今天晚上还有空座吗',
+  '找靠窗座位',
+  '我今天定了哪里',
+  '图书馆什么时候关'
+] as const;
+
+const STUDENT_ASSISTANT_HISTORY = [
+  '推荐安静的自习室',
+  '下午有没有插座',
+  '我的违约次数',
+  '图书馆几点关门'
+] as const;
+
+const STUDENT_ASSISTANT_CAPABILITIES = [
+  ['找座推荐', '描述你的需求，系统按空座、插座、靠窗等条件匹配'],
+  ['一键预约', '对话结果可直接进入预约确认流程'],
+  ['规则问答', '签到规则、违约政策和开放时间可直接查询']
+] as const;
 
 const getStudentSeatNumber = (rowIndex: number, colIndex: number) =>
   `${String.fromCharCode(65 + rowIndex)}${colIndex + 1}`;
@@ -4696,6 +4739,8 @@ export function StudentHomePreview({
             ? '我的预约'
             : activeMenu === 'checkin'
               ? '签到'
+              : activeMenu === 'assistant'
+                ? '智能助手'
           : '首页概览';
   const pageSubtitle =
     activeMenu === 'rooms'
@@ -4708,6 +4753,8 @@ export function StudentHomePreview({
             ? '本学期共 18 次预约 · 16 次完成'
             : activeMenu === 'checkin'
               ? '输入动态码或扫码完成签到'
+              : activeMenu === 'assistant'
+                ? '自然语言找座 · 预约管理 · 规则问答'
           : '2026年5月26日 · 学习空间实时状态';
 
   return (
@@ -4756,7 +4803,18 @@ export function StudentHomePreview({
             <p>{pageSubtitle}</p>
           </div>
           <div className="student-home-actions">
-            {activeMenu === 'checkin' ? (
+            {activeMenu === 'assistant' ? (
+              <>
+                <button type="button">
+                  <DashboardIcon name="trash" size={13} />
+                  清空会话
+                </button>
+                <button type="button">
+                  <DashboardIcon name="zap" size={13} />
+                  规则模式
+                </button>
+              </>
+            ) : activeMenu === 'checkin' ? (
               <>
                 <button type="button">
                   <DashboardIcon name="scan" size={13} />
@@ -4839,6 +4897,8 @@ export function StudentHomePreview({
           <StudentBookingsPanel />
         ) : activeMenu === 'checkin' ? (
           <StudentCheckInPanel />
+        ) : activeMenu === 'assistant' ? (
+          <StudentAssistantPanel onConfirm={() => handleStudentPageChange('confirm')} />
         ) : (
           <>
         <section className="student-home-booking-banner" aria-label="下一场预约">
@@ -5409,6 +5469,120 @@ function StudentCheckInPanel() {
           <button type="button">联系管理员</button>
         </div>
       </div>
+    </section>
+  );
+}
+
+function StudentAssistantPanel({ onConfirm }: { onConfirm?: () => void }) {
+  return (
+    <section className="student-assistant-panel" aria-label="学生智能助手">
+      <div className="student-assistant-chat dashboard-card">
+        <div className="student-assistant-messages" aria-label="助手会话">
+          <article className="student-assistant-message is-user">
+            <div>今天下午有空位吗？我想要有插座的座位</div>
+          </article>
+
+          <article className="student-assistant-message is-assistant">
+            <span className="student-assistant-avatar">
+              <DashboardIcon name="zap" size={15} />
+            </span>
+            <div className="student-assistant-bubble">
+              <p>根据您的偏好，今天下午（14:00 后）共找到 3 个合适选项：</p>
+              <div className="student-assistant-result-list">
+                {STUDENT_ASSISTANT_CARDS.map((card) => (
+                  <section className="student-assistant-result-card" key={card.name}>
+                    <div>
+                      <h2>{card.name}</h2>
+                      <div className="student-assistant-tags">
+                        {card.tags.map((tag) => (
+                          <span key={tag}>{tag}</span>
+                        ))}
+                      </div>
+                      <small>
+                        {card.dist} · {card.avail}
+                      </small>
+                    </div>
+                    <button type="button" onClick={onConfirm}>
+                      立即预约
+                    </button>
+                  </section>
+                ))}
+              </div>
+              <button className="student-assistant-refresh" type="button">
+                <DashboardIcon name="refresh" size={12} />
+                换一批
+              </button>
+            </div>
+          </article>
+
+          <article className="student-assistant-message is-user">
+            <div>帮我预约第一个，时间 14:00 到 17:00</div>
+          </article>
+
+          <article className="student-assistant-message is-assistant">
+            <span className="student-assistant-avatar">
+              <DashboardIcon name="zap" size={15} />
+            </span>
+            <div className="student-assistant-bubble">
+              <p>
+                已为您找到 经管自习室 301 · C3 号座位，时间 2026年4月24日
+                14:00–17:00。请确认是否预约？
+              </p>
+              <div className="student-assistant-confirm-actions">
+                <button type="button" onClick={onConfirm}>
+                  确认预约
+                </button>
+                <button type="button">取消</button>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div className="student-assistant-shortcuts" aria-label="快捷问题">
+          {STUDENT_ASSISTANT_SHORTCUTS.map((shortcut) => (
+            <button key={shortcut} type="button">
+              {shortcut}
+            </button>
+          ))}
+        </div>
+
+        <div className="student-assistant-composer">
+          <div>输入问题，例如“明天上午有没有靠窗且安静的座位”…</div>
+          <button aria-label="语音输入" type="button">
+            <DashboardIcon name="mic" size={15} />
+          </button>
+          <button aria-label="发送问题" type="button">
+            <DashboardIcon name="send" size={15} />
+          </button>
+        </div>
+      </div>
+
+      <aside className="student-assistant-side">
+        <section className="dashboard-card student-assistant-side-card">
+          <header>
+            <h2>最近对话</h2>
+            <button type="button">清空</button>
+          </header>
+          {STUDENT_ASSISTANT_HISTORY.map((item) => (
+            <button key={item} type="button">
+              {item}
+              <DashboardIcon name="arrow-right" size={11} />
+            </button>
+          ))}
+        </section>
+
+        <section className="dashboard-card student-assistant-side-card">
+          <header>
+            <h2>能力示例</h2>
+          </header>
+          {STUDENT_ASSISTANT_CAPABILITIES.map(([title, desc]) => (
+            <div className="student-assistant-capability" key={title}>
+              <strong>{title}</strong>
+              <small>{desc}</small>
+            </div>
+          ))}
+        </section>
+      </aside>
     </section>
   );
 }
