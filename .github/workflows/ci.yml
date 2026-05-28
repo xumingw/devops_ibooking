@@ -345,8 +345,16 @@ jobs:
           docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml run --rm -T api ./node_modules/.bin/prisma migrate deploy < /dev/null
           docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml up -d --force-recreate --remove-orphans
 
+          api_health_port="${API_PORT##*:}"
+          case "$api_health_port" in
+            ''|*[!0-9]*)
+              echo "PROD_API_PORT must be a numeric port or a host:port binding. Current value: $API_PORT"
+              exit 1
+              ;;
+          esac
+
           for _ in $(seq 1 60); do
-            if curl -fsS "http://127.0.0.1:${API_PORT}/api/v1/health" >/dev/null; then
+            if curl -fsS "http://127.0.0.1:${api_health_port}/api/v1/health" >/dev/null; then
               docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml ps
               exit 0
             fi
