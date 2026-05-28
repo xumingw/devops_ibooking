@@ -106,7 +106,7 @@ describe('student activity pages', () => {
     );
 
     expect(html).toContain('违约记录');
-    expect(html).toContain('本学期违约 2 次（累计 2.0 次）');
+    expect(html).toContain('本学期违约 2.0 次（累计 2.0 次）');
     expect(html).toContain('本学期已违约 2.0 次');
     expect(html).toContain('累计达 3 次将被限制预约 7 天');
     expect(html).toContain('/ 3.0 限制');
