@@ -350,6 +350,29 @@ describe('统一登录页', () => {
     expect(html).not.toContain('下一场预约');
   });
 
+  it('渲染学生智能助手页面', () => {
+    const html = renderToStaticMarkup(
+      <StudentHomePreview studentName="林晓明" initialActive="assistant" />
+    );
+
+    expect(html).toContain('智能助手');
+    expect(html).toContain('自然语言找座 · 预约管理 · 规则问答');
+    expect(html).toContain('今天下午有空位吗？我想要有插座的座位');
+    expect(html).toContain('根据您的偏好，今天下午（14:00 后）共找到 3 个合适选项');
+    expect(html).toContain('经管自习室 301 · C3');
+    expect(html).toContain('图书馆自习区 · B22');
+    expect(html).toContain('立即预约');
+    expect(html).toContain('帮我预约第一个，时间 14:00 到 17:00');
+    expect(html).toContain('确认预约');
+    expect(html).toContain('今天晚上还有空座吗');
+    expect(html).toContain('找靠窗座位');
+    expect(html).toContain('我今天定了哪里');
+    expect(html).toContain('最近对话');
+    expect(html).toContain('能力示例');
+    expect(html).toContain('输入问题，例如“明天上午有没有靠窗且安静的座位”');
+    expect(html).not.toContain('下一场预约');
+  });
+
   it('生产构建缺少 VITE_API_BASE_URL 时不能回退到 localhost', () => {
     expect(() => resolveApiBaseUrl({ PROD: true })).toThrow(
       '生产构建缺少 VITE_API_BASE_URL'

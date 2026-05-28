@@ -7042,6 +7042,303 @@ button {
   cursor: pointer;
 }
 
+.student-assistant-panel {
+  height: calc(100vh - 102px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 18px;
+}
+
+.student-assistant-chat {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.student-assistant-messages {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow-y: auto;
+  padding: 22px;
+}
+
+.student-assistant-message {
+  display: flex;
+  gap: 10px;
+}
+
+.student-assistant-message.is-user {
+  justify-content: flex-end;
+}
+
+.student-assistant-message.is-user > div,
+.student-assistant-bubble {
+  max-width: min(70%, 620px);
+  border-radius: 4px 14px 14px;
+  padding: 10px 14px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.student-assistant-message.is-user > div {
+  border-radius: 14px 4px 14px 14px;
+  background: #2d7a6e;
+  color: #ffffff;
+}
+
+.student-assistant-bubble {
+  background: #ecf4f2;
+  color: #1a2e2a;
+}
+
+.student-assistant-bubble p {
+  margin: 0;
+}
+
+.student-assistant-avatar {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #2d7a6e, #1f5f55);
+  color: #d4a843;
+}
+
+.student-assistant-result-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.student-assistant-result-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid #d8e8e5;
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: #ffffff;
+  box-shadow: 0 8px 22px rgba(29, 62, 56, 0.08);
+}
+
+.student-assistant-result-card h2 {
+  margin: 0 0 5px;
+  color: #1a2e2a;
+  font-size: 12px;
+}
+
+.student-assistant-result-card small {
+  display: block;
+  margin-top: 5px;
+  color: #8aaaa4;
+  font-size: 10px;
+}
+
+.student-assistant-result-card button,
+.student-assistant-confirm-actions button:first-child {
+  min-height: 30px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #2d7a6e;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.student-assistant-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.student-assistant-tags span {
+  border: 1px solid #d8e8e5;
+  border-radius: 999px;
+  padding: 2px 7px;
+  background: #f3f4f6;
+  color: #4a6b64;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.student-assistant-refresh {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1.5px solid #d8e8e5;
+  border-radius: 8px;
+  margin-top: 10px;
+  padding: 0 12px;
+  background: #ffffff;
+  color: #2d7a6e;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.student-assistant-confirm-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.student-assistant-confirm-actions button:last-child {
+  min-height: 30px;
+  border: 1.5px solid #d8e8e5;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #ffffff;
+  color: #4a6b64;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.student-assistant-shortcuts {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  border-top: 1px solid #ecf4f2;
+  padding: 10px 16px;
+}
+
+.student-assistant-shortcuts button {
+  min-height: 27px;
+  border: 1px solid rgba(45, 122, 110, 0.18);
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: #ecf4f2;
+  color: #2d7a6e;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.student-assistant-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px 42px;
+  gap: 8px;
+  align-items: end;
+  border-top: 1px solid #d8e8e5;
+  padding: 12px 16px;
+}
+
+.student-assistant-composer > div {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  border: 1.5px solid #d8e8e5;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: #ecf4f2;
+  color: #8aaaa4;
+  font-size: 13px;
+}
+
+.student-assistant-composer button {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.student-assistant-composer button:nth-of-type(1) {
+  border: 1px solid #d8e8e5;
+  background: #ffffff;
+  color: #8aaaa4;
+}
+
+.student-assistant-composer button:nth-of-type(2) {
+  border: 0;
+  background: #2d7a6e;
+  color: #ffffff;
+}
+
+.student-assistant-side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.student-assistant-side-card {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+}
+
+.student-assistant-side-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.student-assistant-side-card h2 {
+  margin: 0;
+  color: #1a2e2a;
+  font-size: 12px;
+}
+
+.student-assistant-side-card header button,
+.student-assistant-side-card > button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.student-assistant-side-card header button {
+  color: #8aaaa4;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.student-assistant-side-card > button {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid #ecf4f2;
+  padding: 7px 0;
+  color: #4a6b64;
+  font-size: 12px;
+  text-align: left;
+}
+
+.student-assistant-capability {
+  display: grid;
+  gap: 2px;
+  border-bottom: 1px solid #ecf4f2;
+  padding: 8px 0;
+}
+
+.student-assistant-capability strong {
+  color: #2d7a6e;
+  font-size: 11px;
+}
+
+.student-assistant-capability small {
+  color: #8aaaa4;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
 @media (max-width: 860px) {
   .admin-login-page {
     grid-template-columns: 1fr;
@@ -7184,6 +7481,20 @@ button {
 
   .student-booking-card-actions {
     justify-content: flex-start;
+  }
+
+  .student-assistant-panel {
+    height: auto;
+    grid-template-columns: 1fr;
+  }
+
+  .student-assistant-chat {
+    min-height: 640px;
+  }
+
+  .student-assistant-side {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .admin-brand-panel {
@@ -7331,6 +7642,33 @@ button {
     width: 30px;
     height: 30px;
     font-size: 9px;
+  }
+
+  .student-assistant-message.is-user > div,
+  .student-assistant-bubble {
+    max-width: 100%;
+  }
+
+  .student-assistant-result-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .student-assistant-result-card button,
+  .student-assistant-confirm-actions button {
+    width: 100%;
+  }
+
+  .student-assistant-composer {
+    grid-template-columns: minmax(0, 1fr) 40px;
+  }
+
+  .student-assistant-composer > div {
+    grid-column: 1 / -1;
+  }
+
+  .student-assistant-side {
+    grid-template-columns: 1fr;
   }
 
   .student-checkin-panel {
