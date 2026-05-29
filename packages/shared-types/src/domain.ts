@@ -129,3 +129,29 @@ export interface StudentViolationSummary {
   severeThreshold: number;
   records: StudentViolationRecord[];
 }
+
+export type StudentNotificationGroupLabel = '今天' | '昨天' | '更早';
+export type StudentNotificationIconType = 'bell' | 'clock' | 'check' | 'alert';
+export type StudentNotificationTone = 'teal' | 'gold' | 'green' | 'red';
+
+export interface StudentNotificationRecord {
+  id: string;
+  group: StudentNotificationGroupLabel;
+  iconType: StudentNotificationIconType;
+  tone: StudentNotificationTone;
+  title: string;
+  description: string;
+  timeLabel: string;
+  read: boolean;
+  occurredAt: string;
+}
+
+export interface StudentNotificationGroup {
+  date: StudentNotificationGroupLabel;
+  items: StudentNotificationRecord[];
+}
+
+export interface StudentNotificationSummary {
+  unreadCount: number;
+  groups: StudentNotificationGroup[];
+}

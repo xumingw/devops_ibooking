@@ -211,3 +211,63 @@ export const successfulStudentViolationsResponse = () =>
       status: 200
     }
   );
+
+export const successfulStudentNotificationsResponse = () =>
+  new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: {
+        unreadCount: 2,
+        groups: [
+          {
+            date: '今天',
+            items: [
+              {
+                id: 'notice-booking-start',
+                group: '今天',
+                iconType: 'bell',
+                tone: 'teal',
+                title: '预约提醒',
+                description: '您今日 14:00 在经管自习室 301 的预约将在 15 分钟后开始',
+                timeLabel: '13:45',
+                read: false,
+                occurredAt: '2026-05-29T05:45:00.000Z'
+              },
+              {
+                id: 'notice-checkin-late',
+                group: '今天',
+                iconType: 'clock',
+                tone: 'gold',
+                title: '未签到提醒',
+                description: '预约已开始 10 分钟，请尽快完成签到',
+                timeLabel: '14:10',
+                read: false,
+                occurredAt: '2026-05-29T06:10:00.000Z'
+              }
+            ]
+          },
+          {
+            date: '昨天',
+            items: [
+              {
+                id: 'notice-checkin-done',
+                group: '昨天',
+                iconType: 'check',
+                tone: 'green',
+                title: '签到成功',
+                description: '您已完成经管自习室 301 · C3 签到',
+                timeLabel: '昨天 13:52',
+                read: true,
+                occurredAt: '2026-05-28T05:52:00.000Z'
+              }
+            ]
+          }
+        ]
+      }
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    }
+  );
