@@ -229,6 +229,47 @@ type StudentViolationSummaryView = Omit<StudentViolationSummary, 'records'> & {
   records: StudentViolationRecordView[];
 };
 
+type StudentNotificationGroupLabel = '今天' | '昨天' | '更早';
+type StudentNotificationIconType = 'bell' | 'clock' | 'check' | 'alert';
+type StudentNotificationTone = 'teal' | 'gold' | 'green' | 'red';
+
+type StudentNotificationRecord = {
+  id: string;
+  group: StudentNotificationGroupLabel;
+  iconType: StudentNotificationIconType;
+  tone: StudentNotificationTone;
+  title: string;
+  description: string;
+  timeLabel: string;
+  read: boolean;
+  occurredAt: string;
+};
+
+type StudentNotificationGroup = {
+  date: StudentNotificationGroupLabel;
+  items: StudentNotificationRecord[];
+};
+
+type StudentNotificationSummary = {
+  unreadCount: number;
+  groups: StudentNotificationGroup[];
+};
+
+type StudentNotificationItemView = Omit<StudentNotificationRecord, 'tone'> & {
+  icon: DashboardIconName;
+  tone: string;
+  desc: string;
+  time: string;
+};
+
+type StudentNotificationSummaryView = {
+  unreadCount: number;
+  groups: Array<{
+    date: string;
+    items: StudentNotificationItemView[];
+  }>;
+};
+
 const AUTH_REMEMBER_KEY = 'ibooking.auth.remember';
 const ADMIN_ACCESS_TOKEN_KEY = 'ibooking.admin.accessToken';
 const STUDENT_ACCESS_TOKEN_KEY = 'ibooking.student.accessToken';
@@ -436,6 +477,28 @@ export const requestStudentViolationSummary = async (
   } | null;
   if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
     throw new Error(payload?.message || '违约记录加载失败');
+  }
+
+  return payload.data;
+};
+
+export const requestStudentNotifications = async (
+  accessToken: string,
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl()
+): Promise<StudentNotificationSummary> => {
+  const response = await fetcher(`${apiBaseUrl}/api/v1/notifications/me`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: StudentNotificationSummary;
+  } | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
+    throw new Error(payload?.message || '通知中心加载失败');
   }
 
   return payload.data;
@@ -2606,6 +2669,76 @@ const STUDENT_NOTIFICATION_GROUPS = [
     read: boolean;
   }>;
 }>;
+
+const STUDENT_NOTIFICATION_ICON_META: Record<
+  StudentNotificationIconType,
+  { icon: DashboardIconName; tone: string }
+> = {
+  bell: { icon: 'bell', tone: F.navy },
+  clock: { icon: 'clock', tone: '#c8820a' },
+  check: { icon: 'check-circle', tone: F.success },
+  alert: { icon: 'alert', tone: F.danger }
+};
+
+const getStudentNotificationFallbackSummary = (): StudentNotificationSummaryView => ({
+  unreadCount: STUDENT_NOTIFICATION_GROUPS.reduce(
+    (sum, group) => sum + group.items.filter((item) => !item.read).length,
+    0
+  ),
+  groups: STUDENT_NOTIFICATION_GROUPS.map((group) => ({
+    date: group.date,
+    items: group.items.map((item) => ({
+      id: `fallback-${group.date}-${item.title}`,
+      group:
+        group.date === '今天' || group.date === '昨天'
+          ? (group.date as StudentNotificationGroupLabel)
+          : '更早',
+      iconType: 'bell',
+      icon: item.icon,
+      tone: item.tone,
+      title: item.title,
+      description: item.desc,
+      desc: item.desc,
+      timeLabel: item.time,
+      time: item.time,
+      read: item.read,
+      occurredAt: ''
+    }))
+  }))
+});
+
+export const mapStudentNotificationSummaryToView = (
+  summary: StudentNotificationSummary
+): StudentNotificationSummaryView => ({
+  unreadCount: summary.unreadCount,
+  groups: summary.groups.map((group) => ({
+    date: group.date,
+    items: group.items.map((item) => {
+      const meta = STUDENT_NOTIFICATION_ICON_META[item.iconType];
+      return {
+        ...item,
+        icon: meta.icon,
+        tone: meta.tone,
+        desc: item.description,
+        time: item.timeLabel
+      };
+    })
+  }))
+});
+
+const markStudentNotificationSummaryRead = (
+  summary: StudentNotificationSummaryView
+): StudentNotificationSummaryView => ({
+  unreadCount: 0,
+  groups: summary.groups.map((group) => ({
+    ...group,
+    items: group.items.map((item) => ({ ...item, read: true }))
+  }))
+});
+
+export const formatStudentNotificationSubtitle = (
+  summary: Pick<StudentNotificationSummaryView, 'unreadCount'>
+) => `${summary.unreadCount} 条未读`;
 
 const STUDENT_VIOLATION_FALLBACK_SUMMARY: StudentViolationSummary = {
   totalCount: 2,
@@ -5564,6 +5697,8 @@ export function StudentHomePreview({
     useState<StudentViolationSummaryView>(() =>
       mapStudentViolationSummaryToView(STUDENT_VIOLATION_FALLBACK_SUMMARY)
     );
+  const [studentNotificationSummary, setStudentNotificationSummary] =
+    useState<StudentNotificationSummaryView>(() => getStudentNotificationFallbackSummary());
   const activeNavMenu: StudentMenuId = activeMenu === 'confirm' ? 'select' : activeMenu;
 
   const handleStudentMenuChange = (nextMenu: StudentMenuId) => {
@@ -5608,7 +5743,7 @@ export function StudentHomePreview({
               : activeMenu === 'assistant'
                 ? '自然语言找座 · 预约管理 · 规则问答'
                 : activeMenu === 'notify'
-                ? '3 条未读'
+                ? formatStudentNotificationSubtitle(studentNotificationSummary)
                 : activeMenu === 'violation'
                   ? formatStudentViolationSubtitle(studentViolationSummary)
           : '2026年5月26日 · 学习空间实时状态';
@@ -5627,19 +5762,27 @@ export function StudentHomePreview({
           {STUDENT_MENU_GROUPS.map((group) => (
             <div className="student-home-nav-group" key={group.label}>
               <div className="student-home-nav-label">{group.label}</div>
-              {group.items.map((item) => (
-                <button
-                  aria-current={item.id === activeNavMenu ? 'page' : undefined}
-                  className={item.id === activeNavMenu ? 'is-active' : ''}
-                  key={item.id}
-                  onClick={() => handleStudentMenuChange(item.id)}
-                  type="button"
-                >
-                  <DashboardIcon name={item.icon} size={13} />
-                  <span>{item.label}</span>
-                  {item.badge ? <mark>{item.badge}</mark> : null}
-                </button>
-              ))}
+              {group.items.map((item) => {
+                const badge =
+                  item.id === 'notify'
+                    ? studentNotificationSummary.unreadCount > 0
+                      ? `${studentNotificationSummary.unreadCount}`
+                      : ''
+                    : item.badge;
+                return (
+                  <button
+                    aria-current={item.id === activeNavMenu ? 'page' : undefined}
+                    className={item.id === activeNavMenu ? 'is-active' : ''}
+                    key={item.id}
+                    onClick={() => handleStudentMenuChange(item.id)}
+                    type="button"
+                  >
+                    <DashboardIcon name={item.icon} size={13} />
+                    <span>{item.label}</span>
+                    {badge ? <mark>{badge}</mark> : null}
+                  </button>
+                );
+              })}
             </div>
           ))}
         </nav>
@@ -5778,7 +5921,10 @@ export function StudentHomePreview({
         ) : activeMenu === 'assistant' ? (
           <StudentAssistantPanel onConfirm={() => handleStudentPageChange('confirm')} />
         ) : activeMenu === 'notify' ? (
-          <StudentNotificationPanel />
+          <StudentNotificationPanel
+            accessToken={accessToken}
+            onSummaryChange={setStudentNotificationSummary}
+          />
         ) : activeMenu === 'violation' ? (
           <StudentViolationPanel
             accessToken={accessToken}
@@ -6472,28 +6618,91 @@ function StudentAssistantPanel({ onConfirm }: { onConfirm?: () => void }) {
   );
 }
 
-function StudentNotificationPanel() {
+function StudentNotificationPanel({
+  accessToken,
+  onSummaryChange
+}: {
+  accessToken?: string;
+  onSummaryChange?: (summary: StudentNotificationSummaryView) => void;
+}) {
+  const [summary, setSummary] = useState<StudentNotificationSummaryView>(() =>
+    getStudentNotificationFallbackSummary()
+  );
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    if (!accessToken) {
+      const fallbackSummary = getStudentNotificationFallbackSummary();
+      setSummary(fallbackSummary);
+      onSummaryChange?.(fallbackSummary);
+      setLoading(false);
+      setLoadError('');
+      return () => {
+        alive = false;
+      };
+    }
+
+    setLoading(true);
+    requestStudentNotifications(accessToken)
+      .then((nextSummary) => {
+        if (!alive) return;
+        const nextSummaryView = mapStudentNotificationSummaryToView(nextSummary);
+        setSummary(nextSummaryView);
+        onSummaryChange?.(nextSummaryView);
+        setLoadError('');
+      })
+      .catch((error) => {
+        if (!alive) return;
+        const fallbackSummary = getStudentNotificationFallbackSummary();
+        setSummary(fallbackSummary);
+        onSummaryChange?.(fallbackSummary);
+        setLoadError(error instanceof Error ? error.message : '通知中心加载失败');
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [accessToken, onSummaryChange]);
+
+  const handleMarkAllRead = () => {
+    const nextSummary = markStudentNotificationSummaryRead(summary);
+    setSummary(nextSummary);
+    onSummaryChange?.(nextSummary);
+  };
+
   return (
     <section className="student-notify-panel" aria-label="学生通知中心">
+      {(loading || loadError) && (
+        <div className={`student-notify-message${loadError ? ' is-error' : ''}`}>
+          <DashboardIcon name={loadError ? 'alert' : 'refresh'} size={14} />
+          {loadError || '正在加载通知中心…'}
+        </div>
+      )}
+
       <div className="dashboard-card student-notify-toolbar">
         <div>
-          <strong>3 条未读</strong>
+          <strong>{formatStudentNotificationSubtitle(summary)}</strong>
           <span>站内提醒会同步展示预约、签到、自动取消和系统公告。</span>
         </div>
-        <button type="button">
+        <button type="button" onClick={handleMarkAllRead}>
           <DashboardIcon name="check-circle" size={13} />
           标记全部已读
         </button>
       </div>
 
-      {STUDENT_NOTIFICATION_GROUPS.map((group) => (
+      {summary.groups.map((group) => (
         <section className="student-notify-group" key={group.date}>
           <h2>{group.date}</h2>
           <div className="student-notify-list">
             {group.items.map((item) => (
               <article
                 className={`dashboard-card student-notify-card${item.read ? ' is-read' : ''}`}
-                key={`${group.date}-${item.title}`}
+                key={item.id}
               >
                 <span
                   className="student-notify-icon"
@@ -6514,6 +6723,9 @@ function StudentNotificationPanel() {
           </div>
         </section>
       ))}
+      {summary.groups.length === 0 && (
+        <div className="student-notify-empty">暂无通知，预约提醒和签到消息会在这里展示。</div>
+      )}
     </section>
   );
 }

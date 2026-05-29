@@ -12,6 +12,7 @@ import { SeatsModule } from './seats/seats.module';
 import { UsersModule } from './users/users.module';
 import { RolesModule } from './roles/roles.module';
 import { ViolationsModule } from './violations/violations.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -21,7 +22,8 @@ import { ViolationsModule } from './violations/violations.module';
     SeatsModule,
     UsersModule,
     RolesModule,
-    ViolationsModule
+    ViolationsModule,
+    NotificationsModule
   ],
   controllers: [HealthController],
   providers: [
