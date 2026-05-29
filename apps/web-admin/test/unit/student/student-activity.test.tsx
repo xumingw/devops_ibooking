@@ -10,7 +10,7 @@ describe('student activity pages', () => {
     );
 
     expect(html).toContain('我的预约');
-    expect(html).toContain('本学期共 18 次预约 · 16 次完成');
+    expect(html).toContain('本学期共 5 次预约 · 2 次完成');
     expect(html).toContain('筛选状态');
     expect(html).toContain('导出记录');
     expect(html).toContain('全部');
