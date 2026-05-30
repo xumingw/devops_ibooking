@@ -271,3 +271,61 @@ export const successfulStudentNotificationsResponse = () =>
       status: 200
     }
   );
+
+export const successfulStudentBookingsResponse = () =>
+  new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: {
+        totalCount: 3,
+        activeCount: 2,
+        completedCount: 1,
+        records: [
+          {
+            id: 'booking-upcoming',
+            room: '经管自习室 301',
+            location: '光华楼 A座 3楼',
+            seat: 'C3',
+            time: '今日 14:00-17:00',
+            status: 'upcoming',
+            tags: ['插座'],
+            canCheckIn: true,
+            canCancel: true,
+            startAt: '2026-05-29T06:00:00.000Z',
+            endAt: '2026-05-29T09:00:00.000Z'
+          },
+          {
+            id: 'booking-using',
+            room: '理工自习室 201',
+            location: '理科楼 2楼',
+            seat: 'F12',
+            time: '今日 09:00-12:00',
+            status: 'using',
+            tags: ['24小时'],
+            canCheckIn: false,
+            canCancel: false,
+            startAt: '2026-05-29T01:00:00.000Z',
+            endAt: '2026-05-29T04:00:00.000Z'
+          },
+          {
+            id: 'booking-completed',
+            room: '文史馆阅览室 A',
+            location: '文史馆 1楼',
+            seat: 'A5',
+            time: '4月20日 14:00-16:00',
+            status: 'completed',
+            tags: ['靠窗'],
+            canCheckIn: false,
+            canCancel: false,
+            startAt: '2026-04-20T06:00:00.000Z',
+            endAt: '2026-04-20T08:00:00.000Z'
+          }
+        ]
+      }
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    }
+  );

@@ -270,6 +270,39 @@ type StudentNotificationSummaryView = {
   }>;
 };
 
+type StudentBookingStatus = 'upcoming' | 'using' | 'completed' | 'cancelled' | 'violation';
+
+type StudentBookingRecord = {
+  id: string;
+  room: string;
+  location: string;
+  seat: string;
+  time: string;
+  status: StudentBookingStatus;
+  tags: string[];
+  canCheckIn: boolean;
+  canCancel: boolean;
+  startAt: string;
+  endAt: string;
+};
+
+type StudentBookingSummary = {
+  totalCount: number;
+  activeCount: number;
+  completedCount: number;
+  records: StudentBookingRecord[];
+};
+
+type StudentBookingRecordView = StudentBookingRecord & {
+  statusLabel: string;
+  statusVariant: 'blue' | 'green' | 'red' | 'gray';
+  statusIcon: DashboardIconName;
+};
+
+type StudentBookingSummaryView = Omit<StudentBookingSummary, 'records'> & {
+  records: StudentBookingRecordView[];
+};
+
 const AUTH_REMEMBER_KEY = 'ibooking.auth.remember';
 const ADMIN_ACCESS_TOKEN_KEY = 'ibooking.admin.accessToken';
 const STUDENT_ACCESS_TOKEN_KEY = 'ibooking.student.accessToken';
@@ -499,6 +532,28 @@ export const requestStudentNotifications = async (
   } | null;
   if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
     throw new Error(payload?.message || '通知中心加载失败');
+  }
+
+  return payload.data;
+};
+
+export const requestStudentBookings = async (
+  accessToken: string,
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl()
+): Promise<StudentBookingSummary> => {
+  const response = await fetcher(`${apiBaseUrl}/api/v1/bookings/me`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: StudentBookingSummary;
+  } | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
+    throw new Error(payload?.message || '我的预约加载失败');
   }
 
   return payload.data;
@@ -2474,8 +2529,6 @@ const STUDENT_BOOKING_RULES = [
 
 const STUDENT_REMINDER_OPTIONS = ['微信服务通知', '邮件提醒', '不提醒'] as const;
 
-type StudentBookingStatus = 'upcoming' | 'completed' | 'violation' | 'cancelled';
-
 const STUDENT_BOOKING_FILTERS = ['全部', '待签到', '使用中', '已完成', '已取消', '违约'] as const;
 
 const STUDENT_BOOKING_LIST = [
@@ -2537,10 +2590,53 @@ const STUDENT_BOOKING_STATUS_META: Record<
   }
 > = {
   upcoming: { label: '待签到', variant: 'blue', icon: 'clock' },
+  using: { label: '使用中', variant: 'green', icon: 'check-circle' },
   completed: { label: '已完成', variant: 'green', icon: 'check-circle' },
   violation: { label: '违约', variant: 'red', icon: 'alert' },
   cancelled: { label: '已取消', variant: 'gray', icon: 'x' }
 };
+
+const getStudentBookingFallbackSummary = (): StudentBookingSummaryView =>
+  mapStudentBookingSummaryToView({
+    totalCount: STUDENT_BOOKING_LIST.length,
+    activeCount: STUDENT_BOOKING_LIST.filter((booking) => booking.status === 'upcoming').length,
+    completedCount: STUDENT_BOOKING_LIST.filter((booking) => booking.status === 'completed')
+      .length,
+    records: STUDENT_BOOKING_LIST.map((booking) => ({
+      id: `fallback-${booking.room}-${booking.seat}-${booking.time}`,
+      room: booking.room,
+      location: booking.location,
+      seat: booking.seat,
+      time: booking.time,
+      status: booking.status,
+      tags: [...booking.tags],
+      canCheckIn: booking.status === 'upcoming',
+      canCancel: booking.status === 'upcoming',
+      startAt: '',
+      endAt: ''
+    }))
+  });
+
+export const mapStudentBookingSummaryToView = (
+  summary: StudentBookingSummary
+): StudentBookingSummaryView => ({
+  totalCount: summary.totalCount,
+  activeCount: summary.activeCount,
+  completedCount: summary.completedCount,
+  records: summary.records.map((record) => {
+    const meta = STUDENT_BOOKING_STATUS_META[record.status];
+    return {
+      ...record,
+      statusLabel: meta.label,
+      statusVariant: meta.variant,
+      statusIcon: meta.icon
+    };
+  })
+});
+
+export const formatStudentBookingSubtitle = (
+  summary: Pick<StudentBookingSummaryView, 'totalCount' | 'completedCount'>
+) => `本学期共 ${summary.totalCount} 次预约 · ${summary.completedCount} 次完成`;
 
 const STUDENT_CHECKIN_DIGITS = ['2', '7', '4', '', '', ''] as const;
 const STUDENT_CHECKIN_KEYPAD = [1, 2, 3, 4, 5, 6, 7, 8, 9, '', 0, '⌫'] as const;
@@ -5699,6 +5795,9 @@ export function StudentHomePreview({
     );
   const [studentNotificationSummary, setStudentNotificationSummary] =
     useState<StudentNotificationSummaryView>(() => getStudentNotificationFallbackSummary());
+  const [studentBookingSummary, setStudentBookingSummary] = useState<StudentBookingSummaryView>(
+    () => getStudentBookingFallbackSummary()
+  );
   const activeNavMenu: StudentMenuId = activeMenu === 'confirm' ? 'select' : activeMenu;
 
   const handleStudentMenuChange = (nextMenu: StudentMenuId) => {
@@ -5737,7 +5836,7 @@ export function StudentHomePreview({
         : activeMenu === 'confirm'
           ? '请仔细核对信息后提交'
           : activeMenu === 'bookings'
-            ? '本学期共 18 次预约 · 16 次完成'
+            ? formatStudentBookingSubtitle(studentBookingSummary)
             : activeMenu === 'checkin'
               ? '输入动态码或扫码完成签到'
               : activeMenu === 'assistant'
@@ -5915,7 +6014,10 @@ export function StudentHomePreview({
         ) : activeMenu === 'confirm' ? (
           <StudentBookingConfirmPanel onBack={() => handleStudentPageChange('select')} />
         ) : activeMenu === 'bookings' ? (
-          <StudentBookingsPanel />
+          <StudentBookingsPanel
+            accessToken={accessToken}
+            onSummaryChange={setStudentBookingSummary}
+          />
         ) : activeMenu === 'checkin' ? (
           <StudentCheckInPanel />
         ) : activeMenu === 'assistant' ? (
@@ -6370,9 +6472,66 @@ function StudentBookingConfirmPanel({ onBack }: { onBack?: () => void }) {
   );
 }
 
-function StudentBookingsPanel() {
+function StudentBookingsPanel({
+  accessToken,
+  onSummaryChange
+}: {
+  accessToken?: string;
+  onSummaryChange?: (summary: StudentBookingSummaryView) => void;
+}) {
+  const [summary, setSummary] = useState<StudentBookingSummaryView>(() =>
+    getStudentBookingFallbackSummary()
+  );
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    if (!accessToken) {
+      const fallbackSummary = getStudentBookingFallbackSummary();
+      setSummary(fallbackSummary);
+      onSummaryChange?.(fallbackSummary);
+      setLoading(false);
+      setLoadError('');
+      return () => {
+        alive = false;
+      };
+    }
+
+    setLoading(true);
+    requestStudentBookings(accessToken)
+      .then((nextSummary) => {
+        if (!alive) return;
+        const nextSummaryView = mapStudentBookingSummaryToView(nextSummary);
+        setSummary(nextSummaryView);
+        onSummaryChange?.(nextSummaryView);
+        setLoadError('');
+      })
+      .catch((error) => {
+        if (!alive) return;
+        const fallbackSummary = getStudentBookingFallbackSummary();
+        setSummary(fallbackSummary);
+        onSummaryChange?.(fallbackSummary);
+        setLoadError(error instanceof Error ? error.message : '我的预约加载失败');
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [accessToken, onSummaryChange]);
+
   return (
     <section className="student-bookings-panel" aria-label="学生我的预约">
+      {(loading || loadError) && (
+        <div className={`student-booking-message${loadError ? ' is-error' : ''}`}>
+          <DashboardIcon name={loadError ? 'alert' : 'refresh'} size={14} />
+          {loadError || '正在加载我的预约…'}
+        </div>
+      )}
+
       <div className="student-booking-filter-tabs">
         {STUDENT_BOOKING_FILTERS.map((filter, index) => (
           <button className={index === 0 ? 'is-active' : ''} key={filter} type="button">
@@ -6382,13 +6541,11 @@ function StudentBookingsPanel() {
       </div>
 
       <div className="student-booking-timeline">
-        {STUDENT_BOOKING_LIST.map((booking) => {
-          const status = STUDENT_BOOKING_STATUS_META[booking.status];
-
+        {summary.records.map((booking) => {
           return (
-            <article className="student-booking-timeline-item" key={`${booking.seat}-${booking.time}`}>
+            <article className="student-booking-timeline-item" key={booking.id}>
               <span className="student-booking-dot" data-status={booking.status}>
-                <DashboardIcon name={status.icon} size={16} />
+                <DashboardIcon name={booking.statusIcon} size={16} />
               </span>
 
               <div className="dashboard-card student-booking-card">
@@ -6397,7 +6554,7 @@ function StudentBookingsPanel() {
                     <header>
                       <strong>{booking.seat}</strong>
                       <h2>{booking.room}</h2>
-                      <mark data-variant={status.variant}>{status.label}</mark>
+                      <mark data-variant={booking.statusVariant}>{booking.statusLabel}</mark>
                     </header>
 
                     <p>
@@ -6423,10 +6580,12 @@ function StudentBookingsPanel() {
                   <div className="student-booking-card-actions">
                     {booking.status === 'upcoming' ? (
                       <>
-                        <button className="is-primary" type="button">
-                          立即签到
-                        </button>
-                        <button type="button">取消</button>
+                        {booking.canCheckIn ? (
+                          <button className="is-primary" type="button">
+                            立即签到
+                          </button>
+                        ) : null}
+                        {booking.canCancel ? <button type="button">取消</button> : null}
                       </>
                     ) : null}
                     {booking.status === 'completed' ? (
@@ -6445,6 +6604,9 @@ function StudentBookingsPanel() {
           );
         })}
       </div>
+      {summary.records.length === 0 && (
+        <div className="student-booking-empty">暂无预约记录，完成选座后会在这里展示。</div>
+      )}
     </section>
   );
 }

@@ -13,6 +13,7 @@ import { UsersModule } from './users/users.module';
 import { RolesModule } from './roles/roles.module';
 import { ViolationsModule } from './violations/violations.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { BookingsModule } from './bookings/bookings.module';
 
 @Module({
   imports: [
@@ -23,7 +24,8 @@ import { NotificationsModule } from './notifications/notifications.module';
     UsersModule,
     RolesModule,
     ViolationsModule,
-    NotificationsModule
+    NotificationsModule,
+    BookingsModule
   ],
   controllers: [HealthController],
   providers: [

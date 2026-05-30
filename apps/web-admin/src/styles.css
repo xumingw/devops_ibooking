@@ -6692,6 +6692,25 @@ button {
   color: #ffffff;
 }
 
+.student-booking-message {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #b6dfd8;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #f3fbf9;
+  color: #1d6c5f;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.student-booking-message.is-error {
+  border-color: #f4c4c4;
+  background: #fff5f5;
+  color: #c84040;
+}
+
 .student-booking-timeline {
   position: relative;
   display: grid;
@@ -6735,6 +6754,12 @@ button {
 }
 
 .student-booking-dot[data-status="completed"] {
+  border-color: #2d9a5c;
+  background: #f0faf4;
+  color: #2d9a5c;
+}
+
+.student-booking-dot[data-status="using"] {
   border-color: #2d9a5c;
   background: #f0faf4;
   color: #2d9a5c;
@@ -6871,6 +6896,17 @@ button {
   border-color: #2d7a6e;
   background: #2d7a6e;
   color: #ffffff;
+}
+
+.student-booking-empty {
+  border: 1px dashed #b6dfd8;
+  border-radius: 12px;
+  padding: 18px;
+  background: #f7fcfb;
+  color: #4a6b64;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
 }
 
 .student-checkin-panel {

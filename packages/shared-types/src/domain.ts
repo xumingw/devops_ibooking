@@ -155,3 +155,26 @@ export interface StudentNotificationSummary {
   unreadCount: number;
   groups: StudentNotificationGroup[];
 }
+
+export type StudentBookingStatus = 'upcoming' | 'using' | 'completed' | 'cancelled' | 'violation';
+
+export interface StudentBookingRecord {
+  id: string;
+  room: string;
+  location: string;
+  seat: string;
+  time: string;
+  status: StudentBookingStatus;
+  tags: string[];
+  canCheckIn: boolean;
+  canCancel: boolean;
+  startAt: string;
+  endAt: string;
+}
+
+export interface StudentBookingSummary {
+  totalCount: number;
+  activeCount: number;
+  completedCount: number;
+  records: StudentBookingRecord[];
+}
