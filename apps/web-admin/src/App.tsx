@@ -808,6 +808,17 @@ export const canSubmitStudentCheckIn = (input: {
   !input.submitting &&
   !input.submitted;
 
+export const STUDENT_CHECKIN_TIMER_CIRCUMFERENCE = 389.56;
+
+export const calculateStudentCheckInTimerDashOffset = (
+  remainingSeconds: number,
+  totalSeconds: number
+) => {
+  const safeTotalSeconds = Math.max(1, totalSeconds);
+  const progress = Math.max(0, Math.min(1, remainingSeconds / safeTotalSeconds));
+  return STUDENT_CHECKIN_TIMER_CIRCUMFERENCE * (1 - progress);
+};
+
 const pushAppPath = (path: string) => {
   if (typeof window !== 'undefined') {
     window.history.pushState(null, '', path);
@@ -7131,6 +7142,9 @@ function StudentCheckInPanel({
   const [displayRemainingSeconds, setDisplayRemainingSeconds] = useState(() =>
     accessToken ? 0 : STUDENT_CHECKIN_FALLBACK_SESSION.remainingSeconds
   );
+  const [countdownTotalSeconds, setCountdownTotalSeconds] = useState(() =>
+    accessToken ? 1 : STUDENT_CHECKIN_FALLBACK_SESSION.remainingSeconds
+  );
 
   useEffect(() => {
     let alive = true;
@@ -7138,6 +7152,7 @@ function StudentCheckInPanel({
       setSession(STUDENT_CHECKIN_FALLBACK_SESSION);
       setDigits([...STUDENT_CHECKIN_DIGITS]);
       setDisplayRemainingSeconds(STUDENT_CHECKIN_FALLBACK_SESSION.remainingSeconds);
+      setCountdownTotalSeconds(STUDENT_CHECKIN_FALLBACK_SESSION.remainingSeconds);
       setLoading(false);
       setLoadError('');
       setSubmitMessage('');
@@ -7156,12 +7171,14 @@ function StudentCheckInPanel({
         setSession(nextSession);
         setDigits(createStudentCheckInDigits(nextSession?.codeLength));
         setDisplayRemainingSeconds(nextSession?.remainingSeconds ?? 0);
+        setCountdownTotalSeconds(Math.max(1, nextSession?.remainingSeconds ?? 1));
       })
       .catch((error) => {
         if (!alive) return;
         setSession(null);
         setDigits(createStudentCheckInDigits());
         setDisplayRemainingSeconds(0);
+        setCountdownTotalSeconds(1);
         setLoadError(error instanceof Error ? error.message : '签到信息加载失败');
       })
       .finally(() => {
@@ -7186,6 +7203,10 @@ function StudentCheckInPanel({
   const activeDigitIndex = visibleDigits.findIndex((digit) => digit === '');
   const enteredCode = visibleDigits.join('');
   const remainingLabel = formatStudentCheckInRemaining(displayRemainingSeconds);
+  const timerDashOffset = calculateStudentCheckInTimerDashOffset(
+    displayRemainingSeconds,
+    countdownTotalSeconds
+  );
   const submitted = submitMessage.includes('已签到');
   const checkInExpired = Boolean(session) && displayRemainingSeconds <= 0 && !submitted;
   const canSubmit =
@@ -7259,7 +7280,15 @@ function StudentCheckInPanel({
         <div className="student-checkin-timer" aria-label={`剩余签到时间 ${remainingLabel}`}>
           <svg aria-hidden="true" viewBox="0 0 140 140">
             <circle cx="70" cy="70" r="62" />
-            <circle cx="70" cy="70" r="62" />
+            <circle
+              cx="70"
+              cy="70"
+              r="62"
+              style={{
+                strokeDasharray: STUDENT_CHECKIN_TIMER_CIRCUMFERENCE,
+                strokeDashoffset: timerDashOffset
+              }}
+            />
           </svg>
           <div>
             <strong>{remainingLabel}</strong>
