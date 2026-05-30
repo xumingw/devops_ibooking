@@ -6991,8 +6991,8 @@ button {
 .student-checkin-timer circle:last-child {
   stroke: #2d7a6e;
   stroke-dasharray: 389.56;
-  stroke-dashoffset: 148;
   stroke-linecap: round;
+  transition: stroke-dashoffset 1s linear;
 }
 
 .student-checkin-timer > div {

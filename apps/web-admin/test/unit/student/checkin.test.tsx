@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  STUDENT_CHECKIN_TIMER_CIRCUMFERENCE,
+  calculateStudentCheckInTimerDashOffset,
   canSubmitStudentCheckIn,
   requestStudentCheckInCode,
   requestStudentCheckInSession,
@@ -72,6 +74,16 @@ describe('student checkin api', () => {
     expect(tickStudentCheckInRemaining(562)).toBe(561);
     expect(tickStudentCheckInRemaining(1)).toBe(0);
     expect(tickStudentCheckInRemaining(0)).toBe(0);
+  });
+
+  it('签到倒计时圆环会随剩余时间推进', () => {
+    expect(calculateStudentCheckInTimerDashOffset(562, 562)).toBe(0);
+    expect(calculateStudentCheckInTimerDashOffset(281, 562)).toBeCloseTo(
+      STUDENT_CHECKIN_TIMER_CIRCUMFERENCE / 2,
+    );
+    expect(calculateStudentCheckInTimerDashOffset(0, 562)).toBe(
+      STUDENT_CHECKIN_TIMER_CIRCUMFERENCE,
+    );
   });
 
   it('签到时间结束后不允许继续提交动态码', () => {
