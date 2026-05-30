@@ -322,6 +322,61 @@ type StudentCheckInResult = {
   status: 'CHECKED_IN';
 };
 
+type StudentAssistantIntent = 'availability' | 'seat_search' | 'my_bookings' | 'fallback';
+type StudentAssistantAction = 'BOOK' | 'CHECK_IN' | 'CANCEL' | 'DETAIL';
+
+type StudentAssistantSeatCandidate = {
+  roomId: string;
+  seatId: string;
+  room: string;
+  location: string;
+  seat: string;
+  time: string;
+  tags: string[];
+};
+
+type StudentAssistantBookingCandidate = {
+  bookingId: string;
+  room: string;
+  location: string;
+  seat: string;
+  time: string;
+  status: StudentBookingStatus;
+  actions: StudentAssistantAction[];
+};
+
+type StudentAssistantReply = {
+  intent: StudentAssistantIntent;
+  text: string;
+  seats: StudentAssistantSeatCandidate[];
+  bookings: StudentAssistantBookingCandidate[];
+  suggestions: string[];
+};
+
+type StudentAssistantMessageView = {
+  id: string;
+  role: 'user' | 'assistant';
+  text: string;
+  seats?: StudentAssistantSeatCandidate[];
+  bookings?: StudentAssistantBookingCandidate[];
+  suggestions?: string[];
+  quickActions?: StudentAssistantQuickAction[];
+};
+
+type StudentAssistantQuickAction = {
+  label: string;
+  action: StudentAssistantAction;
+  seat?: StudentAssistantSeatCandidate;
+  booking?: StudentAssistantBookingCandidate;
+};
+
+type StudentAssistantSuggestionAction = 'send' | 'select' | 'checkin' | 'bookings';
+
+type StudentAssistantBookingActionContext = {
+  booking: StudentAssistantBookingCandidate;
+  action: Exclude<StudentAssistantAction, 'BOOK'>;
+};
+
 const AUTH_REMEMBER_KEY = 'ibooking.auth.remember';
 const ADMIN_ACCESS_TOKEN_KEY = 'ibooking.admin.accessToken';
 const STUDENT_ACCESS_TOKEN_KEY = 'ibooking.student.accessToken';
@@ -578,6 +633,29 @@ export const requestStudentBookings = async (
   return payload.data;
 };
 
+export const requestStudentBookingCancel = async (
+  accessToken: string,
+  bookingId: string,
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl()
+): Promise<StudentBookingRecord> => {
+  const response = await fetcher(`${apiBaseUrl}/api/v1/bookings/me/${bookingId}/cancel`, {
+    method: 'PATCH',
+    credentials: 'include',
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: StudentBookingRecord;
+  } | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
+    throw new Error(payload?.message || '取消预约失败');
+  }
+
+  return payload.data;
+};
+
 export const requestStudentCheckInSession = async (
   accessToken: string,
   fetcher: typeof fetch = fetch,
@@ -625,6 +703,42 @@ export const requestStudentCheckInCode = async (
   }
 
   return payload.data;
+};
+
+export const requestStudentAssistantMessage = async (
+  accessToken: string,
+  message: string,
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl()
+): Promise<StudentAssistantReply> => {
+  const response = await fetcher(`${apiBaseUrl}/api/v1/assistant/me/messages`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ message })
+  });
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: StudentAssistantReply;
+  } | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
+    throw new Error(payload?.message || '智能助手暂时不可用');
+  }
+
+  return payload.data;
+};
+
+export const resolveStudentAssistantSuggestionAction = (
+  suggestion: string
+): StudentAssistantSuggestionAction => {
+  if (/我的预约|查看预约/.test(suggestion)) return 'bookings';
+  if (/选座|筛选|预约/.test(suggestion)) return 'select';
+  if (/签到/.test(suggestion)) return 'checkin';
+  return 'send';
 };
 
 export const saveAdminSeat = async (
@@ -2681,6 +2795,9 @@ const STUDENT_BOOKING_STATUS_META: Record<
   cancelled: { label: '已取消', variant: 'gray', icon: 'x' }
 };
 
+const getStudentBookingStatusLabel = (status: StudentBookingStatus) =>
+  STUDENT_BOOKING_STATUS_META[status].label;
+
 const getStudentBookingFallbackSummary = (): StudentBookingSummaryView =>
   mapStudentBookingSummaryToView({
     totalCount: STUDENT_BOOKING_LIST.length,
@@ -2722,6 +2839,41 @@ export const mapStudentBookingSummaryToView = (
 export const formatStudentBookingSubtitle = (
   summary: Pick<StudentBookingSummaryView, 'totalCount' | 'completedCount'>
 ) => `本学期共 ${summary.totalCount} 次预约 · ${summary.completedCount} 次完成`;
+
+const formatStudentAssistantBookingActionNotice = (
+  context: StudentAssistantBookingActionContext
+) => {
+  const actionLabel = STUDENT_ASSISTANT_ACTION_LABELS[context.action];
+  return `已从智能助手定位：${context.booking.room} · ${context.booking.seat} · ${context.booking.time}，当前操作：${actionLabel}`;
+};
+
+const createStudentSeatBookingSummary = (seat?: StudentAssistantSeatCandidate) =>
+  seat
+    ? [
+        ['推荐时段', seat.time],
+        ['楼栋', seat.location],
+        ['座位', `${seat.room} · ${seat.seat}`]
+      ]
+    : [
+        ['日期', '2026年4月24日（周四）'],
+        ['时间', '14:00 – 17:00（3小时）'],
+        ['楼栋', '光华楼 A座 3楼']
+      ];
+
+const parseStudentAssistantTimeRange = (time?: string): [string, string] => {
+  const match = time?.match(/(\d{1,2}:\d{2})\s*[–-]\s*(\d{1,2}:\d{2})/);
+  return match ? [match[1], match[2]] : ['14:00', '17:00'];
+};
+
+const createStudentBookingConfirmDetails = (seat?: StudentAssistantSeatCandidate) =>
+  seat
+    ? [
+        ['自习室', seat.room],
+        ['楼栋位置', seat.location],
+        ['座位编号', `${seat.seat}${seat.tags.length > 0 ? `（${seat.tags.join(' · ')}）` : ''}`],
+        ['预约时段', seat.time]
+      ]
+    : STUDENT_BOOKING_CONFIRM_DETAILS;
 
 const STUDENT_CHECKIN_CODE_LENGTH = 6;
 
@@ -2789,9 +2941,78 @@ const STUDENT_ASSISTANT_HISTORY = [
 
 const STUDENT_ASSISTANT_CAPABILITIES = [
   ['找座推荐', '描述你的需求，系统按空座、插座、靠窗等条件匹配'],
-  ['一键预约', '对话结果可直接进入预约确认流程'],
-  ['规则问答', '签到规则、违约政策和开放时间可直接查询']
+  ['预约引导', '对话结果可直接进入选座和预约流程'],
+  ['政策咨询', '签到、违约政策和开放时间可直接查询']
 ] as const;
+
+const STUDENT_ASSISTANT_ACTION_LABELS: Record<StudentAssistantAction, string> = {
+  BOOK: '立即预约',
+  CHECK_IN: '去签到',
+  CANCEL: '取消预约',
+  DETAIL: '查看详情'
+};
+
+const createStudentAssistantMessageId = (role: StudentAssistantMessageView['role']) =>
+  `${role}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+const createStudentAssistantSampleSeats = (): StudentAssistantSeatCandidate[] =>
+  STUDENT_ASSISTANT_CARDS.map((card, index) => {
+    const [room, seat] = card.name.split(' · ');
+    return {
+      roomId: `fallback-room-${index}`,
+      seatId: `fallback-seat-${index}`,
+      room,
+      location: card.dist,
+      seat: seat ?? card.name,
+      time: card.avail,
+      tags: [...card.tags]
+    };
+  });
+
+const createStudentAssistantInitialMessages = (): StudentAssistantMessageView[] => {
+  const sampleSeats = createStudentAssistantSampleSeats();
+
+  return [
+    {
+      id: 'assistant-user-sample',
+      role: 'user',
+      text: '今天下午有空位吗？我想要有插座的座位'
+    },
+    {
+      id: 'assistant-reply-sample',
+      role: 'assistant',
+      text: '根据您的偏好，今天下午（14:00 后）共找到 3 个合适选项：',
+      seats: sampleSeats,
+      suggestions: ['今晚还有空座吗', '找靠窗座位', '我今天定了哪里']
+    },
+    {
+      id: 'assistant-user-confirm-sample',
+      role: 'user',
+      text: '帮我预约第一个，时间 14:00 到 17:00'
+    },
+    {
+      id: 'assistant-reply-confirm-sample',
+      role: 'assistant',
+      text: '已为您找到 经管自习室 301 · C3 号座位，时间 2026年4月24日 14:00–17:00。请确认是否预约？',
+      quickActions: [
+        {
+          label: '确认预约',
+          action: 'BOOK',
+          seat: { ...sampleSeats[0], time: '2026年4月24日 14:00–17:00' }
+        }
+      ]
+    }
+  ];
+};
+
+const toStudentAssistantMessage = (reply: StudentAssistantReply): StudentAssistantMessageView => ({
+  id: createStudentAssistantMessageId('assistant'),
+  role: 'assistant',
+  text: reply.text,
+  seats: reply.seats,
+  bookings: reply.bookings,
+  suggestions: reply.suggestions
+});
 
 const STUDENT_NOTIFICATION_GROUPS = [
   {
@@ -5925,6 +6146,11 @@ export function StudentHomePreview({
     () => getStudentBookingFallbackSummary()
   );
   const [checkInNotice, setCheckInNotice] = useState('');
+  const [assistantResetKey, setAssistantResetKey] = useState(0);
+  const [assistantSeatSelection, setAssistantSeatSelection] =
+    useState<StudentAssistantSeatCandidate | null>(null);
+  const [assistantBookingAction, setAssistantBookingAction] =
+    useState<StudentAssistantBookingActionContext | null>(null);
   const activeNavMenu: StudentMenuId = activeMenu === 'confirm' ? 'select' : activeMenu;
 
   const handleStudentMenuChange = (nextMenu: StudentMenuId) => {
@@ -5935,6 +6161,30 @@ export function StudentHomePreview({
   const handleStudentPageChange = (nextPage: StudentPageId) => {
     setActiveMenu(nextPage);
     pushAppPath(nextPage === 'home' ? '/student' : `/student/${nextPage}`);
+  };
+
+  const handleAssistantSeatSelect = (seat?: StudentAssistantSeatCandidate) => {
+    if (seat) setAssistantSeatSelection(seat);
+    handleStudentPageChange('select');
+  };
+
+  const handleAssistantSeatConfirm = (seat?: StudentAssistantSeatCandidate) => {
+    if (seat) setAssistantSeatSelection(seat);
+    handleStudentPageChange('confirm');
+  };
+
+  const handleAssistantBookingAction = (
+    booking: StudentAssistantBookingCandidate,
+    action: Exclude<StudentAssistantAction, 'BOOK'>
+  ) => {
+    if (action === 'CHECK_IN') {
+      setCheckInNotice(`已从智能助手定位：${booking.room} · ${booking.seat}，请完成签到。`);
+      handleStudentPageChange('checkin');
+      return;
+    }
+
+    setAssistantBookingAction({ booking, action });
+    handleStudentPageChange('bookings');
   };
 
   const pageTitle =
@@ -5967,7 +6217,7 @@ export function StudentHomePreview({
             : activeMenu === 'checkin'
               ? '输入动态码或扫码完成签到'
               : activeMenu === 'assistant'
-                ? '自然语言找座 · 预约管理 · 规则问答'
+                ? '自然语言找座 · 预约管理 · 政策咨询'
                 : activeMenu === 'notify'
                 ? formatStudentNotificationSubtitle(studentNotificationSummary)
                 : activeMenu === 'violation'
@@ -6052,13 +6302,13 @@ export function StudentHomePreview({
               </>
             ) : activeMenu === 'assistant' ? (
               <>
-                <button type="button">
+                <button onClick={() => setAssistantResetKey((current) => current + 1)} type="button">
                   <DashboardIcon name="trash" size={13} />
                   清空会话
                 </button>
-                <button type="button">
+                <button disabled type="button">
                   <DashboardIcon name="zap" size={13} />
-                  规则模式
+                  GLM 4.7 Flash
                 </button>
               </>
             ) : activeMenu === 'checkin' ? (
@@ -6143,12 +6393,19 @@ export function StudentHomePreview({
         {activeMenu === 'rooms' ? (
           <StudentRoomsPanel />
         ) : activeMenu === 'select' ? (
-          <StudentSeatSelectorPanel onConfirm={() => handleStudentPageChange('confirm')} />
+          <StudentSeatSelectorPanel
+            assistantSeatSelection={assistantSeatSelection ?? undefined}
+            onConfirm={() => handleStudentPageChange('confirm')}
+          />
         ) : activeMenu === 'confirm' ? (
-          <StudentBookingConfirmPanel onBack={() => handleStudentPageChange('select')} />
+          <StudentBookingConfirmPanel
+            assistantSeatSelection={assistantSeatSelection ?? undefined}
+            onBack={() => handleStudentPageChange('select')}
+          />
         ) : activeMenu === 'bookings' ? (
           <StudentBookingsPanel
             accessToken={accessToken}
+            assistantBookingAction={assistantBookingAction ?? undefined}
             onCheckIn={() => handleStudentPageChange('checkin')}
             onSummaryChange={setStudentBookingSummary}
           />
@@ -6159,7 +6416,16 @@ export function StudentHomePreview({
             onActionNotice={setCheckInNotice}
           />
         ) : activeMenu === 'assistant' ? (
-          <StudentAssistantPanel onConfirm={() => handleStudentPageChange('confirm')} />
+          <StudentAssistantPanel
+            accessToken={accessToken}
+            onBookingAction={handleAssistantBookingAction}
+            onBookings={() => handleStudentPageChange('bookings')}
+            onCheckIn={() => handleStudentPageChange('checkin')}
+            onConfirmSeat={handleAssistantSeatConfirm}
+            onSelect={() => handleStudentPageChange('select')}
+            onSelectSeat={handleAssistantSeatSelect}
+            resetKey={assistantResetKey}
+          />
         ) : activeMenu === 'notify' ? (
           <StudentNotificationPanel
             accessToken={accessToken}
@@ -6349,7 +6615,25 @@ function StudentRoomsPanel() {
   );
 }
 
-function StudentSeatSelectorPanel({ onConfirm }: { onConfirm?: () => void }) {
+function StudentSeatSelectorPanel({
+  assistantSeatSelection,
+  onConfirm
+}: {
+  assistantSeatSelection?: StudentAssistantSeatCandidate;
+  onConfirm?: () => void;
+}) {
+  const selectedRoom = assistantSeatSelection?.room ?? '经管自习室 301';
+  const selectedSeat = assistantSeatSelection?.seat ?? 'C3';
+  const selectedLocation = assistantSeatSelection?.location ?? '光华楼 A座 3楼';
+  const selectedTags =
+    assistantSeatSelection && assistantSeatSelection.tags.length > 0
+      ? assistantSeatSelection.tags
+      : ['插座', '安静区'];
+  const bookingSummary = createStudentSeatBookingSummary(assistantSeatSelection);
+  const [selectedStartTime, selectedEndTime] = parseStudentAssistantTimeRange(
+    assistantSeatSelection?.time
+  );
+
   return (
     <section className="student-seat-selector-panel" aria-label="学生选座预约">
       <aside className="student-seat-filter-panel">
@@ -6370,8 +6654,8 @@ function StudentSeatSelectorPanel({ onConfirm }: { onConfirm?: () => void }) {
           <h3>时间段</h3>
           <div className="student-seat-time-grid">
             {[
-              ['开始', '14:00'],
-              ['结束', '17:00']
+              ['开始', selectedStartTime],
+              ['结束', selectedEndTime]
             ].map(([label, value], index) => (
               <div key={label}>
                 <span>{label}</span>
@@ -6416,7 +6700,7 @@ function StudentSeatSelectorPanel({ onConfirm }: { onConfirm?: () => void }) {
       <div className="student-seat-floor-panel">
         <header className="student-seat-floor-head">
           <div>
-            <strong>经管自习室 301</strong>
+            <strong>{selectedRoom}</strong>
             <mark>开放中</mark>
           </div>
           <div className="student-seat-legend" aria-label="座位图例">
@@ -6493,22 +6777,28 @@ function StudentSeatSelectorPanel({ onConfirm }: { onConfirm?: () => void }) {
       <aside className="student-seat-booking-panel">
         <h2>预约信息</h2>
 
+        {assistantSeatSelection ? (
+          <div className="student-seat-assistant-notice">
+            <DashboardIcon name="zap" size={13} />
+            已带入智能助手推荐座位
+          </div>
+        ) : null}
+
         <div className="student-seat-selected-card">
           <small>已选座位</small>
-          <strong>C3</strong>
-          <span>经管自习室 301 · C排3号</span>
+          <strong>{selectedSeat}</strong>
+          <span>
+            {selectedRoom} · {selectedLocation}
+          </span>
           <div>
-            <mark>插座</mark>
-            <mark>安静区</mark>
+            {selectedTags.map((tag) => (
+              <mark key={tag}>{tag}</mark>
+            ))}
           </div>
         </div>
 
         <dl className="student-seat-booking-summary">
-          {[
-            ['日期', '2026年4月24日（周四）'],
-            ['时间', '14:00 – 17:00（3小时）'],
-            ['楼栋', '光华楼 A座 3楼']
-          ].map(([label, value]) => (
+          {bookingSummary.map(([label, value]) => (
             <div key={label}>
               <dt>{label}</dt>
               <dd>{value}</dd>
@@ -6544,7 +6834,15 @@ function StudentSeatSelectorPanel({ onConfirm }: { onConfirm?: () => void }) {
   );
 }
 
-function StudentBookingConfirmPanel({ onBack }: { onBack?: () => void }) {
+function StudentBookingConfirmPanel({
+  assistantSeatSelection,
+  onBack
+}: {
+  assistantSeatSelection?: StudentAssistantSeatCandidate;
+  onBack?: () => void;
+}) {
+  const bookingDetails = createStudentBookingConfirmDetails(assistantSeatSelection);
+
   return (
     <section className="student-booking-confirm-panel" aria-label="学生确认预约">
       <div className="student-booking-confirm-inner">
@@ -6562,8 +6860,14 @@ function StudentBookingConfirmPanel({ onBack }: { onBack?: () => void }) {
             <DashboardIcon name="calendar" size={16} />
             <h2>预约详情</h2>
           </header>
+          {assistantSeatSelection ? (
+            <div className="student-seat-assistant-notice">
+              <DashboardIcon name="zap" size={13} />
+              已带入智能助手推荐座位
+            </div>
+          ) : null}
           <dl className="student-booking-detail-grid">
-            {STUDENT_BOOKING_CONFIRM_DETAILS.map(([label, value]) => (
+            {bookingDetails.map(([label, value]) => (
               <div key={label}>
                 <dt>{label}</dt>
                 <dd>{value}</dd>
@@ -6614,10 +6918,12 @@ function StudentBookingConfirmPanel({ onBack }: { onBack?: () => void }) {
 
 function StudentBookingsPanel({
   accessToken,
+  assistantBookingAction,
   onCheckIn,
   onSummaryChange
 }: {
   accessToken?: string;
+  assistantBookingAction?: StudentAssistantBookingActionContext;
   onCheckIn?: () => void;
   onSummaryChange?: (summary: StudentBookingSummaryView) => void;
 }) {
@@ -6626,6 +6932,14 @@ function StudentBookingsPanel({
   );
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [actionNotice, setActionNotice] = useState('');
+  const [cancellingBookingId, setCancellingBookingId] = useState('');
+
+  useEffect(() => {
+    setActionNotice(
+      assistantBookingAction ? formatStudentAssistantBookingActionNotice(assistantBookingAction) : ''
+    );
+  }, [assistantBookingAction]);
 
   useEffect(() => {
     let alive = true;
@@ -6667,10 +6981,10 @@ function StudentBookingsPanel({
 
   return (
     <section className="student-bookings-panel" aria-label="学生我的预约">
-      {(loading || loadError) && (
+      {(loading || loadError || actionNotice) && (
         <div className={`student-booking-message${loadError ? ' is-error' : ''}`}>
-          <DashboardIcon name={loadError ? 'alert' : 'refresh'} size={14} />
-          {loadError || '正在加载我的预约…'}
+          <DashboardIcon name={loadError ? 'alert' : loading ? 'refresh' : 'info'} size={14} />
+          {loadError || actionNotice || '正在加载我的预约…'}
         </div>
       )}
 
@@ -6684,8 +6998,13 @@ function StudentBookingsPanel({
 
       <div className="student-booking-timeline">
         {summary.records.map((booking) => {
+          const isFocused = booking.id === assistantBookingAction?.booking.bookingId;
+
           return (
-            <article className="student-booking-timeline-item" key={booking.id}>
+            <article
+              className={`student-booking-timeline-item${isFocused ? ' is-focused' : ''}`}
+              key={booking.id}
+            >
               <span className="student-booking-dot" data-status={booking.status}>
                 <DashboardIcon name={booking.statusIcon} size={16} />
               </span>
@@ -6727,7 +7046,44 @@ function StudentBookingsPanel({
                             立即签到
                           </button>
                         ) : null}
-                        {booking.canCancel ? <button type="button">取消</button> : null}
+                        {booking.canCancel ? (
+                          <button
+                            disabled={cancellingBookingId === booking.id}
+                            onClick={() => {
+                              if (!accessToken) {
+                                setActionNotice('请先登录后取消预约');
+                                return;
+                              }
+                              setCancellingBookingId(booking.id);
+                              requestStudentBookingCancel(accessToken, booking.id)
+                                .then((cancelled) => {
+                                  const [cancelledView] = mapStudentBookingSummaryToView({
+                                    totalCount: 1,
+                                    activeCount: 0,
+                                    completedCount: 0,
+                                    records: [cancelled]
+                                  }).records;
+                                  setSummary((current) => ({
+                                    ...current,
+                                    activeCount: Math.max(0, current.activeCount - 1),
+                                    records: current.records.map((record) =>
+                                      record.id === booking.id ? cancelledView : record
+                                    )
+                                  }));
+                                  setActionNotice(
+                                    `已取消预约：${cancelled.room} · ${cancelled.seat} · ${cancelled.time}`
+                                  );
+                                })
+                                .catch((error) =>
+                                  setActionNotice(error instanceof Error ? error.message : '取消预约失败')
+                                )
+                                .finally(() => setCancellingBookingId(''));
+                            }}
+                            type="button"
+                          >
+                            {cancellingBookingId === booking.id ? '取消中' : '取消'}
+                          </button>
+                        ) : null}
                       </>
                     ) : null}
                     {booking.status === 'completed' ? (
@@ -6976,85 +7332,314 @@ function StudentCheckInPanel({
   );
 }
 
-function StudentAssistantPanel({ onConfirm }: { onConfirm?: () => void }) {
+function StudentAssistantPanel({
+  accessToken,
+  onBookingAction,
+  onBookings,
+  onCheckIn,
+  onConfirmSeat,
+  onSelect,
+  onSelectSeat,
+  resetKey = 0
+}: {
+  accessToken?: string;
+  onBookingAction?: (
+    booking: StudentAssistantBookingCandidate,
+    action: Exclude<StudentAssistantAction, 'BOOK'>
+  ) => void;
+  onBookings?: () => void;
+  onCheckIn?: () => void;
+  onConfirmSeat?: (seat?: StudentAssistantSeatCandidate) => void;
+  onSelect?: () => void;
+  onSelectSeat?: (seat?: StudentAssistantSeatCandidate) => void;
+  resetKey?: number;
+}) {
+  const [messages, setMessages] = useState<StudentAssistantMessageView[]>(() =>
+    createStudentAssistantInitialMessages()
+  );
+  const [draft, setDraft] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setMessages(createStudentAssistantInitialMessages());
+    setDraft('');
+    setError('');
+  }, [resetKey]);
+
+  const sendMessage = (message = draft) => {
+    const trimmed = message.trim();
+    if (!trimmed || submitting) return;
+    if (!accessToken) {
+      setError('请先登录后使用智能助手');
+      return;
+    }
+
+    setError('');
+    setDraft('');
+    setSubmitting(true);
+    setMessages((current) => [
+      ...current,
+      {
+        id: createStudentAssistantMessageId('user'),
+        role: 'user',
+        text: trimmed
+      }
+    ]);
+
+    requestStudentAssistantMessage(accessToken, trimmed)
+      .then((reply) => {
+        setMessages((current) => [...current, toStudentAssistantMessage(reply)]);
+      })
+      .catch((requestError) => {
+        setMessages((current) => [
+          ...current,
+          {
+            id: createStudentAssistantMessageId('assistant'),
+            role: 'assistant',
+            text: requestError instanceof Error ? requestError.message : '智能助手暂时不可用',
+            suggestions: STUDENT_ASSISTANT_SHORTCUTS.slice(0, 3)
+          }
+        ]);
+      })
+      .finally(() => setSubmitting(false));
+  };
+
+  const handleAssistantAction = (
+    action: StudentAssistantAction,
+    booking?: StudentAssistantBookingCandidate,
+    seat?: StudentAssistantSeatCandidate
+  ) => {
+    if (action === 'BOOK') {
+      if (onSelectSeat) {
+        onSelectSeat(seat);
+      } else {
+        onSelect?.();
+      }
+      return;
+    }
+    if (action === 'CANCEL' && booking && accessToken) {
+      setError('');
+      setSubmitting(true);
+      requestStudentBookingCancel(accessToken, booking.bookingId)
+        .then((cancelled) => {
+          setMessages((current) => {
+            const updatedMessages = current.map((message) => ({
+              ...message,
+              bookings: message.bookings?.map((item) =>
+                item.bookingId === booking.bookingId
+                  ? { ...item, status: 'cancelled' as const, actions: ['DETAIL' as const] }
+                  : item
+              )
+            }));
+            return [
+              ...updatedMessages,
+              {
+                id: createStudentAssistantMessageId('assistant'),
+                role: 'assistant',
+                text: `已取消 ${cancelled.room} · ${cancelled.seat} 的预约（${cancelled.time}）。`,
+                suggestions: ['查看我的预约', '重新找座']
+              }
+            ];
+          });
+        })
+        .catch((requestError) => {
+          setMessages((current) => [
+            ...current,
+            {
+              id: createStudentAssistantMessageId('assistant'),
+              role: 'assistant',
+              text: requestError instanceof Error ? requestError.message : '取消预约失败',
+              suggestions: ['查看我的预约']
+            }
+          ]);
+        })
+        .finally(() => setSubmitting(false));
+      return;
+    }
+    if (booking) {
+      onBookingAction?.(booking, action);
+      return;
+    }
+    if (action === 'CHECK_IN') {
+      onCheckIn?.();
+      return;
+    }
+    onBookings?.();
+  };
+
+  const handleSuggestionClick = (suggestion: string) => {
+    const action = resolveStudentAssistantSuggestionAction(suggestion);
+    if (action === 'select') {
+      onSelect?.();
+      return;
+    }
+    if (action === 'checkin') {
+      onCheckIn?.();
+      return;
+    }
+    if (action === 'bookings') {
+      onBookings?.();
+      return;
+    }
+    sendMessage(suggestion);
+  };
+
   return (
     <section className="student-assistant-panel" aria-label="学生智能助手">
       <div className="student-assistant-chat dashboard-card">
         <div className="student-assistant-messages" aria-label="助手会话">
-          <article className="student-assistant-message is-user">
-            <div>今天下午有空位吗？我想要有插座的座位</div>
-          </article>
-
-          <article className="student-assistant-message is-assistant">
-            <span className="student-assistant-avatar">
-              <DashboardIcon name="zap" size={15} />
-            </span>
-            <div className="student-assistant-bubble">
-              <p>根据您的偏好，今天下午（14:00 后）共找到 3 个合适选项：</p>
-              <div className="student-assistant-result-list">
-                {STUDENT_ASSISTANT_CARDS.map((card) => (
-                  <section className="student-assistant-result-card" key={card.name}>
-                    <div>
-                      <h2>{card.name}</h2>
-                      <div className="student-assistant-tags">
-                        {card.tags.map((tag) => (
-                          <span key={tag}>{tag}</span>
-                        ))}
-                      </div>
-                      <small>
-                        {card.dist} · {card.avail}
-                      </small>
+          {messages.map((message) =>
+            message.role === 'user' ? (
+              <article className="student-assistant-message is-user" key={message.id}>
+                <div>{message.text}</div>
+              </article>
+            ) : (
+              <article className="student-assistant-message is-assistant" key={message.id}>
+                <span className="student-assistant-avatar">
+                  <DashboardIcon name="zap" size={15} />
+                </span>
+                <div className="student-assistant-bubble">
+                  <p>{message.text}</p>
+                  {message.seats && message.seats.length > 0 ? (
+                    <div className="student-assistant-result-list">
+                      {message.seats.map((seat) => (
+                        <section className="student-assistant-result-card" key={seat.seatId}>
+                          <div>
+                            <h2>
+                              {seat.room} · {seat.seat}
+                            </h2>
+                            <div className="student-assistant-tags">
+                              {seat.tags.map((tag) => (
+                                <span key={tag}>{tag}</span>
+                              ))}
+                            </div>
+                            <small>
+                              {seat.location} · {seat.time}
+                            </small>
+                          </div>
+                          <button type="button" onClick={() => onSelectSeat?.(seat)}>
+                            立即预约
+                          </button>
+                        </section>
+                      ))}
                     </div>
-                    <button type="button" onClick={onConfirm}>
-                      立即预约
-                    </button>
-                  </section>
-                ))}
+                  ) : null}
+                  {message.bookings && message.bookings.length > 0 ? (
+                    <div className="student-assistant-result-list">
+                      {message.bookings.map((booking) => (
+                        <section
+                          className="student-assistant-result-card"
+                          key={booking.bookingId}
+                        >
+                          <div>
+                            <h2>
+                              {booking.room} · {booking.seat}
+                            </h2>
+                            <div className="student-assistant-tags">
+                              <span>{getStudentBookingStatusLabel(booking.status)}</span>
+                            </div>
+                            <small>
+                              {booking.location} · {booking.time}
+                            </small>
+                          </div>
+                          <div className="student-assistant-card-actions">
+                            {booking.actions.map((action) => (
+                              <button
+                                key={action}
+                                onClick={() => handleAssistantAction(action, booking)}
+                                type="button"
+                              >
+                                {STUDENT_ASSISTANT_ACTION_LABELS[action]}
+                              </button>
+                            ))}
+                          </div>
+                        </section>
+                      ))}
+                    </div>
+                  ) : null}
+                  {message.suggestions && message.suggestions.length > 0 ? (
+                    <div className="student-assistant-suggestions">
+                      {message.suggestions.map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          onClick={() => handleSuggestionClick(suggestion)}
+                          type="button"
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                  {message.quickActions && message.quickActions.length > 0 ? (
+                    <div className="student-assistant-confirm-actions">
+                      {message.quickActions.map((action) => (
+                        <button
+                          key={action.label}
+                          onClick={() => {
+                            if (action.action === 'BOOK' && action.seat && onConfirmSeat) {
+                              onConfirmSeat(action.seat);
+                              return;
+                            }
+                            handleAssistantAction(action.action, action.booking, action.seat);
+                          }}
+                          type="button"
+                        >
+                          {action.label}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </article>
+            )
+          )}
+          {submitting ? (
+            <article className="student-assistant-message is-assistant">
+              <span className="student-assistant-avatar">
+                <DashboardIcon name="zap" size={15} />
+              </span>
+              <div className="student-assistant-bubble">
+                <p>正在查询…</p>
               </div>
-              <button className="student-assistant-refresh" type="button">
-                <DashboardIcon name="refresh" size={12} />
-                换一批
-              </button>
-            </div>
-          </article>
-
-          <article className="student-assistant-message is-user">
-            <div>帮我预约第一个，时间 14:00 到 17:00</div>
-          </article>
-
-          <article className="student-assistant-message is-assistant">
-            <span className="student-assistant-avatar">
-              <DashboardIcon name="zap" size={15} />
-            </span>
-            <div className="student-assistant-bubble">
-              <p>
-                已为您找到 经管自习室 301 · C3 号座位，时间 2026年4月24日
-                14:00–17:00。请确认是否预约？
-              </p>
-              <div className="student-assistant-confirm-actions">
-                <button type="button" onClick={onConfirm}>
-                  确认预约
-                </button>
-                <button type="button">取消</button>
-              </div>
-            </div>
-          </article>
+            </article>
+          ) : null}
         </div>
 
         <div className="student-assistant-shortcuts" aria-label="快捷问题">
           {STUDENT_ASSISTANT_SHORTCUTS.map((shortcut) => (
-            <button key={shortcut} type="button">
+            <button key={shortcut} onClick={() => handleSuggestionClick(shortcut)} type="button">
               {shortcut}
             </button>
           ))}
         </div>
 
+        {error ? <div className="student-assistant-error">{error}</div> : null}
+
         <div className="student-assistant-composer">
-          <div>输入问题，例如“明天上午有没有靠窗且安静的座位”…</div>
-          <button aria-label="语音输入" type="button">
+          <input
+            aria-label="输入助手问题"
+            disabled={submitting}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') sendMessage();
+            }}
+            placeholder="输入问题，例如“明天上午有没有靠窗且安静的座位”…"
+            value={draft}
+          />
+          <button
+            aria-label="语音输入"
+            onClick={() => setError('语音输入暂未开放，请先使用文字输入')}
+            type="button"
+          >
             <DashboardIcon name="mic" size={15} />
           </button>
-          <button aria-label="发送问题" type="button">
+          <button
+            aria-label="发送问题"
+            disabled={!draft.trim() || submitting}
+            onClick={() => sendMessage()}
+            type="button"
+          >
             <DashboardIcon name="send" size={15} />
           </button>
         </div>
@@ -7064,10 +7649,19 @@ function StudentAssistantPanel({ onConfirm }: { onConfirm?: () => void }) {
         <section className="dashboard-card student-assistant-side-card">
           <header>
             <h2>最近对话</h2>
-            <button type="button">清空</button>
+            <button
+              onClick={() => {
+                setMessages(createStudentAssistantInitialMessages());
+                setDraft('');
+                setError('');
+              }}
+              type="button"
+            >
+              清空
+            </button>
           </header>
           {STUDENT_ASSISTANT_HISTORY.map((item) => (
-            <button key={item} type="button">
+            <button key={item} onClick={() => sendMessage(item)} type="button">
               {item}
               <DashboardIcon name="arrow-right" size={11} />
             </button>

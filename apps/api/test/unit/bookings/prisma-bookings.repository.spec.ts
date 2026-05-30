@@ -7,7 +7,14 @@ describe('PrismaBookingsRepository', () => {
   let prisma: {
     booking: {
       findMany: jest.Mock;
+      findFirst: jest.Mock;
+      findUnique: jest.Mock;
+      updateMany: jest.Mock;
     };
+    bookingSlot: {
+      deleteMany: jest.Mock;
+    };
+    $transaction: jest.Mock;
   };
   let repository: PrismaBookingsRepository;
 
@@ -16,7 +23,14 @@ describe('PrismaBookingsRepository', () => {
     prisma = {
       booking: {
         findMany: jest.fn(),
+        findFirst: jest.fn(),
+        findUnique: jest.fn(),
+        updateMany: jest.fn(),
       },
+      bookingSlot: {
+        deleteMany: jest.fn(),
+      },
+      $transaction: jest.fn((callback) => callback(prisma)),
     };
     repository = new PrismaBookingsRepository(prisma as unknown as PrismaService);
   });
@@ -53,6 +67,41 @@ describe('PrismaBookingsRepository', () => {
         }),
       ]),
     );
+  });
+
+  it('开始前取消当前用户预约并返回取消后的记录', async () => {
+    const current = bookingRowFixture({
+      id: 'booking-future',
+      startAt: new Date('2026-05-30T07:00:00.000Z'),
+      endAt: new Date('2026-05-30T09:00:00.000Z'),
+    });
+    prisma.booking.updateMany.mockResolvedValue({ count: 1 });
+    prisma.booking.findUnique.mockResolvedValue({
+      ...current,
+      status: 'CANCELLED_BY_USER',
+    });
+
+    const record = await repository.cancelByUserId('user-stu-cse-01', 'booking-future');
+
+    expect(prisma.booking.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'booking-future',
+          userId: 'user-stu-cse-01',
+          status: 'PENDING_CHECKIN',
+          startAt: { gt: NOW },
+        }),
+        data: { status: 'CANCELLED_BY_USER' },
+      }),
+    );
+    expect(prisma.bookingSlot.deleteMany).toHaveBeenCalledWith({
+      where: { bookingId: 'booking-future' },
+    });
+    expect(record).toMatchObject({
+      id: 'booking-future',
+      status: 'cancelled',
+      canCancel: false,
+    });
   });
 });
 
