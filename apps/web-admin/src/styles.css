@@ -6347,6 +6347,20 @@ button {
   font-weight: 800;
 }
 
+.student-seat-assistant-notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #b6dfd8;
+  border-radius: 10px;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  background: #f3fbf9;
+  color: #1d6c5f;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .student-seat-booking-summary {
   margin: 16px 0;
 }
@@ -6773,6 +6787,11 @@ button {
 
 .student-booking-card {
   padding: 16px;
+}
+
+.student-booking-timeline-item.is-focused .student-booking-card {
+  border-color: #2d7a6e;
+  box-shadow: 0 0 0 3px rgba(45, 122, 110, 0.14);
 }
 
 .student-booking-card-main {
@@ -7235,6 +7254,13 @@ button {
   cursor: pointer;
 }
 
+.student-assistant-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
 .student-assistant-tags {
   display: flex;
   gap: 4px;
@@ -7263,6 +7289,25 @@ button {
   background: #ffffff;
   color: #2d7a6e;
   font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.student-assistant-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.student-assistant-suggestions button {
+  min-height: 28px;
+  border: 1px solid rgba(45, 122, 110, 0.2);
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: #ffffff;
+  color: #2d7a6e;
+  font-size: 11px;
   font-weight: 800;
   cursor: pointer;
 }
@@ -7305,6 +7350,15 @@ button {
   cursor: pointer;
 }
 
+.student-assistant-error {
+  border-top: 1px solid #f2d5d5;
+  padding: 8px 16px;
+  background: #fff7f7;
+  color: #a13535;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .student-assistant-composer {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 42px 42px;
@@ -7314,16 +7368,24 @@ button {
   padding: 12px 16px;
 }
 
-.student-assistant-composer > div {
+.student-assistant-composer input {
   min-height: 42px;
-  display: flex;
-  align-items: center;
   border: 1.5px solid #d8e8e5;
   border-radius: 10px;
   padding: 10px 14px;
   background: #ecf4f2;
-  color: #8aaaa4;
+  color: #1a2e2a;
   font-size: 13px;
+  outline: none;
+}
+
+.student-assistant-composer input::placeholder {
+  color: #8aaaa4;
+}
+
+.student-assistant-composer input:focus {
+  border-color: #2d7a6e;
+  background: #ffffff;
 }
 
 .student-assistant-composer button {
@@ -7345,6 +7407,11 @@ button {
   border: 0;
   background: #2d7a6e;
   color: #ffffff;
+}
+
+.student-assistant-composer button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .student-assistant-side {
@@ -8159,7 +8226,11 @@ button {
     grid-template-columns: minmax(0, 1fr) 40px;
   }
 
-  .student-assistant-composer > div {
+  .student-assistant-card-actions {
+    width: 100%;
+  }
+
+  .student-assistant-composer input {
     grid-column: 1 / -1;
   }
 

@@ -7,7 +7,8 @@ describe('BookingsService', () => {
 
   beforeEach(() => {
     repository = {
-      listByUserId: jest.fn()
+      listByUserId: jest.fn(),
+      cancelByUserId: jest.fn()
     };
     service = new BookingsService(repository);
   });
@@ -57,6 +58,29 @@ describe('BookingsService', () => {
       records
     });
     expect(repository.listByUserId).toHaveBeenCalledWith('user-stu-cse-01');
+  });
+
+  it('取消当前学生预约时只委托当前用户和指定预约', async () => {
+    const cancelled = bookingFixture({
+      id: 'booking-upcoming',
+      room: '经管自习室 301',
+      location: '光华楼 A座 3楼',
+      seat: 'C3',
+      time: '今日 14:00-17:00',
+      status: 'cancelled',
+      tags: ['插座'],
+      canCheckIn: false,
+      canCancel: false
+    });
+    repository.cancelByUserId.mockResolvedValue(cancelled);
+
+    await expect(
+      service.cancelStudentBooking('user-stu-cse-01', 'booking-upcoming')
+    ).resolves.toEqual(cancelled);
+    expect(repository.cancelByUserId).toHaveBeenCalledWith(
+      'user-stu-cse-01',
+      'booking-upcoming'
+    );
   });
 });
 

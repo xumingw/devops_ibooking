@@ -197,3 +197,35 @@ export interface StudentCheckInResult {
   checkedInAt: string;
   status: 'CHECKED_IN';
 }
+
+export type StudentAssistantIntent = 'availability' | 'seat_search' | 'my_bookings' | 'fallback';
+
+export type StudentAssistantAction = 'BOOK' | 'CHECK_IN' | 'CANCEL' | 'DETAIL';
+
+export interface StudentAssistantSeatCandidate {
+  roomId: string;
+  seatId: string;
+  room: string;
+  location: string;
+  seat: string;
+  time: string;
+  tags: string[];
+}
+
+export interface StudentAssistantBookingCandidate {
+  bookingId: string;
+  room: string;
+  location: string;
+  seat: string;
+  time: string;
+  status: StudentBookingStatus;
+  actions: StudentAssistantAction[];
+}
+
+export interface StudentAssistantReply {
+  intent: StudentAssistantIntent;
+  text: string;
+  seats: StudentAssistantSeatCandidate[];
+  bookings: StudentAssistantBookingCandidate[];
+  suggestions: string[];
+}

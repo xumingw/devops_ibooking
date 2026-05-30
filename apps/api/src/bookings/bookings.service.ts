@@ -5,6 +5,7 @@ export const BOOKING_REPOSITORY = 'BOOKING_REPOSITORY';
 
 export interface BookingRepository {
   listByUserId(userId: string): Promise<StudentBookingRecord[]>;
+  cancelByUserId(userId: string, bookingId: string): Promise<StudentBookingRecord>;
 }
 
 @Injectable()
@@ -21,5 +22,9 @@ export class BookingsService {
       completedCount: records.filter((record) => record.status === 'completed').length,
       records
     };
+  }
+
+  cancelStudentBooking(userId: string, bookingId: string): Promise<StudentBookingRecord> {
+    return this.repository.cancelByUserId(userId, bookingId);
   }
 }

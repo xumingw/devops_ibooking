@@ -3,9 +3,13 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   formatStudentBookingSubtitle,
   mapStudentBookingSummaryToView,
+  requestStudentBookingCancel,
   requestStudentBookings
 } from '../../../src/App';
-import { successfulStudentBookingsResponse } from '../helpers/api-responses';
+import {
+  successfulStudentBookingCancelResponse,
+  successfulStudentBookingsResponse
+} from '../helpers/api-responses';
 
 describe('student bookings api', () => {
   it('学生我的预约请求会携带学生 token', async () => {
@@ -28,6 +32,28 @@ describe('student bookings api', () => {
     expect(summary.totalCount).toBe(3);
     expect(summary.activeCount).toBe(2);
     expect(summary.completedCount).toBe(1);
+  });
+
+  it('学生取消预约请求会调用当前用户取消接口', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(successfulStudentBookingCancelResponse());
+
+    const booking = await requestStudentBookingCancel(
+      'student-token',
+      'booking-upcoming',
+      fetcher,
+      'http://localhost:3000'
+    );
+
+    expect(fetcher).toHaveBeenCalledWith(
+      'http://localhost:3000/api/v1/bookings/me/booking-upcoming/cancel',
+      expect.objectContaining({
+        credentials: 'include',
+        headers: { Authorization: 'Bearer student-token' },
+        method: 'PATCH'
+      })
+    );
+    expect(booking.status).toBe('cancelled');
+    expect(booking.canCancel).toBe(false);
   });
 
   it('学生预约摘要会映射成页面状态和副标题', () => {

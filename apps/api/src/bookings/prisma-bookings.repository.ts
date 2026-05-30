@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { BookingStatus, Prisma } from '@prisma/client';
-import { StudentBookingRecord, StudentBookingStatus } from '@ibooking/shared-types';
+import { ErrorCode, StudentBookingRecord, StudentBookingStatus } from '@ibooking/shared-types';
 import { PrismaService } from '../database/prisma.service';
 import { BookingRepository } from './bookings.service';
 
@@ -27,6 +27,48 @@ export class PrismaBookingsRepository implements BookingRepository {
     });
 
     return rows.map((row) => this.toRecord(row));
+  }
+
+  async cancelByUserId(userId: string, bookingId: string): Promise<StudentBookingRecord> {
+    const now = new Date();
+    const row = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.booking.updateMany({
+        where: {
+          id: bookingId,
+          userId,
+          status: 'PENDING_CHECKIN',
+          startAt: { gt: now }
+        },
+        data: { status: 'CANCELLED_BY_USER' }
+      });
+      if (updated.count === 0) return null;
+
+      await tx.bookingSlot.deleteMany({ where: { bookingId } });
+      return tx.booking.findUnique({
+        where: { id: bookingId },
+        include: {
+          room: true,
+          seat: true
+        }
+      });
+    });
+
+    if (row) return this.toRecord(row);
+
+    const current = await this.prisma.booking.findFirst({
+      where: { id: bookingId, userId },
+      select: { id: true }
+    });
+    if (!current) {
+      throw new NotFoundException({
+        code: ErrorCode.RESOURCE_NOT_FOUND,
+        message: '预约不存在'
+      });
+    }
+    throw new BadRequestException({
+      code: ErrorCode.VALIDATION_FAILED,
+      message: '当前预约不可取消'
+    });
   }
 
   private toRecord(row: BookingWithRoomSeat): StudentBookingRecord {

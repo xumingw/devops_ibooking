@@ -15,6 +15,7 @@ import { ViolationsModule } from './violations/violations.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { CheckInsModule } from './checkins/checkins.module';
+import { AssistantModule } from './assistant/assistant.module';
 
 @Module({
   imports: [
@@ -27,7 +28,8 @@ import { CheckInsModule } from './checkins/checkins.module';
     ViolationsModule,
     NotificationsModule,
     BookingsModule,
-    CheckInsModule
+    CheckInsModule,
+    AssistantModule
   ],
   controllers: [HealthController],
   providers: [

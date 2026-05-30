@@ -1,6 +1,6 @@
-import { Controller, Get, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Patch, Req, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { StudentBookingSummary } from '@ibooking/shared-types';
+import { StudentBookingRecord, StudentBookingSummary } from '@ibooking/shared-types';
 import { AuthenticatedRequest, AuthGuard } from '../auth/auth.guard';
 import { BookingsService } from './bookings.service';
 
@@ -13,5 +13,13 @@ export class BookingsController {
   @Get('me')
   getMyBookings(@Req() request: AuthenticatedRequest): Promise<StudentBookingSummary> {
     return this.bookingsService.getStudentSummary(request.auth!.user.id);
+  }
+
+  @Patch('me/:bookingId/cancel')
+  cancelMyBooking(
+    @Req() request: AuthenticatedRequest,
+    @Param('bookingId') bookingId: string
+  ): Promise<StudentBookingRecord> {
+    return this.bookingsService.cancelStudentBooking(request.auth!.user.id, bookingId);
   }
 }
