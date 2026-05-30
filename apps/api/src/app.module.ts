@@ -14,6 +14,7 @@ import { RolesModule } from './roles/roles.module';
 import { ViolationsModule } from './violations/violations.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { BookingsModule } from './bookings/bookings.module';
+import { CheckInsModule } from './checkins/checkins.module';
 
 @Module({
   imports: [
@@ -25,7 +26,8 @@ import { BookingsModule } from './bookings/bookings.module';
     RolesModule,
     ViolationsModule,
     NotificationsModule,
-    BookingsModule
+    BookingsModule,
+    CheckInsModule
   ],
   controllers: [HealthController],
   providers: [

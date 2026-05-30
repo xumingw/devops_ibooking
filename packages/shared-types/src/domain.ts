@@ -178,3 +178,22 @@ export interface StudentBookingSummary {
   completedCount: number;
   records: StudentBookingRecord[];
 }
+
+export interface StudentCheckInSession {
+  bookingId: string;
+  roomId: string;
+  room: string;
+  seat: string;
+  time: string;
+  remainingSeconds: number;
+  codeLength: number;
+}
+
+export interface StudentCheckInResult {
+  bookingId: string;
+  room: string;
+  seat: string;
+  time: string;
+  checkedInAt: string;
+  status: 'CHECKED_IN';
+}

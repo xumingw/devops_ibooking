@@ -5,6 +5,7 @@ import {
   App,
   requestLogin,
   resolveApiBaseUrl,
+  resolvePostLoginPath,
   resolveSessionKind
 } from '../../../src/App';
 import { successfulLoginResponse } from '../helpers/api-responses';
@@ -77,6 +78,14 @@ describe('auth', () => {
         { name: '数据审计员', code: 'ROLE_AUDIT' }
       ])
     ).toBe('admin');
+  });
+
+  it('登录后保留已访问的合法学生或管理端目标页', () => {
+    expect(resolvePostLoginPath('student', '/student/checkin')).toBe('/student/checkin');
+    expect(resolvePostLoginPath('student', '/student/bookings')).toBe('/student/bookings');
+    expect(resolvePostLoginPath('student', '/dashboard/users')).toBe('/student');
+    expect(resolvePostLoginPath('admin', '/dashboard/rooms')).toBe('/dashboard/rooms');
+    expect(resolvePostLoginPath('admin', '/student/checkin')).toBe('/dashboard');
   });
 
   it('登录失败时透传后端错误信息', async () => {
