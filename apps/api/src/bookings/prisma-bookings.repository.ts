@@ -58,7 +58,8 @@ export class PrismaBookingsRepository implements BookingRepository {
     if (status !== 'upcoming') return false;
     const now = Date.now();
     const checkInWindowStart = row.startAt.getTime() - 15 * 60 * 1000;
-    return now >= checkInWindowStart && now <= row.endAt.getTime();
+    const checkInWindowEnd = row.startAt.getTime() + 15 * 60 * 1000;
+    return now >= checkInWindowStart && now <= checkInWindowEnd && now <= row.endAt.getTime();
   }
 
   private formatTags(row: BookingWithRoomSeat): string[] {

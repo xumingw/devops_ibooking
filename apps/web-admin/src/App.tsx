@@ -303,6 +303,25 @@ type StudentBookingSummaryView = Omit<StudentBookingSummary, 'records'> & {
   records: StudentBookingRecordView[];
 };
 
+type StudentCheckInSession = {
+  bookingId: string;
+  roomId: string;
+  room: string;
+  seat: string;
+  time: string;
+  remainingSeconds: number;
+  codeLength: number;
+};
+
+type StudentCheckInResult = {
+  bookingId: string;
+  room: string;
+  seat: string;
+  time: string;
+  checkedInAt: string;
+  status: 'CHECKED_IN';
+};
+
 const AUTH_REMEMBER_KEY = 'ibooking.auth.remember';
 const ADMIN_ACCESS_TOKEN_KEY = 'ibooking.admin.accessToken';
 const STUDENT_ACCESS_TOKEN_KEY = 'ibooking.student.accessToken';
@@ -559,6 +578,55 @@ export const requestStudentBookings = async (
   return payload.data;
 };
 
+export const requestStudentCheckInSession = async (
+  accessToken: string,
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl()
+): Promise<StudentCheckInSession | null> => {
+  const response = await fetcher(`${apiBaseUrl}/api/v1/checkins/me/current`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: StudentCheckInSession | null;
+  } | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || payload.data === undefined) {
+    throw new Error(payload?.message || '签到信息加载失败');
+  }
+
+  return payload.data;
+};
+
+export const requestStudentCheckInCode = async (
+  accessToken: string,
+  code: string,
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl()
+): Promise<StudentCheckInResult> => {
+  const response = await fetcher(`${apiBaseUrl}/api/v1/checkins/me`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ code })
+  });
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: StudentCheckInResult;
+  } | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
+    throw new Error(payload?.message || '签到失败，请核对动态码');
+  }
+
+  return payload.data;
+};
+
 export const saveAdminSeat = async (
   input: AdminSeatFormState,
   options: SaveSeatOptions,
@@ -608,6 +676,23 @@ const ADMIN_ROLE_CODES = new Set([
 
 export const resolveSessionKind = (roles: RoleView[] = []): EntryKind =>
   roles.some((role) => ADMIN_ROLE_CODES.has(role.code)) ? 'admin' : 'student';
+
+export const canSubmitStudentCheckIn = (input: {
+  accessToken?: string;
+  hasSession: boolean;
+  enteredCode: string;
+  codeLength: number;
+  loading: boolean;
+  submitting: boolean;
+  submitted: boolean;
+  remainingSeconds: number;
+}) =>
+  Boolean(input.accessToken && input.hasSession) &&
+  input.enteredCode.length === input.codeLength &&
+  input.remainingSeconds > 0 &&
+  !input.loading &&
+  !input.submitting &&
+  !input.submitted;
 
 const pushAppPath = (path: string) => {
   if (typeof window !== 'undefined') {
@@ -766,7 +851,7 @@ export function App() {
         name: loginSession.user.name,
         accessToken: loginSession.accessToken
       });
-      pushAppPath(sessionKind === 'admin' ? '/dashboard' : '/student');
+      pushAppPath(resolvePostLoginPath(sessionKind));
     } catch (error) {
       setFeedback({
         type: 'error',
@@ -2638,8 +2723,34 @@ export const formatStudentBookingSubtitle = (
   summary: Pick<StudentBookingSummaryView, 'totalCount' | 'completedCount'>
 ) => `本学期共 ${summary.totalCount} 次预约 · ${summary.completedCount} 次完成`;
 
+const STUDENT_CHECKIN_CODE_LENGTH = 6;
+
+const createStudentCheckInDigits = (length = STUDENT_CHECKIN_CODE_LENGTH) =>
+  Array.from({ length }, () => '');
+
+const formatStudentCheckInRemaining = (seconds: number) => {
+  const safeSeconds = Math.max(0, seconds);
+  const minutes = Math.floor(safeSeconds / 60);
+  const restSeconds = safeSeconds % 60;
+  return `${minutes}:${String(restSeconds).padStart(2, '0')}`;
+};
+
+export const tickStudentCheckInRemaining = (seconds: number) => Math.max(0, seconds - 1);
+
+const formatStudentCheckInDisplayTime = (time: string) =>
+  time.replace(/(\d{1,2}:\d{2})-(\d{1,2}:\d{2})/g, '$1–$2');
+
 const STUDENT_CHECKIN_DIGITS = ['2', '7', '4', '', '', ''] as const;
 const STUDENT_CHECKIN_KEYPAD = [1, 2, 3, 4, 5, 6, 7, 8, 9, '', 0, '⌫'] as const;
+const STUDENT_CHECKIN_FALLBACK_SESSION: StudentCheckInSession = {
+  bookingId: 'fallback-checkin',
+  roomId: 'fallback-room',
+  room: '经管自习室 301',
+  seat: 'C3',
+  time: '今日 14:00–17:00',
+  remainingSeconds: 562,
+  codeLength: STUDENT_CHECKIN_CODE_LENGTH
+};
 
 const STUDENT_ASSISTANT_CARDS = [
   {
@@ -3299,6 +3410,21 @@ const resolveInitialStudentMenu = (): StudentPageId => {
 
   const [, section] = window.location.pathname.match(/^\/student\/([^/]+)/) ?? [];
   return isStudentPageId(section) ? section : 'home';
+};
+
+export const resolvePostLoginPath = (
+  sessionKind: EntryKind,
+  pathname = typeof window === 'undefined' ? '/' : window.location.pathname
+) => {
+  if (sessionKind === 'admin') {
+    const [, section] = pathname.match(/^\/dashboard\/([^/]+)/) ?? [];
+    if (pathname === '/dashboard' || isAdminMenuId(section)) return pathname;
+    return '/dashboard';
+  }
+
+  const [, section] = pathname.match(/^\/student\/([^/]+)/) ?? [];
+  if (pathname === '/student' || isStudentPageId(section)) return pathname;
+  return '/student';
 };
 
 export function AdminDashboard({ accessToken, adminName, initialActive, onLogout }: DashboardProps) {
@@ -5798,6 +5924,7 @@ export function StudentHomePreview({
   const [studentBookingSummary, setStudentBookingSummary] = useState<StudentBookingSummaryView>(
     () => getStudentBookingFallbackSummary()
   );
+  const [checkInNotice, setCheckInNotice] = useState('');
   const activeNavMenu: StudentMenuId = activeMenu === 'confirm' ? 'select' : activeMenu;
 
   const handleStudentMenuChange = (nextMenu: StudentMenuId) => {
@@ -5936,11 +6063,17 @@ export function StudentHomePreview({
               </>
             ) : activeMenu === 'checkin' ? (
               <>
-                <button type="button">
+                <button
+                  onClick={() => setCheckInNotice('扫码签到请使用移动端扫描教室二维码')}
+                  type="button"
+                >
                   <DashboardIcon name="scan" size={13} />
                   扫码签到
                 </button>
-                <button type="button">
+                <button
+                  onClick={() => setCheckInNotice('请联系教室值班管理员处理签到异常')}
+                  type="button"
+                >
                   <DashboardIcon name="info" size={13} />
                   联系管理员
                 </button>
@@ -6016,10 +6149,15 @@ export function StudentHomePreview({
         ) : activeMenu === 'bookings' ? (
           <StudentBookingsPanel
             accessToken={accessToken}
+            onCheckIn={() => handleStudentPageChange('checkin')}
             onSummaryChange={setStudentBookingSummary}
           />
         ) : activeMenu === 'checkin' ? (
-          <StudentCheckInPanel />
+          <StudentCheckInPanel
+            accessToken={accessToken}
+            actionNotice={checkInNotice}
+            onActionNotice={setCheckInNotice}
+          />
         ) : activeMenu === 'assistant' ? (
           <StudentAssistantPanel onConfirm={() => handleStudentPageChange('confirm')} />
         ) : activeMenu === 'notify' ? (
@@ -6046,7 +6184,9 @@ export function StudentHomePreview({
             </p>
           </div>
           <div className="student-home-booking-actions">
-            <button type="button">立即签到</button>
+            <button type="button" onClick={() => handleStudentPageChange('checkin')}>
+              立即签到
+            </button>
             <button type="button">取消预约</button>
           </div>
         </section>
@@ -6474,9 +6614,11 @@ function StudentBookingConfirmPanel({ onBack }: { onBack?: () => void }) {
 
 function StudentBookingsPanel({
   accessToken,
+  onCheckIn,
   onSummaryChange
 }: {
   accessToken?: string;
+  onCheckIn?: () => void;
   onSummaryChange?: (summary: StudentBookingSummaryView) => void;
 }) {
   const [summary, setSummary] = useState<StudentBookingSummaryView>(() =>
@@ -6581,7 +6723,7 @@ function StudentBookingsPanel({
                     {booking.status === 'upcoming' ? (
                       <>
                         {booking.canCheckIn ? (
-                          <button className="is-primary" type="button">
+                          <button className="is-primary" onClick={onCheckIn} type="button">
                             立即签到
                           </button>
                         ) : null}
@@ -6611,31 +6753,176 @@ function StudentBookingsPanel({
   );
 }
 
-function StudentCheckInPanel() {
-  const activeDigitIndex = STUDENT_CHECKIN_DIGITS.findIndex((digit) => digit === '');
+function StudentCheckInPanel({
+  accessToken,
+  actionNotice = '',
+  onActionNotice
+}: {
+  accessToken?: string;
+  actionNotice?: string;
+  onActionNotice?: (message: string) => void;
+}) {
+  const [session, setSession] = useState<StudentCheckInSession | null>(() =>
+    accessToken ? null : STUDENT_CHECKIN_FALLBACK_SESSION
+  );
+  const [digits, setDigits] = useState<string[]>(() =>
+    accessToken ? createStudentCheckInDigits() : [...STUDENT_CHECKIN_DIGITS]
+  );
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [submitMessage, setSubmitMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [displayRemainingSeconds, setDisplayRemainingSeconds] = useState(() =>
+    accessToken ? 0 : STUDENT_CHECKIN_FALLBACK_SESSION.remainingSeconds
+  );
+
+  useEffect(() => {
+    let alive = true;
+    if (!accessToken) {
+      setSession(STUDENT_CHECKIN_FALLBACK_SESSION);
+      setDigits([...STUDENT_CHECKIN_DIGITS]);
+      setDisplayRemainingSeconds(STUDENT_CHECKIN_FALLBACK_SESSION.remainingSeconds);
+      setLoading(false);
+      setLoadError('');
+      setSubmitMessage('');
+      setSubmitting(false);
+      return () => {
+        alive = false;
+      };
+    }
+
+    setLoading(true);
+    setLoadError('');
+    setSubmitMessage('');
+    requestStudentCheckInSession(accessToken)
+      .then((nextSession) => {
+        if (!alive) return;
+        setSession(nextSession);
+        setDigits(createStudentCheckInDigits(nextSession?.codeLength));
+        setDisplayRemainingSeconds(nextSession?.remainingSeconds ?? 0);
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setSession(null);
+        setDigits(createStudentCheckInDigits());
+        setDisplayRemainingSeconds(0);
+        setLoadError(error instanceof Error ? error.message : '签到信息加载失败');
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [accessToken]);
+
+  useEffect(() => {
+    if (!session || submitMessage.includes('已签到')) return;
+    const timer = window.setInterval(() => {
+      setDisplayRemainingSeconds(tickStudentCheckInRemaining);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [session, submitMessage]);
+
+  const codeLength = session?.codeLength ?? STUDENT_CHECKIN_CODE_LENGTH;
+  const visibleDigits = Array.from({ length: codeLength }, (_, index) => digits[index] ?? '');
+  const activeDigitIndex = visibleDigits.findIndex((digit) => digit === '');
+  const enteredCode = visibleDigits.join('');
+  const remainingLabel = formatStudentCheckInRemaining(displayRemainingSeconds);
+  const submitted = submitMessage.includes('已签到');
+  const checkInExpired = Boolean(session) && displayRemainingSeconds <= 0 && !submitted;
+  const canSubmit =
+    !visibleDigits.includes('') &&
+    canSubmitStudentCheckIn({
+      accessToken,
+      hasSession: Boolean(session),
+      enteredCode,
+      codeLength,
+      loading,
+      submitting,
+      submitted,
+      remainingSeconds: displayRemainingSeconds
+    });
+
+  const handleKeyPress = (key: (typeof STUDENT_CHECKIN_KEYPAD)[number]) => {
+    if (key === '' || submitting || submitMessage.includes('已签到')) return;
+    onActionNotice?.('');
+    setSubmitMessage('');
+    setDigits((current) => {
+      const next = Array.from({ length: codeLength }, (_, index) => current[index] ?? '');
+      if (key === '⌫') {
+        const lastFilledIndex = next.map(Boolean).lastIndexOf(true);
+        if (lastFilledIndex >= 0) next[lastFilledIndex] = '';
+        return next;
+      }
+
+      const emptyIndex = next.findIndex((digit) => digit === '');
+      if (emptyIndex >= 0) next[emptyIndex] = String(key);
+      return next;
+    });
+  };
+
+  const handleSubmit = () => {
+    if (!accessToken || !session || !canSubmit) return;
+    onActionNotice?.('');
+    setSubmitting(true);
+    setLoadError('');
+    requestStudentCheckInCode(accessToken, enteredCode)
+      .then((result) => {
+        setSubmitMessage(`${result.room} · ${result.seat} 已签到`);
+      })
+      .catch((error) => {
+        setSubmitMessage('');
+        setLoadError(error instanceof Error ? error.message : '签到失败，请核对动态码');
+      })
+      .finally(() => setSubmitting(false));
+  };
 
   return (
     <section className="student-checkin-panel" aria-label="学生签到">
       <div className="student-checkin-card">
-        <div className="student-checkin-timer" aria-label="剩余签到时间 9:22">
+        {(loading || loadError || submitMessage || checkInExpired || actionNotice) && (
+          <div
+            className={`student-checkin-message${
+              loadError || checkInExpired ? ' is-error' : submitMessage ? ' is-success' : ''
+            }`}
+          >
+            <DashboardIcon
+              name={
+                loadError || checkInExpired ? 'alert' : submitMessage ? 'check-circle' : 'refresh'
+              }
+              size={14}
+            />
+            {loadError ||
+              submitMessage ||
+              (checkInExpired ? '签到时间已结束' : actionNotice || '正在加载签到信息…')}
+          </div>
+        )}
+
+        <div className="student-checkin-timer" aria-label={`剩余签到时间 ${remainingLabel}`}>
           <svg aria-hidden="true" viewBox="0 0 140 140">
             <circle cx="70" cy="70" r="62" />
             <circle cx="70" cy="70" r="62" />
           </svg>
           <div>
-            <strong>9:22</strong>
+            <strong>{remainingLabel}</strong>
             <span>剩余签到时间</span>
           </div>
         </div>
 
-        <h2>经管自习室 301 · C3 座 · 今日 14:00–17:00</h2>
-        <p>请查看教室屏幕上的 6 位动态码</p>
+        <h2>
+          {session
+            ? `${session.room} · ${session.seat} 座 · ${formatStudentCheckInDisplayTime(session.time)}`
+            : '当前暂无可签到预约'}
+        </h2>
+        <p>{session ? '请查看教室屏幕上的 6 位动态码' : '可签到预约会在开始前 15 分钟出现'}</p>
 
         <div
           className="student-checkin-code"
-          aria-label={`当前已输入 ${STUDENT_CHECKIN_DIGITS.filter(Boolean).join('')}`}
+          aria-label={`当前已输入 ${visibleDigits.filter(Boolean).join('')}`}
         >
-          {STUDENT_CHECKIN_DIGITS.map((digit, index) => (
+          {visibleDigits.map((digit, index) => (
             <Fragment key={`${index}-${digit || 'empty'}`}>
               {index === 3 ? <span className="student-checkin-code-break" /> : null}
               <span className={index === activeDigitIndex ? 'is-active' : digit ? 'is-filled' : ''}>
@@ -6647,19 +6934,42 @@ function StudentCheckInPanel() {
 
         <div className="student-checkin-keypad" aria-label="数字键盘">
           {STUDENT_CHECKIN_KEYPAD.map((key, index) => (
-            <button disabled={key === ''} key={`${key}-${index}`} type="button">
+            <button
+              className={key === '' ? 'is-placeholder' : undefined}
+              disabled={key === '' || !session || loading}
+              key={`${key}-${index}`}
+              onClick={() => handleKeyPress(key)}
+              type="button"
+            >
               {key}
             </button>
           ))}
         </div>
 
-        <button className="student-checkin-submit" type="button">
-          确 认 签 到
+        <button
+          className="student-checkin-submit"
+          disabled={!canSubmit}
+          onClick={handleSubmit}
+          type="button"
+        >
+          {submitting ? '签 到 中' : '确 认 签 到'}
         </button>
 
         <div className="student-checkin-help">
-          无法输入？<button type="button">扫描教室二维码</button> 或{' '}
-          <button type="button">联系管理员</button>
+          无法输入？
+          <button
+            onClick={() => onActionNotice?.('扫码签到请使用移动端扫描教室二维码')}
+            type="button"
+          >
+            扫描教室二维码
+          </button>{' '}
+          或{' '}
+          <button
+            onClick={() => onActionNotice?.('请联系教室值班管理员处理签到异常')}
+            type="button"
+          >
+            联系管理员
+          </button>
         </div>
       </div>
     </section>

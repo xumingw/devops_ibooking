@@ -6921,6 +6921,34 @@ button {
   text-align: center;
 }
 
+.student-checkin-message {
+  width: min(100%, 360px);
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 auto 14px;
+  border: 1px solid #d8e8e5;
+  border-radius: 10px;
+  background: #f7fcfb;
+  color: #4a6b64;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.student-checkin-message.is-error {
+  border-color: #ffd2c7;
+  background: #fff7f4;
+  color: #b85033;
+}
+
+.student-checkin-message.is-success {
+  border-color: #bee7cf;
+  background: #f3fbf6;
+  color: #268153;
+}
+
 .student-checkin-timer {
   width: 140px;
   height: 140px;
@@ -7043,8 +7071,17 @@ button {
 }
 
 .student-checkin-keypad button:disabled {
+  border-color: #e3eeeb;
+  background: #f7fbfa;
+  color: #9ab5af;
+  cursor: not-allowed;
+}
+
+.student-checkin-keypad button.is-placeholder,
+.student-checkin-keypad button.is-placeholder:disabled {
   border-color: transparent;
   background: transparent;
+  color: transparent;
   cursor: default;
 }
 
@@ -7060,6 +7097,12 @@ button {
   font-weight: 900;
   letter-spacing: 2px;
   cursor: pointer;
+}
+
+.student-checkin-submit:disabled {
+  background: #b8cbc6;
+  box-shadow: none;
+  cursor: not-allowed;
 }
 
 .student-checkin-help {

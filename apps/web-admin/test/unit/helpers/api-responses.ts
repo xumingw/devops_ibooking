@@ -329,3 +329,44 @@ export const successfulStudentBookingsResponse = () =>
       status: 200
     }
   );
+
+export const successfulStudentCheckInSessionResponse = () =>
+  new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: {
+        bookingId: 'booking-current',
+        roomId: 'room-gm-301',
+        room: '经管自习室 301',
+        seat: 'C3',
+        time: '今日 14:00-17:00',
+        remainingSeconds: 562,
+        codeLength: 6
+      }
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    }
+  );
+
+export const successfulStudentCheckInSubmitResponse = () =>
+  new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: {
+        bookingId: 'booking-current',
+        room: '经管自习室 301',
+        seat: 'C3',
+        time: '今日 14:00-17:00',
+        checkedInAt: '2026-05-30T06:02:00.000Z',
+        status: 'CHECKED_IN'
+      }
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    }
+  );
