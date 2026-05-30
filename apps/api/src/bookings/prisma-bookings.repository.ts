@@ -2,12 +2,18 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { BookingStatus, Prisma } from '@prisma/client';
 import { ErrorCode, StudentBookingRecord, StudentBookingStatus } from '@ibooking/shared-types';
 import { PrismaService } from '../database/prisma.service';
-import { BookingRepository } from './bookings.service';
+import { BookingRepository, CreateStudentBookingInput } from './bookings.service';
 
 type BookingWithRoomSeat = Prisma.BookingGetPayload<{
   include: {
     room: true;
     seat: true;
+  };
+}>;
+
+type BookingRoomWithSchedules = Prisma.RoomGetPayload<{
+  include: {
+    schedules: true;
   };
 }>;
 
@@ -71,6 +77,120 @@ export class PrismaBookingsRepository implements BookingRepository {
     });
   }
 
+  async createByUserId(
+    userId: string,
+    input: CreateStudentBookingInput
+  ): Promise<StudentBookingRecord> {
+    const startAt = new Date(input.startAt);
+    const endAt = new Date(input.endAt);
+
+    try {
+      const row = await this.prisma.$transaction(async (tx) => {
+        const [user, room, seat] = await Promise.all([
+          tx.user.findUnique({
+            where: { id: userId },
+            select: { id: true, departmentId: true }
+          }),
+          tx.room.findUnique({
+            where: { id: input.roomId },
+            include: {
+              schedules: {
+                where: { date: { in: this.toScheduleDates(startAt, endAt) } }
+              }
+            }
+          }),
+          tx.seat.findFirst({ where: { id: input.seatId, roomId: input.roomId } })
+        ]);
+
+        if (!user) {
+          throw new NotFoundException({
+            code: ErrorCode.RESOURCE_NOT_FOUND,
+            message: '用户不存在'
+          });
+        }
+        if (!room || !seat) {
+          throw new NotFoundException({
+            code: ErrorCode.RESOURCE_NOT_FOUND,
+            message: '自习室或座位不存在'
+          });
+        }
+        if (room.status !== 'ACTIVE' || seat.status !== 'ACTIVE') {
+          throw new BadRequestException({
+            code: ErrorCode.VALIDATION_FAILED,
+            message: '自习室或座位当前不可预约'
+          });
+        }
+        if (
+          room.scopeType === 'DEPARTMENT' &&
+          (!room.departmentId || room.departmentId !== user.departmentId)
+        ) {
+          throw new BadRequestException({
+            code: ErrorCode.VALIDATION_FAILED,
+            message: '该自习室仅限所属院系预约'
+          });
+        }
+        if (!this.isRoomOpenForRange(room, startAt, endAt)) {
+          throw new BadRequestException({
+            code: ErrorCode.VALIDATION_FAILED,
+            message: '预约时间不在自习室开放时间内'
+          });
+        }
+
+        const overlapping = await tx.booking.findFirst({
+          where: {
+            userId,
+            status: { in: ['PENDING_CHECKIN', 'CHECKED_IN'] },
+            startAt: { lt: endAt },
+            endAt: { gt: startAt }
+          },
+          select: { id: true }
+        });
+        if (overlapping) {
+          throw new BadRequestException({
+            code: ErrorCode.VALIDATION_FAILED,
+            message: '该时段已有预约'
+          });
+        }
+
+        const created = await tx.booking.create({
+          data: {
+            userId,
+            roomId: input.roomId,
+            seatId: input.seatId,
+            startAt,
+            endAt,
+            status: 'PENDING_CHECKIN'
+          },
+          include: {
+            room: true,
+            seat: true
+          }
+        });
+
+        await tx.bookingSlot.createMany({
+          data: this.toHourlySlots(startAt, endAt).map((slotStart) => ({
+            bookingId: created.id,
+            userId,
+            seatId: input.seatId,
+            slotStart
+          }))
+        });
+
+        return created;
+      });
+
+      return this.toRecord(row);
+    } catch (error) {
+      if (this.isUniqueConflict(error)) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_FAILED,
+          message: '该座位时段已被预约'
+        });
+      }
+      throw error;
+    }
+  }
+
   private toRecord(row: BookingWithRoomSeat): StudentBookingRecord {
     const status = this.mapStatus(row.status);
     return {
@@ -102,6 +222,76 @@ export class PrismaBookingsRepository implements BookingRepository {
     const checkInWindowStart = row.startAt.getTime() - 15 * 60 * 1000;
     const checkInWindowEnd = row.startAt.getTime() + 15 * 60 * 1000;
     return now >= checkInWindowStart && now <= checkInWindowEnd && now <= row.endAt.getTime();
+  }
+
+  private toHourlySlots(startAt: Date, endAt: Date): Date[] {
+    const slots: Date[] = [];
+    for (
+      let cursor = startAt.getTime();
+      cursor < endAt.getTime();
+      cursor += 60 * 60 * 1000
+    ) {
+      slots.push(new Date(cursor));
+    }
+    return slots;
+  }
+
+  private isRoomOpenForRange(
+    room: Pick<BookingRoomWithSchedules, 'openHour' | 'closeHour' | 'overnight' | 'schedules'>,
+    startAt: Date,
+    endAt: Date
+  ): boolean {
+    const schedulesByDate = new Map(
+      room.schedules.map((schedule) => [this.scheduleDateKey(schedule.date), schedule])
+    );
+
+    return this.toHourlySlots(startAt, endAt).every((slotStart) => {
+      const schedule = schedulesByDate.get(this.scheduleDateKey(this.toScheduleDate(slotStart)));
+      if (schedule?.closed) return false;
+
+      const openHour = schedule?.openHour ?? room.openHour;
+      const closeHour = schedule?.closeHour ?? room.closeHour;
+      const overnight = schedule ? closeHour <= openHour : room.overnight || closeHour <= openHour;
+      const hour = this.getShanghaiHour(slotStart);
+      if (overnight) {
+        return hour >= openHour || hour < closeHour;
+      }
+      return hour >= openHour && hour < closeHour;
+    });
+  }
+
+  private toScheduleDates(startAt: Date, endAt: Date): Date[] {
+    const datesByKey = new Map<string, Date>();
+    for (const slotStart of this.toHourlySlots(startAt, endAt)) {
+      const scheduleDate = this.toScheduleDate(slotStart);
+      datesByKey.set(this.scheduleDateKey(scheduleDate), scheduleDate);
+    }
+    return [...datesByKey.values()];
+  }
+
+  private toScheduleDate(value: Date): Date {
+    const shanghaiDate = new Date(value.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    return new Date(`${shanghaiDate}T00:00:00.000Z`);
+  }
+
+  private scheduleDateKey(value: Date): string {
+    return value.toISOString().slice(0, 10);
+  }
+
+  private getShanghaiHour(date: Date): number {
+    return (
+      Number(
+        new Intl.DateTimeFormat('en-US', {
+          hour: '2-digit',
+          hour12: false,
+          timeZone: 'Asia/Shanghai'
+        }).format(date)
+      ) % 24
+    );
+  }
+
+  private isUniqueConflict(error: unknown): boolean {
+    return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
   }
 
   private formatTags(row: BookingWithRoomSeat): string[] {

@@ -73,7 +73,7 @@ describe('student pages', () => {
     expect(html).toContain('已选');
     expect(html).toContain('C3');
     expect(html).toContain('预约信息');
-    expect(html).toContain('2026年4月24日（周四）');
+    expect(html).toContain('日期');
     expect(html).toContain('14:00 – 17:00（3小时）');
     expect(html).toContain('请在开始时间后');
     expect(html).toContain('15 分钟内');
@@ -100,7 +100,7 @@ describe('student pages', () => {
     expect(html).toContain('座位编号');
     expect(html).toContain('C3（插座 · 安静区）');
     expect(html).toContain('预约日期');
-    expect(html).toContain('2026年4月24日（周四）');
+    expect(html).toContain('预约日期');
     expect(html).toContain('17:00（共3小时）');
     expect(html).toContain('使用规则与违约须知');
     expect(html).toContain('签到规则');

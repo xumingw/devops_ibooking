@@ -1,11 +1,23 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { StudentBookingRecord, StudentBookingSummary } from '@ibooking/shared-types';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { ErrorCode, StudentBookingRecord, StudentBookingSummary } from '@ibooking/shared-types';
 
 export const BOOKING_REPOSITORY = 'BOOKING_REPOSITORY';
+const MAX_BOOKING_HOURS = 4;
+
+export type CreateStudentBookingInput = {
+  roomId: string;
+  seatId: string;
+  startAt: string;
+  endAt: string;
+};
 
 export interface BookingRepository {
   listByUserId(userId: string): Promise<StudentBookingRecord[]>;
   cancelByUserId(userId: string, bookingId: string): Promise<StudentBookingRecord>;
+  createByUserId(
+    userId: string,
+    input: CreateStudentBookingInput
+  ): Promise<StudentBookingRecord>;
 }
 
 @Injectable()
@@ -26,5 +38,57 @@ export class BookingsService {
 
   cancelStudentBooking(userId: string, bookingId: string): Promise<StudentBookingRecord> {
     return this.repository.cancelByUserId(userId, bookingId);
+  }
+
+  async createStudentBooking(
+    userId: string,
+    input: CreateStudentBookingInput
+  ): Promise<StudentBookingRecord> {
+    const startAt = this.parseBookingDate(input.startAt);
+    const endAt = this.parseBookingDate(input.endAt);
+    const durationMs = endAt.getTime() - startAt.getTime();
+    const hourMs = 60 * 60 * 1000;
+
+    if (durationMs <= 0) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: '预约结束时间必须晚于开始时间'
+      });
+    }
+    if (startAt.getTime() <= Date.now()) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: '不能预约已过去的时段'
+      });
+    }
+    if (!this.isWholeHour(startAt) || !this.isWholeHour(endAt)) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: '预约必须按整点开始和结束'
+      });
+    }
+    if (durationMs > MAX_BOOKING_HOURS * hourMs) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: '单次预约最长 4 小时'
+      });
+    }
+
+    return this.repository.createByUserId(userId, input);
+  }
+
+  private parseBookingDate(value: string): Date {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: '预约时间格式不正确'
+      });
+    }
+    return date;
+  }
+
+  private isWholeHour(date: Date): boolean {
+    return date.getMinutes() === 0 && date.getSeconds() === 0 && date.getMilliseconds() === 0;
   }
 }

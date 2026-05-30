@@ -1,13 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
-  formatStudentBookingSubtitle,
-  mapStudentBookingSummaryToView,
-  requestStudentBookingCancel,
-  requestStudentBookings
+	  buildStudentBookingRequest,
+	  formatStudentBookingSubtitle,
+	  getStudentBookingConfirmUiState,
+	  mapStudentBookingSummaryToView,
+	  requestStudentBookingCancel,
+	  requestStudentBookingCreate,
+	  requestStudentBookings
 } from '../../../src/App';
 import {
   successfulStudentBookingCancelResponse,
+  successfulStudentBookingCreateResponse,
   successfulStudentBookingsResponse
 } from '../helpers/api-responses';
 
@@ -54,6 +58,86 @@ describe('student bookings api', () => {
     );
     expect(booking.status).toBe('cancelled');
     expect(booking.canCancel).toBe(false);
+  });
+
+  it('学生确认预约请求会创建当前用户预约', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(successfulStudentBookingCreateResponse());
+    const request = buildStudentBookingRequest(undefined, new Date('2026-05-31T03:00:00.000Z'));
+
+    const booking = await requestStudentBookingCreate(
+      'student-token',
+      request,
+      fetcher,
+      'http://localhost:3000'
+    );
+
+    expect(fetcher).toHaveBeenCalledWith(
+      'http://localhost:3000/api/v1/bookings/me',
+      expect.objectContaining({
+        body: JSON.stringify(request),
+        credentials: 'include',
+        headers: {
+          Authorization: 'Bearer student-token',
+          'Content-Type': 'application/json'
+        },
+        method: 'POST'
+      })
+    );
+    expect(request).toMatchObject({
+      roomId: 'room-gm-301',
+      seatId: 'seat-gm-301-c3',
+      startAt: '2026-06-01T06:00:00.000Z',
+      endAt: '2026-06-01T09:00:00.000Z'
+    });
+	  expect(booking.status).toBe('upcoming');
+	});
+
+	it('学生确认预约成功后会锁定提交按钮并推进完成步骤', () => {
+	  expect(
+	    getStudentBookingConfirmUiState({
+	      submitted: false,
+	      submitting: false
+	    })
+	  ).toEqual({
+	    checkedStepCount: 2,
+	    doneStepCount: 3,
+	    primaryDisabled: false,
+	    primaryLabel: '确认提交预约'
+	  });
+
+	  expect(
+	    getStudentBookingConfirmUiState({
+	      submitted: true,
+	      submitting: false
+	    })
+	  ).toEqual({
+	    checkedStepCount: 4,
+	    doneStepCount: 4,
+	    primaryDisabled: true,
+	    primaryLabel: '预约已提交'
+	  });
+	});
+
+	it('助手推荐的相对日期会按当前日期转换为预约请求', () => {
+    const request = buildStudentBookingRequest(
+      {
+        roomId: 'room-gm-301',
+        seatId: 'seat-gm-301-c3',
+        room: '经管自习室 301',
+        location: '光华楼 A座 3楼',
+        seat: 'C3',
+        time: '明天晚上 18:00-22:00',
+        tags: ['插座']
+      },
+      new Date('2026-05-31T03:00:00.000Z')
+    );
+
+    expect(request).toEqual({
+      roomId: 'room-gm-301',
+      seatId: 'seat-gm-301-c3',
+      startAt: '2026-06-01T10:00:00.000Z',
+      endAt: '2026-06-01T14:00:00.000Z'
+    });
   });
 
   it('学生预约摘要会映射成页面状态和副标题', () => {

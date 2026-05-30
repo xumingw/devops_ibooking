@@ -1,5 +1,9 @@
 import { StudentBookingRecord } from '@ibooking/shared-types';
-import { BookingRepository, BookingsService } from '../../../src/bookings/bookings.service';
+import {
+  BookingRepository,
+  BookingsService,
+  CreateStudentBookingInput
+} from '../../../src/bookings/bookings.service';
 
 describe('BookingsService', () => {
   let repository: jest.Mocked<BookingRepository>;
@@ -8,7 +12,8 @@ describe('BookingsService', () => {
   beforeEach(() => {
     repository = {
       listByUserId: jest.fn(),
-      cancelByUserId: jest.fn()
+      cancelByUserId: jest.fn(),
+      createByUserId: jest.fn()
     };
     service = new BookingsService(repository);
   });
@@ -81,6 +86,64 @@ describe('BookingsService', () => {
       'user-stu-cse-01',
       'booking-upcoming'
     );
+  });
+
+  it('创建当前学生预约时校验整点和 4 小时上限后写入仓库', async () => {
+    const input: CreateStudentBookingInput = {
+      roomId: 'room-gm-301',
+      seatId: 'seat-gm-301-c3',
+      startAt: '2026-06-01T06:00:00.000Z',
+      endAt: '2026-06-01T09:00:00.000Z'
+    };
+    const created = bookingFixture({
+      id: 'booking-created',
+      room: '经管自习室 301',
+      location: '光华楼 A座 3楼',
+      seat: 'C3',
+      time: '6月1日 14:00-17:00',
+      status: 'upcoming',
+      tags: ['插座'],
+      canCheckIn: false,
+      canCancel: true
+    });
+    repository.createByUserId.mockResolvedValue(created);
+
+    await expect(service.createStudentBooking('user-stu-cse-01', input)).resolves.toEqual(
+      created
+    );
+
+    expect(repository.createByUserId).toHaveBeenCalledWith('user-stu-cse-01', input);
+  });
+
+  it('拒绝非整点或超过 4 小时的学生预约', async () => {
+    await expect(
+      service.createStudentBooking('user-stu-cse-01', {
+        roomId: 'room-gm-301',
+        seatId: 'seat-gm-301-c3',
+        startAt: '2020-06-01T06:00:00.000Z',
+        endAt: '2020-06-01T09:00:00.000Z'
+      })
+    ).rejects.toThrow('不能预约已过去的时段');
+
+    await expect(
+      service.createStudentBooking('user-stu-cse-01', {
+        roomId: 'room-gm-301',
+        seatId: 'seat-gm-301-c3',
+        startAt: '2026-06-01T06:30:00.000Z',
+        endAt: '2026-06-01T09:00:00.000Z'
+      })
+    ).rejects.toThrow('预约必须按整点开始和结束');
+
+    await expect(
+      service.createStudentBooking('user-stu-cse-01', {
+        roomId: 'room-gm-301',
+        seatId: 'seat-gm-301-c3',
+        startAt: '2026-06-01T06:00:00.000Z',
+        endAt: '2026-06-01T11:00:00.000Z'
+      })
+    ).rejects.toThrow('单次预约最长 4 小时');
+
+    expect(repository.createByUserId).not.toHaveBeenCalled();
   });
 });
 

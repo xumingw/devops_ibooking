@@ -377,6 +377,13 @@ type StudentAssistantBookingActionContext = {
   action: Exclude<StudentAssistantAction, 'BOOK'>;
 };
 
+export type CreateStudentBookingRequest = {
+  roomId: string;
+  seatId: string;
+  startAt: string;
+  endAt: string;
+};
+
 const AUTH_REMEMBER_KEY = 'ibooking.auth.remember';
 const ADMIN_ACCESS_TOKEN_KEY = 'ibooking.admin.accessToken';
 const STUDENT_ACCESS_TOKEN_KEY = 'ibooking.student.accessToken';
@@ -654,6 +661,66 @@ export const requestStudentBookingCancel = async (
   }
 
   return payload.data;
+};
+
+export const requestStudentBookingCreate = async (
+  accessToken: string,
+  input: CreateStudentBookingRequest,
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl()
+): Promise<StudentBookingRecord> => {
+  const response = await fetcher(`${apiBaseUrl}/api/v1/bookings/me`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(input)
+  });
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: StudentBookingRecord;
+  } | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
+    throw new Error(payload?.message || '预约提交失败');
+  }
+
+  return payload.data;
+};
+
+export const getStudentBookingConfirmUiState = ({
+  submitted,
+  submitting
+}: {
+  submitted: boolean;
+  submitting: boolean;
+}) => {
+  if (submitted) {
+    return {
+      checkedStepCount: 4,
+      doneStepCount: 4,
+      primaryDisabled: true,
+      primaryLabel: '预约已提交'
+    };
+  }
+
+  if (submitting) {
+    return {
+      checkedStepCount: 2,
+      doneStepCount: 3,
+      primaryDisabled: true,
+      primaryLabel: '提交中'
+    };
+  }
+
+  return {
+    checkedStepCount: 2,
+    doneStepCount: 3,
+    primaryDisabled: false,
+    primaryLabel: '确认提交预约'
+  };
 };
 
 export const requestStudentCheckInSession = async (
@@ -2720,15 +2787,8 @@ const STUDENT_SEAT_TIME_SLOTS = [
 ] as const;
 
 const STUDENT_BOOKING_CONFIRM_STEPS = ['选择时间', '选择座位', '确认信息', '完成'] as const;
-
-const STUDENT_BOOKING_CONFIRM_DETAILS = [
-  ['自习室', '经管自习室 301'],
-  ['楼栋位置', '光华楼 A座 3楼'],
-  ['座位编号', 'C3（插座 · 安静区）'],
-  ['预约日期', '2026年4月24日（周四）'],
-  ['开始时间', '14:00'],
-  ['结束时间', '17:00（共3小时）']
-] as const;
+const DEFAULT_STUDENT_BOOKING_START_CLOCK = '14:00';
+const DEFAULT_STUDENT_BOOKING_END_CLOCK = '17:00';
 
 const STUDENT_BOOKING_RULES = [
   ['签到规则', '开始时间后 15 分钟内扫码/输码签到，逾期自动取消并记录违约 1 次'],
@@ -2866,7 +2926,7 @@ const createStudentSeatBookingSummary = (seat?: StudentAssistantSeatCandidate) =
         ['座位', `${seat.room} · ${seat.seat}`]
       ]
     : [
-        ['日期', '2026年4月24日（周四）'],
+        ['日期', formatStudentBookingDateLabel(getDefaultStudentBookingDateParts())],
         ['时间', '14:00 – 17:00（3小时）'],
         ['楼栋', '光华楼 A座 3楼']
       ];
@@ -2884,7 +2944,77 @@ const createStudentBookingConfirmDetails = (seat?: StudentAssistantSeatCandidate
         ['座位编号', `${seat.seat}${seat.tags.length > 0 ? `（${seat.tags.join(' · ')}）` : ''}`],
         ['预约时段', seat.time]
       ]
-    : STUDENT_BOOKING_CONFIRM_DETAILS;
+    : createDefaultStudentBookingConfirmDetails();
+
+export const buildStudentBookingRequest = (
+  seat?: StudentAssistantSeatCandidate,
+  now = new Date()
+): CreateStudentBookingRequest => {
+  const [startClock, endClock] = parseStudentAssistantTimeRange(seat?.time);
+  const { year, month, day } = resolveStudentBookingDateParts(seat?.time, now);
+
+  return {
+    roomId: seat?.roomId ?? 'room-gm-301',
+    seatId: seat?.seatId ?? 'seat-gm-301-c3',
+    startAt: toShanghaiIso(year, month, day, startClock),
+    endAt: toShanghaiIso(year, month, day, endClock)
+  };
+};
+
+const createDefaultStudentBookingConfirmDetails = () => [
+  ['自习室', '经管自习室 301'],
+  ['楼栋位置', '光华楼 A座 3楼'],
+  ['座位编号', 'C3（插座 · 安静区）'],
+  ['预约日期', formatStudentBookingDateLabel(getDefaultStudentBookingDateParts())],
+  ['开始时间', DEFAULT_STUDENT_BOOKING_START_CLOCK],
+  ['结束时间', `${DEFAULT_STUDENT_BOOKING_END_CLOCK}（共3小时）`]
+];
+
+type StudentBookingDateParts = {
+  year: string;
+  month: string;
+  day: string;
+};
+
+const resolveStudentBookingDateParts = (
+  label?: string,
+  now = new Date()
+): StudentBookingDateParts => {
+  const absoluteMatch = label?.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+  if (absoluteMatch) {
+    return {
+      year: absoluteMatch[1],
+      month: String(Number(absoluteMatch[2])).padStart(2, '0'),
+      day: String(Number(absoluteMatch[3])).padStart(2, '0')
+    };
+  }
+
+  if (/今天/.test(label ?? '')) return getShanghaiDateParts(now, 0);
+  if (/明天/.test(label ?? '')) return getShanghaiDateParts(now, 1);
+  if (/后天/.test(label ?? '')) return getShanghaiDateParts(now, 2);
+  return getDefaultStudentBookingDateParts(now);
+};
+
+const getDefaultStudentBookingDateParts = (now = new Date()) => getShanghaiDateParts(now, 1);
+
+const getShanghaiDateParts = (date: Date, dayOffset: number): StudentBookingDateParts => {
+  const shanghaiDate = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+  shanghaiDate.setUTCDate(shanghaiDate.getUTCDate() + dayOffset);
+  const [year, month, day] = shanghaiDate.toISOString().slice(0, 10).split('-');
+  return { year, month, day };
+};
+
+const formatStudentBookingDateLabel = ({ year, month, day }: StudentBookingDateParts) => {
+  const date = new Date(`${year}-${month}-${day}T00:00:00+08:00`);
+  const weekday = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    weekday: 'short'
+  }).format(date);
+  return `${year}年${Number(month)}月${Number(day)}日（${weekday}）`;
+};
+
+const toShanghaiIso = (year: string, month: string, day: string, clock: string) =>
+  new Date(`${year}-${month}-${day}T${clock}:00+08:00`).toISOString();
 
 const STUDENT_CHECKIN_CODE_LENGTH = 6;
 
@@ -6198,6 +6328,21 @@ export function StudentHomePreview({
     handleStudentPageChange('bookings');
   };
 
+  const handleStudentBookingSubmitted = (booking: StudentBookingRecord) => {
+    const [createdRecord] = mapStudentBookingSummaryToView({
+      totalCount: 1,
+      activeCount: 1,
+      completedCount: 0,
+      records: [booking]
+    }).records;
+    setStudentBookingSummary((current) => ({
+      ...current,
+      totalCount: current.totalCount + 1,
+      activeCount: current.activeCount + 1,
+      records: [createdRecord, ...current.records.filter((record) => record.id !== booking.id)]
+    }));
+  };
+
   const pageTitle =
     activeMenu === 'rooms'
       ? '自习室列表'
@@ -6410,8 +6555,10 @@ export function StudentHomePreview({
           />
         ) : activeMenu === 'confirm' ? (
           <StudentBookingConfirmPanel
+            accessToken={accessToken}
             assistantSeatSelection={assistantSeatSelection ?? undefined}
             onBack={() => handleStudentPageChange('select')}
+            onSubmitted={handleStudentBookingSubmitted}
           />
         ) : activeMenu === 'bookings' ? (
           <StudentBookingsPanel
@@ -6845,22 +6992,68 @@ function StudentSeatSelectorPanel({
   );
 }
 
-function StudentBookingConfirmPanel({
+export function StudentBookingConfirmPanel({
+  accessToken,
   assistantSeatSelection,
-  onBack
+  onBack,
+  onSubmitted
 }: {
+  accessToken?: string;
   assistantSeatSelection?: StudentAssistantSeatCandidate;
   onBack?: () => void;
+  onSubmitted?: (booking: StudentBookingRecord) => void;
 }) {
   const bookingDetails = createStudentBookingConfirmDetails(assistantSeatSelection);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState('');
+  const [submitError, setSubmitError] = useState('');
+  const submitUiState = getStudentBookingConfirmUiState({ submitted, submitting });
+
+  const handleSubmit = () => {
+    if (submitting || submitted) return;
+    if (!accessToken) {
+      setSubmitError('请先登录后提交预约');
+      setSubmitMessage('');
+      return;
+    }
+
+    setSubmitting(true);
+    setSubmitError('');
+    setSubmitMessage('');
+    requestStudentBookingCreate(accessToken, buildStudentBookingRequest(assistantSeatSelection))
+      .then((booking) => {
+        setSubmitted(true);
+        setSubmitMessage(`预约成功：${booking.room} · ${booking.seat} · ${booking.time}`);
+        onSubmitted?.(booking);
+      })
+      .catch((error) => {
+        setSubmitted(false);
+        setSubmitError(error instanceof Error ? error.message : '预约提交失败');
+      })
+      .finally(() => setSubmitting(false));
+  };
 
   return (
     <section className="student-booking-confirm-panel" aria-label="学生确认预约">
       <div className="student-booking-confirm-inner">
+        {(submitMessage || submitError) && (
+          <div className={`student-booking-submit-message${submitError ? ' is-error' : ''}`}>
+            <DashboardIcon name={submitError ? 'alert' : 'check-circle'} size={14} />
+            {submitError || submitMessage}
+          </div>
+        )}
+
         <ol className="student-booking-stepper" aria-label="预约步骤">
           {STUDENT_BOOKING_CONFIRM_STEPS.map((step, index) => (
-            <li className={index < 3 ? 'is-done' : ''} key={step}>
-              <span>{index < 2 ? <DashboardIcon name="check" size={13} /> : index + 1}</span>
+            <li className={index < submitUiState.doneStepCount ? 'is-done' : ''} key={step}>
+              <span>
+                {index < submitUiState.checkedStepCount ? (
+                  <DashboardIcon name="check" size={13} />
+                ) : (
+                  index + 1
+                )}
+              </span>
               <strong>{step}</strong>
             </li>
           ))}
@@ -6920,7 +7113,9 @@ function StudentBookingConfirmPanel({
           <button type="button" onClick={onBack}>
             返回修改
           </button>
-          <button type="button">确认提交预约</button>
+          <button disabled={submitUiState.primaryDisabled} onClick={handleSubmit} type="button">
+            {submitUiState.primaryLabel}
+          </button>
         </div>
       </div>
     </section>

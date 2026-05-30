@@ -177,6 +177,36 @@ async function main() {
     closeHour: 7,
     overnight: true
   });
+
+  await Promise.all([
+    upsertSeat({
+      id: 'seat-gm-301-c3',
+      roomId: 'room-gm-301',
+      code: 'C3',
+      x: 3,
+      y: 3,
+      hasPower: true,
+      nearWindow: false
+    }),
+    upsertSeat({
+      id: 'seat-science-201-f12',
+      roomId: 'room-science-201',
+      code: 'F12',
+      x: 6,
+      y: 2,
+      hasPower: true,
+      nearWindow: true
+    }),
+    upsertSeat({
+      id: 'seat-humanities-a-a5',
+      roomId: 'room-humanities-a',
+      code: 'A5',
+      x: 1,
+      y: 1,
+      hasPower: false,
+      nearWindow: true
+    })
+  ]);
 }
 
 async function upsertRole(id: string, code: string, name: string) {
@@ -263,6 +293,36 @@ async function upsertRoom(input: {
       openHour: input.openHour,
       closeHour: input.closeHour,
       overnight: input.overnight,
+      status: 'ACTIVE'
+    },
+    create: {
+      ...input,
+      status: 'ACTIVE'
+    }
+  });
+}
+
+async function upsertSeat(input: {
+  id: string;
+  roomId: string;
+  code: string;
+  x: number;
+  y: number;
+  hasPower: boolean;
+  nearWindow: boolean;
+}) {
+  await prisma.seat.upsert({
+    where: {
+      roomId_code: {
+        roomId: input.roomId,
+        code: input.code
+      }
+    },
+    update: {
+      x: input.x,
+      y: input.y,
+      hasPower: input.hasPower,
+      nearWindow: input.nearWindow,
       status: 'ACTIVE'
     },
     create: {
