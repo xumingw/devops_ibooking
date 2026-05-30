@@ -355,6 +355,31 @@ export const successfulStudentBookingCancelResponse = () =>
     }
   );
 
+export const successfulStudentBookingCreateResponse = () =>
+  new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: {
+        id: 'booking-created',
+        room: '经管自习室 301',
+        location: '光华楼 A座 3楼',
+        seat: 'C3',
+        time: '6月1日 14:00-17:00',
+        status: 'upcoming',
+        tags: ['插座', '安静区'],
+        canCheckIn: false,
+        canCancel: true,
+        startAt: '2026-06-01T06:00:00.000Z',
+        endAt: '2026-06-01T09:00:00.000Z'
+      }
+    }),
+    {
+      status: 201,
+      headers: { 'Content-Type': 'application/json' }
+    }
+  );
+
 export const successfulStudentCheckInSessionResponse = () =>
   new Response(
     JSON.stringify({

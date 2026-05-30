@@ -6482,6 +6482,26 @@ button {
   gap: 16px;
 }
 
+.student-booking-submit-message {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(45, 122, 110, 0.18);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #ecf4f2;
+  color: #2d7a6e;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.student-booking-submit-message.is-error {
+  border-color: rgba(184, 64, 64, 0.18);
+  background: #fff2f0;
+  color: #b84040;
+}
+
 .student-booking-stepper {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -6675,6 +6695,11 @@ button {
   color: #ffffff;
   box-shadow: 0 12px 28px rgba(45, 122, 110, 0.22);
   letter-spacing: 1px;
+}
+
+.student-booking-confirm-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 .student-bookings-panel {
