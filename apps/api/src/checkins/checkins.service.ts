@@ -1,20 +1,53 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+  OnApplicationBootstrap,
+  OnApplicationShutdown,
+} from '@nestjs/common';
 import { ErrorCode, StudentCheckInResult, StudentCheckInSession } from '@ibooking/shared-types';
 
 export const CHECK_IN_REPOSITORY = 'CHECK_IN_REPOSITORY';
 
 export interface CheckInRepository {
+  expireNoShowBookings(now: Date): Promise<number>;
   findCurrentByUserId(userId: string): Promise<StudentCheckInSession | null>;
   verifyCode(input: { roomId: string; code: string }): Promise<boolean>;
   markCheckedIn(input: { bookingId: string; userId: string }): Promise<StudentCheckInResult>;
 }
 
 @Injectable()
-export class CheckInsService {
+export class CheckInsService implements OnApplicationBootstrap, OnApplicationShutdown {
+  private readonly logger = new Logger(CheckInsService.name);
+  private expiryTimer?: ReturnType<typeof setInterval>;
+
   constructor(@Inject(CHECK_IN_REPOSITORY) private readonly repository: CheckInRepository) {}
+
+  onApplicationBootstrap(): void {
+    if (process.env.NODE_ENV === 'test') return;
+
+    this.expiryTimer = setInterval(() => {
+      void this.expireNoShowBookings().catch((error: unknown) => {
+        this.logger.error('处理未签到自动取消失败', error instanceof Error ? error.stack : undefined);
+      });
+    }, 60 * 1000);
+    this.expiryTimer.unref?.();
+    void this.expireNoShowBookings().catch((error: unknown) => {
+      this.logger.error('启动时处理未签到自动取消失败', error instanceof Error ? error.stack : undefined);
+    });
+  }
+
+  onApplicationShutdown(): void {
+    if (this.expiryTimer) clearInterval(this.expiryTimer);
+  }
 
   getCurrentSession(userId: string): Promise<StudentCheckInSession | null> {
     return this.repository.findCurrentByUserId(userId);
+  }
+
+  expireNoShowBookings(now = new Date()): Promise<number> {
+    return this.repository.expireNoShowBookings(now);
   }
 
   async submitCode(userId: string, code: string): Promise<StudentCheckInResult> {

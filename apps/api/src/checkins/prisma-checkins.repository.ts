@@ -15,8 +15,63 @@ type BookingWithRoomSeat = Prisma.BookingGetPayload<{
 export class PrismaCheckInsRepository implements CheckInRepository {
   private readonly earlyWindowMs = 15 * 60 * 1000;
   private readonly lateWindowMs = 15 * 60 * 1000;
+  private readonly expiryBatchSize = 100;
 
   constructor(private readonly prisma: PrismaService) {}
+
+  async expireNoShowBookings(now: Date): Promise<number> {
+    const cutoffAt = new Date(now.getTime() - this.lateWindowMs);
+
+    return this.prisma.$transaction(async (tx) => {
+      const rows = await tx.booking.findMany({
+        where: {
+          status: 'PENDING_CHECKIN',
+          startAt: { lte: cutoffAt },
+        },
+        include: {
+          room: true,
+          seat: true,
+        },
+        orderBy: { startAt: 'asc' },
+        take: this.expiryBatchSize,
+      });
+
+      let expiredCount = 0;
+      for (const row of rows) {
+        const updated = await tx.booking.updateMany({
+          where: {
+            id: row.id,
+            status: 'PENDING_CHECKIN',
+          },
+          data: { status: 'CANCELLED_AUTO_NO_CHECKIN' },
+        });
+        if (updated.count !== 1) continue;
+
+        await tx.bookingSlot.deleteMany({ where: { bookingId: row.id } });
+        await tx.violation.create({
+          data: {
+            userId: row.userId,
+            bookingId: row.id,
+            roomId: row.roomId,
+            seatId: row.seatId,
+            reason: 'NO_CHECK_IN',
+            occurredAt: now,
+          },
+        });
+        await tx.reminderLog.create({
+          data: {
+            bookingId: row.id,
+            type: 'AUTO_CANCEL_NO_CHECKIN',
+            channel: 'SYSTEM',
+            sentAt: now,
+          },
+        });
+        expiredCount += 1;
+      }
+
+      return expiredCount;
+    });
+  }
 
   async findCurrentByUserId(userId: string): Promise<StudentCheckInSession | null> {
     const now = new Date();
@@ -28,7 +83,7 @@ export class PrismaCheckInsRepository implements CheckInRepository {
         userId,
         status: 'PENDING_CHECKIN',
         startAt: {
-          gte: earliestStartAt,
+          gt: earliestStartAt,
           lte: latestStartAt,
         },
         endAt: { gt: now },
@@ -72,7 +127,7 @@ export class PrismaCheckInsRepository implements CheckInRepository {
           userId: input.userId,
           status: 'PENDING_CHECKIN',
           startAt: {
-            gte: earliestStartAt,
+            gt: earliestStartAt,
             lte: latestStartAt,
           },
           endAt: { gt: checkedInAt },

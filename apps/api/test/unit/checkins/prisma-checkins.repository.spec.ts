@@ -7,12 +7,22 @@ const NOW = new Date('2026-05-30T06:00:00.000Z');
 describe('PrismaCheckInsRepository', () => {
   let prisma: {
     booking: {
+      findMany: jest.Mock;
       findFirst: jest.Mock;
       updateMany: jest.Mock;
       findUnique: jest.Mock;
     };
+    bookingSlot: {
+      deleteMany: jest.Mock;
+    };
     checkInCode: {
       findFirst: jest.Mock;
+    };
+    reminderLog: {
+      create: jest.Mock;
+    };
+    violation: {
+      create: jest.Mock;
     };
     $transaction: jest.Mock;
   };
@@ -22,12 +32,22 @@ describe('PrismaCheckInsRepository', () => {
     jest.useFakeTimers().setSystemTime(NOW);
     prisma = {
       booking: {
+        findMany: jest.fn(),
         findFirst: jest.fn(),
         updateMany: jest.fn(),
         findUnique: jest.fn(),
       },
+      bookingSlot: {
+        deleteMany: jest.fn(),
+      },
       checkInCode: {
         findFirst: jest.fn(),
+      },
+      reminderLog: {
+        create: jest.fn(),
+      },
+      violation: {
+        create: jest.fn(),
       },
       $transaction: jest.fn((callback) => callback(prisma)),
     };
@@ -57,7 +77,7 @@ describe('PrismaCheckInsRepository', () => {
           userId: 'user-stu-cse-01',
           status: 'PENDING_CHECKIN',
           startAt: {
-            gte: new Date('2026-05-30T05:45:00.000Z'),
+            gt: new Date('2026-05-30T05:45:00.000Z'),
             lte: new Date('2026-05-30T06:15:00.000Z'),
           },
           endAt: { gt: NOW },
@@ -105,7 +125,7 @@ describe('PrismaCheckInsRepository', () => {
         userId: 'user-stu-cse-01',
         status: 'PENDING_CHECKIN',
         startAt: {
-          gte: new Date('2026-05-30T05:45:00.000Z'),
+          gt: new Date('2026-05-30T05:45:00.000Z'),
           lte: new Date('2026-05-30T06:15:00.000Z'),
         },
         endAt: { gt: NOW },
@@ -125,16 +145,75 @@ describe('PrismaCheckInsRepository', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.booking.findUnique).not.toHaveBeenCalled();
   });
+
+  it('自动取消超过开始后 15 分钟仍未签到的预约并记录违约', async () => {
+    prisma.booking.findMany.mockResolvedValue([
+      bookingRowFixture({
+        id: 'booking-expired',
+        startAt: new Date('2026-05-30T05:44:00.000Z'),
+        endAt: new Date('2026-05-30T08:00:00.000Z'),
+      }),
+    ]);
+    prisma.booking.updateMany.mockResolvedValue({ count: 1 });
+    prisma.bookingSlot.deleteMany.mockResolvedValue({ count: 3 });
+    prisma.violation.create.mockResolvedValue({ id: 'violation-no-show' });
+    prisma.reminderLog.create.mockResolvedValue({ id: 'reminder-auto-cancel' });
+
+    await expect(repository.expireNoShowBookings(NOW)).resolves.toBe(1);
+
+    expect(prisma.booking.findMany).toHaveBeenCalledWith({
+      where: {
+        status: 'PENDING_CHECKIN',
+        startAt: { lte: new Date('2026-05-30T05:45:00.000Z') },
+      },
+      include: {
+        room: true,
+        seat: true,
+      },
+      orderBy: { startAt: 'asc' },
+      take: 100,
+    });
+    expect(prisma.booking.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'booking-expired',
+        status: 'PENDING_CHECKIN',
+      },
+      data: { status: 'CANCELLED_AUTO_NO_CHECKIN' },
+    });
+    expect(prisma.bookingSlot.deleteMany).toHaveBeenCalledWith({
+      where: { bookingId: 'booking-expired' },
+    });
+    expect(prisma.violation.create).toHaveBeenCalledWith({
+      data: {
+        userId: 'user-stu-cse-01',
+        bookingId: 'booking-expired',
+        roomId: 'room-gm-301',
+        seatId: 'seat-gm-301-c3',
+        reason: 'NO_CHECK_IN',
+        occurredAt: NOW,
+      },
+    });
+    expect(prisma.reminderLog.create).toHaveBeenCalledWith({
+      data: {
+        bookingId: 'booking-expired',
+        type: 'AUTO_CANCEL_NO_CHECKIN',
+        channel: 'SYSTEM',
+        sentAt: NOW,
+      },
+    });
+  });
 });
 
-function bookingRowFixture() {
+function bookingRowFixture(
+  input: { id?: string; startAt?: Date; endAt?: Date } = {},
+) {
   return {
-    id: 'booking-current',
+    id: input.id ?? 'booking-current',
     userId: 'user-stu-cse-01',
     roomId: 'room-gm-301',
     seatId: 'seat-gm-301-c3',
-    startAt: new Date('2026-05-30T05:55:00.000Z'),
-    endAt: new Date('2026-05-30T08:00:00.000Z'),
+    startAt: input.startAt ?? new Date('2026-05-30T05:55:00.000Z'),
+    endAt: input.endAt ?? new Date('2026-05-30T08:00:00.000Z'),
     status: 'PENDING_CHECKIN',
     createdAt: new Date('2026-05-30T05:00:00.000Z'),
     updatedAt: new Date('2026-05-30T05:00:00.000Z'),

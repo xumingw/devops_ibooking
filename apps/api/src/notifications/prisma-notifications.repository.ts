@@ -67,6 +67,15 @@ export class PrismaNotificationsRepository implements NotificationRepository {
     const reminderType = row.type.toLowerCase();
     const roomSeat = `${row.booking.room.name} · ${row.booking.seat.code}`;
 
+    if (reminderType.includes('cancel') || reminderType.includes('violation')) {
+      return {
+        iconType: 'alert',
+        tone: 'red',
+        title: '预约自动取消',
+        description: '开始后 15 分钟未签到，座位已释放并记录一次违约'
+      };
+    }
+
     if (reminderType.includes('late') || reminderType.includes('no_checkin')) {
       return {
         iconType: 'clock',
@@ -82,15 +91,6 @@ export class PrismaNotificationsRepository implements NotificationRepository {
         tone: 'green',
         title: '签到成功',
         description: `您已完成${roomSeat}签到`
-      };
-    }
-
-    if (reminderType.includes('cancel') || reminderType.includes('violation')) {
-      return {
-        iconType: 'alert',
-        tone: 'red',
-        title: '预约自动取消',
-        description: '开始后 15 分钟未签到，座位已释放并记录一次违约'
       };
     }
 
