@@ -8,6 +8,7 @@ describe('CheckInsService', () => {
 
   beforeEach(() => {
     repository = {
+      expireNoShowBookings: jest.fn(),
       findCurrentByUserId: jest.fn(),
       markCheckedIn: jest.fn(),
       verifyCode: jest.fn(),
@@ -56,6 +57,14 @@ describe('CheckInsService', () => {
       BadRequestException,
     );
     expect(repository.markCheckedIn).not.toHaveBeenCalled();
+  });
+
+  it('处理超过开始后 15 分钟仍未签到的预约', async () => {
+    const now = new Date('2026-05-30T06:16:00.000Z');
+    repository.expireNoShowBookings.mockResolvedValue(2);
+
+    await expect(service.expireNoShowBookings(now)).resolves.toBe(2);
+    expect(repository.expireNoShowBookings).toHaveBeenCalledWith(now);
   });
 });
 
