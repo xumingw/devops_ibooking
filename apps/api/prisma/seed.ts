@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { PasswordHasher } from '../src/auth/password-hasher';
+import { STUDENT_PERMISSION_CODES } from './seed-permissions';
 
 const prisma = new PrismaClient();
 const hasher = new PasswordHasher();
@@ -38,12 +39,10 @@ async function main() {
   const permissionByCode = Object.fromEntries(
     permissions.map((permission) => [permission.code, permission])
   );
+  const permissionIds = (codes: readonly string[]) =>
+    codes.map((code) => permissionByCode[code].id);
 
-  await linkRolePermissions(studentRole.id, [
-    permissionByCode['booking.create'].id,
-    permissionByCode['room.read'].id,
-    permissionByCode['seat.read'].id
-  ]);
+  await linkRolePermissions(studentRole.id, permissionIds(STUDENT_PERMISSION_CODES));
   await linkRolePermissions(fullAdminRole.id, permissions.map((permission) => permission.id));
   await linkRolePermissions(roomAdminRole.id, [
     permissionByCode['room.read'].id,
