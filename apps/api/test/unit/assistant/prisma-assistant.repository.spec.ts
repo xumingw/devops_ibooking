@@ -84,10 +84,10 @@ describe('PrismaAssistantRepository', () => {
               })
             }
           }
-        },
-        take: 20
+        }
       })
     );
+    expect(prisma.seat.findMany.mock.calls[0][0]).not.toHaveProperty('take');
   });
 
   it('推荐座位时排除目标日期闭馆的自习室', async () => {
@@ -125,6 +125,47 @@ describe('PrismaAssistantRepository', () => {
     });
 
     expect(seats).toEqual([]);
+  });
+
+  it('推荐座位时不会因为预取候选上限漏掉后续开放自习室', async () => {
+    const closedRows = Array.from({ length: 20 }, (_, index) =>
+      seatRowFixture({
+        id: `seat-closed-${index + 1}`,
+        code: `A${String(index + 1).padStart(2, '0')}`,
+        hasPower: false,
+        nearWindow: false,
+        schedules: [closedScheduleFixture(`schedule-closed-${index + 1}`)]
+      })
+    );
+    const availableAfterClosedRows = seatRowFixture({
+      id: 'seat-open-after-closed-limit',
+      code: 'B01',
+      hasPower: false,
+      nearWindow: false
+    });
+    const rows = [...closedRows, availableAfterClosedRows];
+
+    prisma.seat.findMany.mockImplementation((args: { take?: number }) =>
+      Promise.resolve(typeof args.take === 'number' ? rows.slice(0, args.take) : rows)
+    );
+
+    const seats = await repository.findAvailableSeats({
+      userId: 'user-stu-cse-01',
+      departmentId: null,
+      filters: { hasPower: false, nearWindow: false, quietZone: false },
+      timeRange: {
+        startAt: new Date('2026-05-30T10:00:00.000Z'),
+        endAt: new Date('2026-05-30T12:00:00.000Z')
+      },
+      timeLabel: '今天 10:00-12:00'
+    });
+
+    expect(seats).toEqual([
+      expect.objectContaining({
+        seatId: 'seat-open-after-closed-limit',
+        seat: 'B01'
+      })
+    ]);
   });
 
   it('我的预约查询只读取当前用户指定日期内的预约并映射快捷动作', async () => {
@@ -218,6 +259,20 @@ function seatRowFixture(input: {
       updatedAt: new Date('2026-05-30T05:00:00.000Z'),
       schedules: input.schedules ?? []
     }
+  };
+}
+
+function closedScheduleFixture(id: string) {
+  return {
+    id,
+    roomId: 'room-gm-301',
+    date: new Date('2026-05-30T00:00:00.000Z'),
+    openHour: 8,
+    closeHour: 22,
+    closed: true,
+    reason: '维护闭馆',
+    createdAt: new Date('2026-05-30T05:00:00.000Z'),
+    updatedAt: new Date('2026-05-30T05:00:00.000Z')
   };
 }
 

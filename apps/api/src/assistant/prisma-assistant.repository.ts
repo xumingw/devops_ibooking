@@ -14,6 +14,7 @@ import {
 } from './assistant.service';
 
 const OCCUPYING_BOOKING_STATUSES: BookingStatus[] = ['PENDING_CHECKIN', 'CHECKED_IN'];
+const SEAT_RECOMMENDATION_LIMIT = 5;
 
 type AssistantSeatRow = Prisma.SeatGetPayload<{
   include: {
@@ -91,13 +92,12 @@ export class PrismaAssistantRepository implements AssistantRepository {
           }
         }
       },
-      orderBy: [{ roomId: 'asc' }, { code: 'asc' }],
-      take: 20
+      orderBy: [{ roomId: 'asc' }, { code: 'asc' }]
     });
 
     return rows
       .filter((row) => this.isRoomOpenForRange(row.room, input.timeRange))
-      .slice(0, 5)
+      .slice(0, SEAT_RECOMMENDATION_LIMIT)
       .map((row) => this.toSeatCandidate(row, input.timeLabel));
   }
 
