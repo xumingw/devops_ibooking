@@ -19,6 +19,8 @@ const ADMIN_ROLE_CODES = new Set([
   'ROLE_AUDIT',
   'ROLE_DEPARTMENT_ADMIN'
 ]);
+const DUMMY_PASSWORD_HASH =
+  'scrypt$ibooking-dummy-s1$TDG7mBcJOEtPaiHK8MssUx4X5Xh6C-uIgp7X-j1bAw7Qg7HBB2i90mP3CSUlnV1FlmSpL08OR5Hnnl2vsgapSw';
 
 export interface AuthRepository {
   findUserByStudentNo(studentNo: string): Promise<AuthUserRecord | null>;
@@ -128,7 +130,9 @@ export class AuthService {
   }
 
   private assertCanLogin(user: AuthUserRecord | null, password: string): asserts user is AuthUserRecord {
-    if (!user || !this.hasher.verify(password, user.passwordHash)) {
+    const passwordHash = user?.passwordHash ?? DUMMY_PASSWORD_HASH;
+    const passwordMatches = this.hasher.verify(password, passwordHash);
+    if (!user || !passwordMatches) {
       throw new UnauthorizedException({
         code: ErrorCode.INVALID_CREDENTIALS,
         message: '账号或密码错误'
