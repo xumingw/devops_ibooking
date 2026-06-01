@@ -14,7 +14,7 @@ type Feedback = {
   text: string;
 };
 
-type SessionView = {
+export type SessionView = {
   kind: EntryKind;
   name: string;
   accessToken: string;
@@ -394,6 +394,9 @@ const ENTRY_PRESETS: Record<EntryKind, { account: string; password: string }> = 
   admin: { account: 'admin_full', password: 'Admin123!' }
 };
 
+type AuthSessionPayload = NonNullable<LoginPayload['data']>;
+type AuthSessionStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+
 export const resolveApiBaseUrl = (env: ApiRuntimeEnv = import.meta.env) => {
   const configuredApiBaseUrl = env.VITE_API_BASE_URL?.trim();
   if (configuredApiBaseUrl) {
@@ -411,7 +414,7 @@ export const requestLogin = async (
   input: LoginRequestInput,
   fetcher: typeof fetch = fetch,
   apiBaseUrl = resolveApiBaseUrl()
-) => {
+): Promise<AuthSessionPayload> => {
   const response = await fetcher(`${apiBaseUrl}/api/v1/auth/login`, {
     method: 'POST',
     credentials: 'include',
@@ -421,6 +424,22 @@ export const requestLogin = async (
   const payload = (await response.json().catch(() => null)) as LoginPayload | null;
   if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
     throw new Error(payload?.message || '登录失败，请稍后重试');
+  }
+
+  return payload.data;
+};
+
+export const requestRefresh = async (
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl()
+): Promise<AuthSessionPayload> => {
+  const response = await fetcher(`${apiBaseUrl}/api/v1/auth/refresh`, {
+    method: 'POST',
+    credentials: 'include'
+  });
+  const payload = (await response.json().catch(() => null)) as LoginPayload | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
+    throw new Error(payload?.message || '会话已过期，请重新登录');
   }
 
   return payload.data;
@@ -450,6 +469,46 @@ export const logoutSession = async (
   } finally {
     storage.removeItem(ADMIN_ACCESS_TOKEN_KEY);
     storage.removeItem(STUDENT_ACCESS_TOKEN_KEY);
+  }
+};
+
+const toSessionView = (authSession: AuthSessionPayload): SessionView => {
+  const kind = resolveSessionKind(authSession.roles);
+  return {
+    kind,
+    name: authSession.user.name,
+    accessToken: authSession.accessToken
+  };
+};
+
+const persistSessionAccessToken = (
+  session: SessionView,
+  storage: Pick<Storage, 'setItem' | 'removeItem'>
+) => {
+  const activeTokenKey =
+    session.kind === 'admin' ? ADMIN_ACCESS_TOKEN_KEY : STUDENT_ACCESS_TOKEN_KEY;
+  const inactiveTokenKey =
+    session.kind === 'admin' ? STUDENT_ACCESS_TOKEN_KEY : ADMIN_ACCESS_TOKEN_KEY;
+  storage.setItem(activeTokenKey, session.accessToken);
+  storage.removeItem(inactiveTokenKey);
+};
+
+export const restoreRememberedSession = async (
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl(),
+  storage: AuthSessionStorage = localStorage
+): Promise<SessionView | null> => {
+  if (storage.getItem(AUTH_REMEMBER_KEY) !== '1') return null;
+
+  try {
+    const session = toSessionView(await requestRefresh(fetcher, apiBaseUrl));
+    persistSessionAccessToken(session, storage);
+    return session;
+  } catch {
+    storage.removeItem(AUTH_REMEMBER_KEY);
+    storage.removeItem(ADMIN_ACCESS_TOKEN_KEY);
+    storage.removeItem(STUDENT_ACCESS_TOKEN_KEY);
+    return null;
   }
 };
 
@@ -1051,6 +1110,20 @@ export function App() {
     []
   );
 
+  useEffect(() => {
+    let active = true;
+
+    void restoreRememberedSession().then((restoredSession) => {
+      if (!active || !restoredSession) return;
+      setSession(restoredSession);
+      pushAppPath(resolvePostLoginPath(restoredSession.kind));
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSubmitting(true);
@@ -1058,19 +1131,12 @@ export function App() {
 
     try {
       const loginSession = await requestLogin({ account, password });
-      const sessionKind = resolveSessionKind(loginSession.roles);
+      const nextSession = toSessionView(loginSession);
 
       localStorage.setItem(AUTH_REMEMBER_KEY, remember ? '1' : '0');
-      localStorage.setItem(
-        sessionKind === 'admin' ? ADMIN_ACCESS_TOKEN_KEY : STUDENT_ACCESS_TOKEN_KEY,
-        loginSession.accessToken
-      );
-      setSession({
-        kind: sessionKind,
-        name: loginSession.user.name,
-        accessToken: loginSession.accessToken
-      });
-      pushAppPath(resolvePostLoginPath(sessionKind));
+      persistSessionAccessToken(nextSession, localStorage);
+      setSession(nextSession);
+      pushAppPath(resolvePostLoginPath(nextSession.kind));
     } catch (error) {
       setFeedback({
         type: 'error',
