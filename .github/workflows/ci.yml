@@ -172,6 +172,7 @@ jobs:
         run: |
           network_name="ibooking-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           mysql_name="${network_name}-mysql"
+          redis_name="${network_name}-redis"
           container_id=""
 
           cleanup() {
@@ -179,6 +180,7 @@ jobs:
               docker rm -f "$container_id" >/dev/null 2>&1 || true
             fi
             docker rm -f "$mysql_name" >/dev/null 2>&1 || true
+            docker rm -f "$redis_name" >/dev/null 2>&1 || true
             docker network rm "$network_name" >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
@@ -190,6 +192,10 @@ jobs:
             -e MYSQL_ROOT_PASSWORD=root \
             -e MYSQL_DATABASE=ibooking \
             mysql:8.4
+          docker run -d \
+            --name "$redis_name" \
+            --network "$network_name" \
+            redis:7.2-alpine
 
           for _ in $(seq 1 90); do
             if docker exec "$mysql_name" mysqladmin ping -h 127.0.0.1 -uroot -proot --silent; then
@@ -202,11 +208,23 @@ jobs:
             docker logs "$mysql_name"
             exit 1
           fi
+          for _ in $(seq 1 30); do
+            if docker exec "$redis_name" redis-cli ping >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
+          if ! docker exec "$redis_name" redis-cli ping >/dev/null; then
+            docker logs "$redis_name"
+            exit 1
+          fi
 
           container_id="$(docker run -d \
             --network "$network_name" \
             -p 3000:3000 \
             -e DATABASE_URL="mysql://root:root@$mysql_name:3306/ibooking" \
+            -e REDIS_URL="redis://$redis_name:6379" \
             "$API_IMAGE_REPOSITORY:$IMAGE_TAG")"
 
           for _ in $(seq 1 90); do
@@ -341,7 +359,7 @@ jobs:
           compose_project_name="devops_ibooking"
           compose_env_args="--env-file .env --env-file infra/.deploy-images.env"
           docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml pull
-          docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml up -d mysql
+          docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml up -d mysql redis
           docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml run --rm -T api ./node_modules/.bin/prisma migrate deploy < /dev/null
           docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml up -d --force-recreate --remove-orphans
 

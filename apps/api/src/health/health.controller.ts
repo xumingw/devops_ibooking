@@ -1,6 +1,7 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Res } from '@nestjs/common';
 import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { HealthResponse } from '@ibooking/shared-types';
+import { Response } from 'express';
 import { HealthService } from './health.service';
 
 @ApiTags('health')
@@ -10,7 +11,9 @@ export class HealthController {
 
   @Get()
   @ApiOkResponse({ description: 'API health status' })
-  getHealth(): HealthResponse {
-    return this.healthService.getHealth();
+  async getHealth(@Res({ passthrough: true }) response: Response): Promise<HealthResponse> {
+    const health = await this.healthService.getHealth();
+    if (health.status === 'DOWN') response.status(503);
+    return health;
   }
 }
