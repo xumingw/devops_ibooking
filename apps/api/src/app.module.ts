@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { HttpExceptionFilter } from './common/http-exception.filter';
 import { RequestContextMiddleware } from './common/request-context.middleware';
 import { ResponseInterceptor } from './common/response.interceptor';
+import { PrismaService } from './database/prisma.service';
 import { HealthController } from './health/health.controller';
 import { HealthService } from './health/health.service';
 import { AuthModule } from './auth/auth.module';
@@ -33,6 +34,7 @@ import { AssistantModule } from './assistant/assistant.module';
   ],
   controllers: [HealthController],
   providers: [
+    PrismaService,
     HealthService,
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
     { provide: APP_FILTER, useClass: HttpExceptionFilter }
