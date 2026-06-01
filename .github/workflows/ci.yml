@@ -334,17 +334,22 @@ jobs:
           DEPLOY_PATH: ${{ secrets.PROD_DEPLOY_PATH }}
           PROD_API_PORT: ${{ vars.PROD_API_PORT }}
           PROD_WEB_ADMIN_PORT: ${{ vars.PROD_WEB_ADMIN_PORT }}
+          PROD_CORS_ALLOWED_ORIGINS: ${{ vars.PROD_CORS_ALLOWED_ORIGINS }}
         run: |
           SSH_HOST="${PROD_SSH_HOST:-cd-server}"
           API_IMAGE="$API_IMAGE_REPOSITORY:$IMAGE_TAG"
           WEB_ADMIN_IMAGE="$WEB_ADMIN_IMAGE_REPOSITORY:$IMAGE_TAG"
           API_PORT="${PROD_API_PORT:-3000}"
           WEB_ADMIN_PORT="${PROD_WEB_ADMIN_PORT:-5174}"
+          CORS_ALLOWED_ORIGINS="${PROD_CORS_ALLOWED_ORIGINS:-}"
 
           ssh -i ~/.ssh/id_ed25519 "$SSH_USER@$SSH_HOST" \
-            "DEPLOY_PATH='$DEPLOY_PATH' API_IMAGE='$API_IMAGE' WEB_ADMIN_IMAGE='$WEB_ADMIN_IMAGE' API_PORT='$API_PORT' WEB_ADMIN_PORT='$WEB_ADMIN_PORT' bash -s" <<'REMOTE'
+            "DEPLOY_PATH='$DEPLOY_PATH' API_IMAGE='$API_IMAGE' WEB_ADMIN_IMAGE='$WEB_ADMIN_IMAGE' API_PORT='$API_PORT' WEB_ADMIN_PORT='$WEB_ADMIN_PORT' CORS_ALLOWED_ORIGINS='$CORS_ALLOWED_ORIGINS' bash -s" <<'REMOTE'
           set -eu
           cd "$DEPLOY_PATH"
+          if [ -z "${CORS_ALLOWED_ORIGINS:-}" ]; then
+            unset CORS_ALLOWED_ORIGINS
+          fi
           git pull --ff-only origin main
           test -f .env || {
             echo "$DEPLOY_PATH/.env is required for production deployment"
@@ -356,6 +361,9 @@ jobs:
           API_PORT=$API_PORT
           WEB_ADMIN_PORT=$WEB_ADMIN_PORT
           EOF
+          if [ -n "${CORS_ALLOWED_ORIGINS:-}" ]; then
+            printf '%s\n' "CORS_ALLOWED_ORIGINS=$CORS_ALLOWED_ORIGINS" >> infra/.deploy-images.env
+          fi
           compose_project_name="devops_ibooking"
           compose_env_args="--env-file .env --env-file infra/.deploy-images.env"
           docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml pull
