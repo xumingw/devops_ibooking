@@ -5,6 +5,7 @@ import {
   App,
   logoutSession,
   requestLogin,
+  restoreRememberedSession,
   resolveApiBaseUrl,
   resolvePostLoginPath,
   resolveSessionKind
@@ -91,6 +92,83 @@ describe('auth', () => {
     expect(storage.removeItem).toHaveBeenCalledWith('ibooking.student.accessToken');
   });
 
+  it('记住登录状态会通过刷新令牌恢复会话并更新访问令牌', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(successfulLoginResponse());
+    const storage = {
+      getItem: vi.fn().mockReturnValue('1'),
+      setItem: vi.fn(),
+      removeItem: vi.fn()
+    } as unknown as Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+
+    const session = await restoreRememberedSession(
+      fetcher,
+      'http://xmwhzl.love:13000',
+      storage
+    );
+
+    expect(fetcher).toHaveBeenCalledWith('http://xmwhzl.love:13000/api/v1/auth/refresh', {
+      credentials: 'include',
+      method: 'POST'
+    });
+    expect(session).toEqual({
+      kind: 'admin',
+      name: '系统管理员',
+      accessToken: 'access-token'
+    });
+    expect(storage.setItem).toHaveBeenCalledWith('ibooking.admin.accessToken', 'access-token');
+  });
+
+  it('记住登录状态恢复学生会话时写入学生访问令牌并清理管理端令牌', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(successfulStudentLoginResponse());
+    const storage = {
+      getItem: vi.fn().mockReturnValue('1'),
+      setItem: vi.fn(),
+      removeItem: vi.fn()
+    } as unknown as Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+
+    const session = await restoreRememberedSession(
+      fetcher,
+      'http://xmwhzl.love:13000',
+      storage
+    );
+
+    expect(session).toEqual({
+      kind: 'student',
+      name: '林晓明',
+      accessToken: 'student-access-token'
+    });
+    expect(storage.setItem).toHaveBeenCalledWith(
+      'ibooking.student.accessToken',
+      'student-access-token'
+    );
+    expect(storage.removeItem).toHaveBeenCalledWith('ibooking.admin.accessToken');
+  });
+
+  it('刷新令牌失效时清理记住登录状态和旧访问令牌', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ code: 'REFRESH_TOKEN_INVALID', message: '会话已过期' }), {
+        headers: { 'Content-Type': 'application/json' },
+        status: 401
+      })
+    );
+    const storage = {
+      getItem: vi.fn().mockReturnValue('1'),
+      setItem: vi.fn(),
+      removeItem: vi.fn()
+    } as unknown as Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+
+    const session = await restoreRememberedSession(
+      fetcher,
+      'http://xmwhzl.love:13000',
+      storage
+    );
+
+    expect(session).toBeNull();
+    expect(storage.removeItem).toHaveBeenCalledWith('ibooking.auth.remember');
+    expect(storage.removeItem).toHaveBeenCalledWith('ibooking.admin.accessToken');
+    expect(storage.removeItem).toHaveBeenCalledWith('ibooking.student.accessToken');
+  });
+
   it('登录成功后按角色分流到学生或管理视图', () => {
     expect(resolveSessionKind([{ name: '超级管理员', code: 'ROLE_FULL_ADMIN' }])).toBe('admin');
     expect(resolveSessionKind([{ name: '学生', code: 'ROLE_STUDENT' }])).toBe('student');
@@ -140,3 +218,24 @@ describe('auth', () => {
     ).toBe('http://xmwhzl.love:13000');
   });
 });
+
+const successfulStudentLoginResponse = () =>
+  new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: {
+        accessToken: 'student-access-token',
+        expiresAt: '2026-05-25T12:00:00.000Z',
+        user: {
+          name: '林晓明',
+          departmentName: '计算机学院'
+        },
+        roles: [{ name: '学生', code: 'ROLE_STUDENT' }]
+      }
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    }
+  );
