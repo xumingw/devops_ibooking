@@ -1,4 +1,4 @@
-import { createHmac, randomUUID } from 'crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
 
 export type AccessTokenPayload = {
   sub: string;
@@ -48,7 +48,7 @@ export class TokenService {
     }
 
     const expected = this.signature(`${encodedHeader}.${encodedPayload}`);
-    if (signature !== expected) {
+    if (!this.isSignatureEqual(signature, expected)) {
       throw new Error('invalid token signature');
     }
 
@@ -73,6 +73,12 @@ export class TokenService {
 
   private signature(value: string): string {
     return createHmac('sha256', this.secret).update(value).digest('base64url');
+  }
+
+  private isSignatureEqual(actual: string, expected: string): boolean {
+    const actualBuffer = Buffer.from(actual, 'utf8');
+    const expectedBuffer = Buffer.from(expected, 'utf8');
+    return actualBuffer.length === expectedBuffer.length && timingSafeEqual(actualBuffer, expectedBuffer);
   }
 
   private isAccessTokenPayload(value: unknown): value is AccessTokenPayload {
