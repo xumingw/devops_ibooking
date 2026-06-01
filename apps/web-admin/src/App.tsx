@@ -17,6 +17,7 @@ type Feedback = {
 export type SessionView = {
   kind: EntryKind;
   name: string;
+  roles: RoleView[];
   accessToken: string;
 };
 
@@ -477,6 +478,7 @@ const toSessionView = (authSession: AuthSessionPayload): SessionView => {
   return {
     kind,
     name: authSession.user.name,
+    roles: authSession.roles ?? [],
     accessToken: authSession.accessToken
   };
 };
@@ -944,6 +946,22 @@ const ADMIN_ROLE_CODES = new Set([
 export const resolveSessionKind = (roles: RoleView[] = []): EntryKind =>
   roles.some((role) => ADMIN_ROLE_CODES.has(role.code)) ? 'admin' : 'student';
 
+const ADMIN_ROLE_LABELS: Record<string, string> = {
+  ROLE_FULL_ADMIN: '超级管理员',
+  ROLE_ROOM_ADMIN: '自习室管理员',
+  ROLE_AUDIT: '数据审计员',
+  ROLE_DEPARTMENT_ADMIN: '院系管理员'
+};
+
+export const resolveAdminRoleLabel = (roles: RoleView[] = []) => {
+  const adminRole = roles.find((role) => ADMIN_ROLE_CODES.has(role.code));
+  if (adminRole?.name) return adminRole.name;
+  if (adminRole?.code) return ADMIN_ROLE_LABELS[adminRole.code] ?? '管理员';
+  return roles[0]?.name ?? '管理员';
+};
+
+export const resolveAvatarInitial = (name: string) => name.trim().charAt(0) || '管';
+
 export const canSubmitStudentCheckIn = (input: {
   accessToken?: string;
   hasSession: boolean;
@@ -1162,6 +1180,7 @@ export function App() {
       <AdminDashboard
         accessToken={session.accessToken}
         adminName={session.name}
+        adminRoles={session.roles}
         onLogout={handleLogout}
       />
     );
@@ -1317,6 +1336,7 @@ export function App() {
 type DashboardProps = {
   accessToken?: string;
   adminName: string;
+  adminRoles?: RoleView[];
   initialActive?: AdminMenuId;
   onLogout?: () => void;
 };
@@ -3885,7 +3905,13 @@ export const resolvePostLoginPath = (
   return '/student';
 };
 
-export function AdminDashboard({ accessToken, adminName, initialActive, onLogout }: DashboardProps) {
+export function AdminDashboard({
+  accessToken,
+  adminName,
+  adminRoles = [],
+  initialActive,
+  onLogout
+}: DashboardProps) {
   const [activeMenu, setActiveMenu] = useState<AdminMenuId>(
     () => initialActive ?? resolveInitialAdminMenu()
   );
@@ -3893,6 +3919,8 @@ export function AdminDashboard({ accessToken, adminName, initialActive, onLogout
   const [roomRefreshSignal, setRoomRefreshSignal] = useState(0);
   const [seatCreateSignal, setSeatCreateSignal] = useState(0);
   const activeMeta = ADMIN_MENU_META[activeMenu];
+  const adminAvatar = resolveAvatarInitial(adminName);
+  const adminRoleLabel = resolveAdminRoleLabel(adminRoles);
 
   const handleMenuChange = (nextMenu: AdminMenuId) => {
     setActiveMenu(nextMenu);
@@ -3941,10 +3969,10 @@ export function AdminDashboard({ accessToken, adminName, initialActive, onLogout
           ))}
         </nav>
         <div className="dashboard-sidebar-user">
-          <div className="dashboard-avatar">王</div>
+          <div className="dashboard-avatar">{adminAvatar}</div>
           <div>
             <strong>{adminName}</strong>
-            <span>超级管理员</span>
+            <span>{adminRoleLabel}</span>
           </div>
         </div>
       </aside>
@@ -3970,7 +3998,7 @@ export function AdminDashboard({ accessToken, adminName, initialActive, onLogout
             <div className="dashboard-bell" aria-label="通知">
               <span />
             </div>
-            <div className="dashboard-avatar">王</div>
+            <div className="dashboard-avatar">{adminAvatar}</div>
             <button type="button" onClick={onLogout}>
               退出登录
             </button>

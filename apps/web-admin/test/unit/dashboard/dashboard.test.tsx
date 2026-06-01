@@ -18,4 +18,18 @@ describe('dashboard', () => {
     expect(html).toContain('自习室运行概览');
     expect(html).toContain('退出登录');
   });
+
+  it('按当前管理员姓名和角色渲染侧栏身份信息', () => {
+    const html = renderToStaticMarkup(
+      <AdminDashboard
+        adminName="陈审计"
+        adminRoles={[{ code: 'ROLE_AUDIT', name: '数据审计员' }]}
+      />
+    );
+
+    expect(html).toContain('数据审计员');
+    expect(html).not.toContain('超级管理员');
+    expect(html.match(/class="dashboard-avatar">陈<\/div>/g)).toHaveLength(2);
+    expect(html).not.toContain('class="dashboard-avatar">王</div>');
+  });
 });
