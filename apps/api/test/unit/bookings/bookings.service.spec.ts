@@ -5,17 +5,24 @@ import {
   CreateStudentBookingInput
 } from '../../../src/bookings/bookings.service';
 
+const NOW = new Date('2026-05-30T06:00:00.000Z');
+
 describe('BookingsService', () => {
   let repository: jest.Mocked<BookingRepository>;
   let service: BookingsService;
 
   beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(NOW);
     repository = {
       listByUserId: jest.fn(),
       cancelByUserId: jest.fn(),
       createByUserId: jest.fn()
     };
     service = new BookingsService(repository);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   it('汇总当前学生预约并统计可操作预约数', async () => {

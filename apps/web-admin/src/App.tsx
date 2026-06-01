@@ -426,6 +426,33 @@ export const requestLogin = async (
   return payload.data;
 };
 
+export const requestLogout = async (
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl()
+) => {
+  const response = await fetcher(`${apiBaseUrl}/api/v1/auth/logout`, {
+    method: 'POST',
+    credentials: 'include'
+  });
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(payload?.message || '退出登录失败，请稍后重试');
+  }
+};
+
+export const logoutSession = async (
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl(),
+  storage: Pick<Storage, 'removeItem'> = localStorage
+) => {
+  try {
+    await requestLogout(fetcher, apiBaseUrl);
+  } finally {
+    storage.removeItem(ADMIN_ACCESS_TOKEN_KEY);
+    storage.removeItem(STUDENT_ACCESS_TOKEN_KEY);
+  }
+};
+
 export const requestRooms = async (
   accessToken: string,
   fetcher: typeof fetch = fetch,
@@ -1054,9 +1081,12 @@ export function App() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem(ADMIN_ACCESS_TOKEN_KEY);
-    localStorage.removeItem(STUDENT_ACCESS_TOKEN_KEY);
+  const handleLogout = async () => {
+    try {
+      await logoutSession();
+    } catch {
+      // 本地退出仍然继续，后端失败时下次访问会重新走认证。
+    }
     setSession(null);
     pushAppPath('/');
   };
