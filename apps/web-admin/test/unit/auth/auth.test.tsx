@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   App,
+  logoutSession,
   requestLogin,
   resolveApiBaseUrl,
   resolvePostLoginPath,
@@ -67,6 +68,27 @@ describe('auth', () => {
         body: JSON.stringify({ studentNo: 'stu_cse_01', password: 'Pass123!' })
       })
     );
+  });
+
+  it('退出登录会调用后端注销接口并清理本地访问令牌', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ code: 'SUCCESS', data: { success: true } }), {
+        headers: { 'Content-Type': 'application/json' },
+        status: 200
+      })
+    );
+    const storage = {
+      removeItem: vi.fn()
+    } as unknown as Pick<Storage, 'removeItem'>;
+
+    await logoutSession(fetcher, 'http://xmwhzl.love:13000', storage);
+
+    expect(fetcher).toHaveBeenCalledWith('http://xmwhzl.love:13000/api/v1/auth/logout', {
+      credentials: 'include',
+      method: 'POST'
+    });
+    expect(storage.removeItem).toHaveBeenCalledWith('ibooking.admin.accessToken');
+    expect(storage.removeItem).toHaveBeenCalledWith('ibooking.student.accessToken');
   });
 
   it('登录成功后按角色分流到学生或管理视图', () => {
