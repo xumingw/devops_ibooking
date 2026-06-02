@@ -48,6 +48,9 @@ describe('student pages', () => {
   });
 
   it('渲染学生自习室列表页面', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-02T03:42:00.000Z'));
+
     const html = renderToStaticMarkup(
       <StudentHomePreview studentName="林晓明" initialActive="rooms" />
     );
@@ -83,6 +86,9 @@ describe('student pages', () => {
   });
 
   it('旧选座预约入口渲染到自习室列表', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-02T03:42:00.000Z'));
+
     const html = renderToStaticMarkup(
       <StudentHomePreview studentName="林晓明" initialActive="select" />
     );
@@ -102,6 +108,9 @@ describe('student pages', () => {
   });
 
   it('旧确认预约入口渲染到自习室列表', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-02T03:42:00.000Z'));
+
     const html = renderToStaticMarkup(
       <StudentHomePreview studentName="林晓明" initialActive="confirm" />
     );

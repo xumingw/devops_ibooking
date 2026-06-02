@@ -3252,6 +3252,9 @@ const parseStudentClockMinutes = (clock: string) => {
 const getStudentBookingDurationHours = (startClock: string, endClock: string) =>
   Math.max(1, Math.round((parseStudentClockMinutes(endClock) - parseStudentClockMinutes(startClock)) / 60));
 
+const formatStudentClockFromMinutes = (minutes: number) =>
+  `${String(Math.floor(minutes / 60)).padStart(2, '0')}:00`;
+
 const normalizeStudentRoomEndTime = (startClock: string, endClock: string) => {
   const startMinutes = parseStudentClockMinutes(startClock);
   const endMinutes = parseStudentClockMinutes(endClock);
@@ -3262,6 +3265,51 @@ const normalizeStudentRoomEndTime = (startClock: string, endClock: string) => {
   const normalizedMinutes = Math.max(minEndMinutes, fallbackMinutes);
   const hour = String(Math.floor(normalizedMinutes / 60)).padStart(2, '0');
   return `${hour}:00`;
+};
+
+const getStudentShanghaiClockMinutes = (now = new Date()) => {
+  const shanghaiTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  return shanghaiTime.getUTCHours() * 60 + shanghaiTime.getUTCMinutes();
+};
+
+const isStudentRoomPastStartTime = (
+  dateLabel: (typeof STUDENT_ROOM_DATE_OPTIONS)[number],
+  startClock: string,
+  now = new Date()
+) => dateLabel === '今天' && parseStudentClockMinutes(startClock) < getStudentShanghaiClockMinutes(now);
+
+const getStudentRoomBookableStartTimes = (
+  dateLabel: (typeof STUDENT_ROOM_DATE_OPTIONS)[number],
+  now = new Date()
+) => STUDENT_ROOM_START_TIMES.filter((time) => !isStudentRoomPastStartTime(dateLabel, time, now));
+
+const getStudentRoomDefaultEndTime = (startClock: string) =>
+  formatStudentClockFromMinutes(Math.min(parseStudentClockMinutes(startClock) + 180, 22 * 60));
+
+const createStudentRoomSearchTimeState = (
+  dateLabel: (typeof STUDENT_ROOM_DATE_OPTIONS)[number],
+  now = new Date(),
+  preferredStart = '14:00',
+  preferredEnd?: string
+): {
+  selectedDate: (typeof STUDENT_ROOM_DATE_OPTIONS)[number];
+  startTime: string;
+  endTime: string;
+} => {
+  const bookableStartTimes = getStudentRoomBookableStartTimes(dateLabel, now);
+  const normalizedDate = bookableStartTimes.length > 0 ? dateLabel : '明天';
+  const normalizedStartTimes = getStudentRoomBookableStartTimes(normalizedDate, now);
+  const startTime = (normalizedStartTimes as readonly string[]).includes(preferredStart)
+    ? preferredStart
+    : normalizedStartTimes.includes('14:00')
+      ? '14:00'
+      : normalizedStartTimes[0] ?? preferredStart;
+  const endTime = normalizeStudentRoomEndTime(
+    startTime,
+    preferredEnd ?? getStudentRoomDefaultEndTime(startTime)
+  );
+
+  return { selectedDate: normalizedDate, startTime, endTime };
 };
 
 const isStudentRoomOpenForTime = (
@@ -7573,10 +7621,15 @@ function StudentRoomsPanel({
     useState<(typeof STUDENT_ROOM_FILTERS)[number]>('全部楼栋');
   const [activeBuilding, setActiveBuilding] = useState('');
   const [activeFloor, setActiveFloor] = useState('');
+  const roomSearchNow = useMemo(() => new Date(), []);
+  const initialTimeState = useMemo(
+    () => createStudentRoomSearchTimeState('今天', roomSearchNow, '14:00', '17:00'),
+    [roomSearchNow]
+  );
   const [selectedDate, setSelectedDate] =
-    useState<(typeof STUDENT_ROOM_DATE_OPTIONS)[number]>('今天');
-  const [startTime, setStartTime] = useState('14:00');
-  const [endTime, setEndTime] = useState('17:00');
+    useState<(typeof STUDENT_ROOM_DATE_OPTIONS)[number]>(initialTimeState.selectedDate);
+  const [startTime, setStartTime] = useState(initialTimeState.startTime);
+  const [endTime, setEndTime] = useState(initialTimeState.endTime);
   const [activeRoomName, setActiveRoomName] = useState('');
   const [searchNotice, setSearchNotice] = useState('');
   const roomTree = useMemo(groupStudentRoomsByBuilding, []);
@@ -7622,8 +7675,17 @@ function StudentRoomsPanel({
   }, [activeRoomName, roomOptions]);
 
   const handleStartTimeChange = (value: string) => {
+    if (isStudentRoomPastStartTime(selectedDate, value, roomSearchNow)) return;
     setStartTime(value);
     setEndTime((current) => normalizeStudentRoomEndTime(value, current));
+    setActiveRoomName('');
+  };
+
+  const handleSelectedDateChange = (value: (typeof STUDENT_ROOM_DATE_OPTIONS)[number]) => {
+    const nextTimeState = createStudentRoomSearchTimeState(value, roomSearchNow, startTime, endTime);
+    setSelectedDate(nextTimeState.selectedDate);
+    setStartTime(nextTimeState.startTime);
+    setEndTime(nextTimeState.endTime);
     setActiveRoomName('');
   };
 
@@ -7644,12 +7706,18 @@ function StudentRoomsPanel({
               <span>日期</span>
               <select
                 onChange={(event) =>
-                  setSelectedDate(event.target.value as (typeof STUDENT_ROOM_DATE_OPTIONS)[number])
+                  handleSelectedDateChange(
+                    event.target.value as (typeof STUDENT_ROOM_DATE_OPTIONS)[number]
+                  )
                 }
                 value={selectedDate}
               >
                 {STUDENT_ROOM_DATE_OPTIONS.map((date) => (
-                  <option key={date} value={date}>
+                  <option
+                    disabled={getStudentRoomBookableStartTimes(date, roomSearchNow).length === 0}
+                    key={date}
+                    value={date}
+                  >
                     {date}
                   </option>
                 ))}
@@ -7659,7 +7727,11 @@ function StudentRoomsPanel({
               <span>开始时间</span>
               <select onChange={(event) => handleStartTimeChange(event.target.value)} value={startTime}>
                 {STUDENT_ROOM_START_TIMES.map((time) => (
-                  <option key={time} value={time}>
+                  <option
+                    disabled={isStudentRoomPastStartTime(selectedDate, time, roomSearchNow)}
+                    key={time}
+                    value={time}
+                  >
                     {time}
                   </option>
                 ))}

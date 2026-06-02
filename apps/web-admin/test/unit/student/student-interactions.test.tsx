@@ -25,6 +25,7 @@ describe('student interactive controls', () => {
     root = null;
     container = null;
     window.history.pushState(null, '', '/');
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -61,6 +62,8 @@ describe('student interactive controls', () => {
   });
 
   it('自习室列表筛选、预约和候补按钮会更新页面状态', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-02T03:42:00.000Z'));
     await renderStudentHome('rooms');
 
     await clickButton('有空位');
@@ -101,6 +104,24 @@ describe('student interactive controls', () => {
     const roomGridText = container?.querySelector('.student-rooms-grid')?.textContent;
     expect(roomGridText).toContain('理工自习室 201');
     expect(roomGridText).not.toContain('经管自习室 301');
+  });
+
+  it('今天预约不能选择已经过去的开始时间', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-02T11:30:00.000Z'));
+    await renderStudentHome('rooms');
+
+    expect(getSelect('日期').value).toBe('今天');
+    expect(getSelect('开始时间').value).toBe('20:00');
+    expect(getSelectOption('开始时间', '18:00').disabled).toBe(true);
+    expect(getSelectOption('开始时间', '19:00').disabled).toBe(true);
+    expect(getSelectOption('开始时间', '20:00').disabled).toBe(false);
+    expect(getSelectOption('开始时间', '21:00').disabled).toBe(false);
+
+    await selectOption('日期', '明天');
+    expect(getSelectOption('开始时间', '18:00').disabled).toBe(false);
+    await selectOption('开始时间', '18:00');
+    expect(getSelect('开始时间').value).toBe('18:00');
   });
 
   it('从自习室列表点预约后直接打开预约弹窗', async () => {
@@ -302,6 +323,12 @@ describe('student interactive controls', () => {
     const select = selectLabel?.querySelector('select');
     if (!select) throw new Error(`select not found: ${label}`);
     return select as HTMLSelectElement;
+  }
+
+  function getSelectOption(label: string, value: string) {
+    const option = [...getSelect(label).options].find((candidate) => candidate.value === value);
+    if (!option) throw new Error(`option not found: ${label} ${value}`);
+    return option;
   }
 
   function getButton(label: string) {
