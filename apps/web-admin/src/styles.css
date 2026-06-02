@@ -5869,6 +5869,12 @@ button {
   gap: 10px;
 }
 
+.student-room-card-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .student-room-icon {
   width: 44px;
   height: 44px;
@@ -5877,6 +5883,29 @@ button {
   border-radius: 10px;
   background: #ecf4f2;
   color: #2d7a6e;
+}
+
+.student-room-favorite {
+  width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  border: 1.5px solid #d8e8e5;
+  border-radius: 8px;
+  background: #fafefe;
+  color: #8aaaa4;
+  cursor: pointer;
+}
+
+.student-room-favorite:hover,
+.student-room-favorite.is-active {
+  border-color: #f3cf68;
+  background: #fffbeb;
+  color: #c8820a;
+}
+
+.student-room-favorite.is-active .dashboard-icon path {
+  fill: currentColor;
 }
 
 .student-room-card mark {

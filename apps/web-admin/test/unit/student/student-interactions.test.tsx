@@ -82,6 +82,32 @@ describe('student interactive controls', () => {
     expect(container?.querySelector('.student-booking-confirm-dialog')).not.toBeNull();
   });
 
+  it('自习室列表支持我的收藏筛选和星标切换', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-02T03:42:00.000Z'));
+    await renderStudentHome('rooms');
+
+    await clickButton('我的收藏');
+    expect(getButton('我的收藏').className).toContain('is-active');
+    expect(getRoomGridText()).toContain('经管自习室 301');
+    expect(getRoomGridText()).toContain('理工自习室 201');
+    expect(getRoomGridText()).toContain('文史馆阅览室 A');
+    expect(getRoomGridText()).not.toContain('新闻学院研讨室');
+
+    expect(getFavoriteButton('经管自习室 301').className).toContain('is-active');
+    await clickFavoriteButton('经管自习室 301');
+    expect(getRoomGridText()).not.toContain('经管自习室 301');
+    expect(container?.textContent).toContain('已取消收藏经管自习室 301');
+
+    await clickButton('全部楼栋');
+    expect(getFavoriteButton('新闻学院研讨室').className).not.toContain('is-active');
+    await clickFavoriteButton('新闻学院研讨室');
+    expect(container?.textContent).toContain('已收藏新闻学院研讨室');
+
+    await clickButton('我的收藏');
+    expect(getRoomGridText()).toContain('新闻学院研讨室');
+  });
+
   it('自习室列表按预约时间、楼栋、楼层和教室搜索', async () => {
     await renderStudentHome('rooms');
 
@@ -324,6 +350,13 @@ describe('student interactive controls', () => {
     });
   }
 
+  async function clickFavoriteButton(roomName: string) {
+    await act(async () => {
+      getFavoriteButton(roomName).click();
+      await Promise.resolve();
+    });
+  }
+
   async function clickButtonInSelector(selector: string, label: string) {
     const rootElement = container?.querySelector(selector);
     if (!rootElement) throw new Error(`selector not found: ${selector}`);
@@ -368,6 +401,19 @@ describe('student interactive controls', () => {
     );
     if (!button) throw new Error(`button not found: ${label}`);
     return button as HTMLButtonElement;
+  }
+
+  function getFavoriteButton(roomName: string) {
+    const button = [...(container?.querySelectorAll('button[aria-label]') ?? [])].find((candidate) => {
+      const label = candidate.getAttribute('aria-label');
+      return normalize(label).includes('收藏') && normalize(label).includes(normalize(roomName));
+    });
+    if (!button) throw new Error(`favorite button not found: ${roomName}`);
+    return button as HTMLButtonElement;
+  }
+
+  function getRoomGridText() {
+    return container?.querySelector('.student-rooms-grid')?.textContent ?? '';
   }
 
   function normalize(text?: string | null) {

@@ -3073,7 +3073,8 @@ const STUDENT_ROOM_STATUS_META = {
   full: { label: '已满座', variant: 'red' }
 } as const;
 
-const STUDENT_ROOM_FILTERS = ['全部楼栋', '全校开放', '有空位', '有插座', '靠窗'] as const;
+const STUDENT_ROOM_FILTERS = ['全部楼栋', '全校开放', '有空位', '有插座', '靠窗', '我的收藏'] as const;
+const STUDENT_DEFAULT_FAVORITE_ROOMS = ['经管自习室 301', '理工自习室 201', '文史馆阅览室 A'] as const;
 const STUDENT_ROOM_DATE_OPTIONS = ['今天', '明天', '后天'] as const;
 const STUDENT_ROOM_START_TIMES = [
   '07:00',
@@ -7713,6 +7714,9 @@ function StudentRoomsPanel({
   const [startTime, setStartTime] = useState(initialTimeState.startTime);
   const [endTime, setEndTime] = useState(initialTimeState.endTime);
   const [activeRoomName, setActiveRoomName] = useState('');
+  const [favoriteRoomNames, setFavoriteRoomNames] = useState<string[]>(() => [
+    ...STUDENT_DEFAULT_FAVORITE_ROOMS
+  ]);
   const [searchNotice, setSearchNotice] = useState('');
   const roomTree = useMemo(groupStudentRoomsByBuilding, []);
   const buildingOptions = roomTree.map((building) => building.building);
@@ -7742,6 +7746,7 @@ function StudentRoomsPanel({
     if (activeFilter === '有空位' && room.available <= 0) return false;
     if (activeFilter === '有插座' && !room.tags.includes('插座')) return false;
     if (activeFilter === '靠窗' && !room.tags.includes('靠窗')) return false;
+    if (activeFilter === '我的收藏' && !favoriteRoomNames.includes(room.name)) return false;
     return true;
   });
   const bookingTime = formatStudentRoomBookingTime(startTime, endTime);
@@ -7777,6 +7782,16 @@ function StudentRoomsPanel({
         activeFloor || '全部楼层'
       }、${activeRoomName || '全部教室'} 搜索可预约自习室。`
     );
+  };
+
+  const handleFavoriteToggle = (roomName: string) => {
+    const isFavorite = favoriteRoomNames.includes(roomName);
+    setFavoriteRoomNames((current) =>
+      current.includes(roomName)
+        ? current.filter((favoriteRoomName) => favoriteRoomName !== roomName)
+        : [...current, roomName]
+    );
+    setSearchNotice(isFavorite ? `已取消收藏${roomName}` : `已收藏${roomName}`);
   };
 
   return (
@@ -7912,13 +7927,25 @@ function StudentRoomsPanel({
             {visibleRooms.map((room) => {
               const status = STUDENT_ROOM_STATUS_META[room.status];
               const occupiedPercent = Math.round(((room.capacity - room.available) / room.capacity) * 100);
+              const isFavorite = favoriteRoomNames.includes(room.name);
               return (
                 <article className="dashboard-card student-room-card" key={room.name}>
                   <header>
                     <span className="student-room-icon">
                       <DashboardIcon name="building" size={20} />
                     </span>
-                    <mark data-variant={status.variant}>{status.label}</mark>
+                    <div className="student-room-card-actions">
+                      <button
+                        aria-label={`${isFavorite ? '取消收藏' : '收藏'} ${room.name}`}
+                        className={`student-room-favorite${isFavorite ? ' is-active' : ''}`}
+                        onClick={() => handleFavoriteToggle(room.name)}
+                        title={`${isFavorite ? '取消收藏' : '收藏'}${room.name}`}
+                        type="button"
+                      >
+                        <DashboardIcon name="star" size={15} />
+                      </button>
+                      <mark data-variant={status.variant}>{status.label}</mark>
+                    </div>
                   </header>
 
                   <strong>{room.name}</strong>

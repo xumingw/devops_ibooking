@@ -75,6 +75,7 @@ describe('student pages', () => {
     expect(html).toContain('有空位');
     expect(html).toContain('有插座');
     expect(html).toContain('靠窗');
+    expect(html).toContain('我的收藏');
     expect(html).toContain('今天 14:00 – 17:00（3小时）');
     expect(html).toContain('经管自习室 301');
     expect(html).toContain('08:00–22:00');
