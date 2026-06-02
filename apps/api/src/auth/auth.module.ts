@@ -14,6 +14,7 @@ const EXAMPLE_JWT_SECRETS = new Set([
   'dev-only-change-me',
   'replace-with-at-least-32-random-characters'
 ]);
+const MIN_PRODUCTION_JWT_SECRET_LENGTH = 32;
 
 @Module({
   controllers: [AuthController],
@@ -61,6 +62,9 @@ export function resolveJwtSecret(config: Pick<ConfigService, 'get'>): string {
     }
     if (EXAMPLE_JWT_SECRETS.has(jwtSecret)) {
       throw new Error('JWT_SECRET must not use example values in production');
+    }
+    if (jwtSecret.length < MIN_PRODUCTION_JWT_SECRET_LENGTH) {
+      throw new Error('JWT_SECRET must be at least 32 characters in production');
     }
   }
 
