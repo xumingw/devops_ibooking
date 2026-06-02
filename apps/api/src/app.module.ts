@@ -20,7 +20,17 @@ import { AssistantModule } from './assistant/assistant.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: [
+        '.env.local',
+        '.env',
+        'apps/api/.env.local',
+        'apps/api/.env',
+        '../../.env.local',
+        '../../.env'
+      ]
+    }),
     AuthModule,
     RoomsModule,
     SeatsModule,

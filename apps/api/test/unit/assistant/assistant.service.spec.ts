@@ -1,4 +1,7 @@
 import {
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import {
   StudentAssistantBookingCandidate,
   StudentAssistantSeatCandidate
 } from '@ibooking/shared-types';
@@ -187,6 +190,37 @@ describe('AssistantService', () => {
     expect(reply.suggestions).toEqual(['今晚还有空座吗', '找靠窗座位', '我今天定了哪里']);
     expect(repository.findAvailableSeats).not.toHaveBeenCalled();
     expect(repository.listBookingsByUserId).not.toHaveBeenCalled();
+  });
+
+  it('模型未配置时使用本地关键词规则继续回答空座问题', async () => {
+    const seats: StudentAssistantSeatCandidate[] = [
+      seatCandidateFixture({
+        room: '经管自习室 301',
+        seat: 'A1',
+        tags: ['插座']
+      })
+    ];
+    modelClient.interpret.mockRejectedValue(
+      new ServiceUnavailableException({ message: '智能助手模型未配置' })
+    );
+    repository.findAvailableSeats.mockResolvedValue(seats);
+
+    const reply = await service.reply({
+      userId: 'user-stu-cse-01',
+      departmentId: 'dept-cs',
+      message: '今晚还有空座吗？要有插座'
+    });
+
+    expect(reply.intent).toBe('seat_search');
+    expect(reply.text).toContain('今天 18:00-22:00');
+    expect(reply.text).toContain('插座');
+    expect(reply.seats).toEqual(seats);
+    expect(repository.findAvailableSeats).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filters: { hasPower: true, nearWindow: false, quietZone: false },
+        timeLabel: '今天 18:00-22:00'
+      })
+    );
   });
 });
 
