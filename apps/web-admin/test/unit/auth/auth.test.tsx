@@ -5,12 +5,18 @@ import {
   App,
   logoutSession,
   requestLogin,
+  requestRooms,
+  requestSeats,
   restoreRememberedSession,
   resolveApiBaseUrl,
   resolvePostLoginPath,
   resolveSessionKind
 } from '../../../src/App';
-import { successfulLoginResponse } from '../helpers/api-responses';
+import {
+  successfulLoginResponse,
+  successfulRoomsResponse,
+  successfulSeatsResponse
+} from '../helpers/api-responses';
 
 describe('auth', () => {
   it('渲染复旦品牌统一登录界面', () => {
@@ -169,6 +175,121 @@ describe('auth', () => {
     expect(storage.removeItem).toHaveBeenCalledWith('ibooking.auth.remember');
     expect(storage.removeItem).toHaveBeenCalledWith('ibooking.admin.accessToken');
     expect(storage.removeItem).toHaveBeenCalledWith('ibooking.student.accessToken');
+  });
+
+  it('并发业务请求遇到访问令牌过期时只刷新一次会话', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ code: 'AUTH_UNAUTHORIZED', message: '会话已过期' }), {
+          headers: { 'Content-Type': 'application/json' },
+          status: 401
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ code: 'AUTH_UNAUTHORIZED', message: '会话已过期' }), {
+          headers: { 'Content-Type': 'application/json' },
+          status: 401
+        })
+      )
+      .mockResolvedValueOnce(successfulLoginResponse())
+      .mockResolvedValueOnce(successfulRoomsResponse())
+      .mockResolvedValueOnce(successfulSeatsResponse());
+    const roomRefresh = vi.fn();
+    const seatRefresh = vi.fn();
+    const roomStorage = {
+      setItem: vi.fn(),
+      removeItem: vi.fn()
+    };
+    const seatStorage = {
+      setItem: vi.fn(),
+      removeItem: vi.fn()
+    };
+
+    const [rooms, seats] = await Promise.all([
+      requestRooms('expired-token', fetcher, 'http://xmwhzl.love:13000', {
+        onSessionRefresh: roomRefresh,
+        storage: roomStorage
+      }),
+      requestSeats('expired-token', fetcher, 'http://xmwhzl.love:13000', {
+        onSessionRefresh: seatRefresh,
+        storage: seatStorage
+      })
+    ]);
+
+    const refreshCalls = fetcher.mock.calls.filter(
+      ([url]) => url === 'http://xmwhzl.love:13000/api/v1/auth/refresh'
+    );
+    expect(refreshCalls).toHaveLength(1);
+    expect(fetcher).toHaveBeenNthCalledWith(
+      4,
+      'http://xmwhzl.love:13000/api/v1/rooms',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer access-token' }
+      })
+    );
+    expect(fetcher).toHaveBeenNthCalledWith(
+      5,
+      'http://xmwhzl.love:13000/api/v1/seats',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer access-token' }
+      })
+    );
+    expect(roomStorage.setItem).toHaveBeenCalledWith('ibooking.admin.accessToken', 'access-token');
+    expect(seatStorage.setItem).toHaveBeenCalledWith('ibooking.admin.accessToken', 'access-token');
+    expect(roomRefresh).toHaveBeenCalledWith(
+      expect.objectContaining({ accessToken: 'access-token', kind: 'admin' })
+    );
+    expect(seatRefresh).toHaveBeenCalledWith(
+      expect.objectContaining({ accessToken: 'access-token', kind: 'admin' })
+    );
+    expect(rooms[0].name).toBe('经管自习室 301');
+    expect(seats[0].code).toBe('A001');
+  });
+
+  it('刷新会话失败时清理本地会话且不产生未处理的拒绝', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ code: 'AUTH_UNAUTHORIZED', message: '会话已过期' }), {
+          headers: { 'Content-Type': 'application/json' },
+          status: 401
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ code: 'REFRESH_TOKEN_INVALID', message: '会话已过期' }), {
+          headers: { 'Content-Type': 'application/json' },
+          status: 401
+        })
+      );
+    const storage = {
+      setItem: vi.fn(),
+      removeItem: vi.fn()
+    };
+    const onSessionExpired = vi.fn();
+    const unhandledReasons: unknown[] = [];
+    const onUnhandledRejection = (reason: unknown) => {
+      unhandledReasons.push(reason);
+    };
+
+    process.on('unhandledRejection', onUnhandledRejection);
+    try {
+      await expect(
+        requestRooms('expired-token', fetcher, 'http://xmwhzl.love:13000', {
+          onSessionExpired,
+          storage
+        })
+      ).rejects.toThrow('会话已过期');
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    } finally {
+      process.off('unhandledRejection', onUnhandledRejection);
+    }
+
+    expect(onSessionExpired).toHaveBeenCalledTimes(1);
+    expect(storage.removeItem).toHaveBeenCalledWith('ibooking.auth.remember');
+    expect(storage.removeItem).toHaveBeenCalledWith('ibooking.admin.accessToken');
+    expect(storage.removeItem).toHaveBeenCalledWith('ibooking.student.accessToken');
+    expect(unhandledReasons).toEqual([]);
   });
 
   it('登录成功后按角色分流到学生或管理视图', () => {

@@ -2,7 +2,11 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AdminDashboard, requestRooms, saveAdminRoom } from '../../../src/App';
-import { successfulRoomResponse, successfulRoomsResponse } from '../helpers/api-responses';
+import {
+  successfulLoginResponse,
+  successfulRoomResponse,
+  successfulRoomsResponse
+} from '../helpers/api-responses';
 
 describe('rooms', () => {
   it('自习室列表请求会携带管理员 token', async () => {
@@ -16,6 +20,60 @@ describe('rooms', () => {
         credentials: 'include',
         headers: { Authorization: 'Bearer access-token' },
         method: 'GET'
+      })
+    );
+    expect(rooms[0].name).toBe('经管自习室 301');
+  });
+
+  it('自习室列表遇到访问令牌过期会刷新会话并用新 token 重试', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ code: 'AUTH_UNAUTHORIZED', message: '会话已过期' }), {
+          headers: { 'Content-Type': 'application/json' },
+          status: 401
+        })
+      )
+      .mockResolvedValueOnce(successfulLoginResponse())
+      .mockResolvedValueOnce(successfulRoomsResponse());
+    const onSessionRefresh = vi.fn();
+    const storage = {
+      setItem: vi.fn(),
+      removeItem: vi.fn()
+    };
+
+    const rooms = await requestRooms('expired-token', fetcher, 'http://xmwhzl.love:13000', {
+      onSessionRefresh,
+      storage
+    });
+
+    expect(fetcher).toHaveBeenNthCalledWith(
+      1,
+      'http://xmwhzl.love:13000/api/v1/rooms',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer expired-token' },
+        method: 'GET'
+      })
+    );
+    expect(fetcher).toHaveBeenNthCalledWith(2, 'http://xmwhzl.love:13000/api/v1/auth/refresh', {
+      credentials: 'include',
+      method: 'POST'
+    });
+    expect(fetcher).toHaveBeenNthCalledWith(
+      3,
+      'http://xmwhzl.love:13000/api/v1/rooms',
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer access-token' },
+        method: 'GET'
+      })
+    );
+    expect(storage.setItem).toHaveBeenCalledWith('ibooking.admin.accessToken', 'access-token');
+    expect(storage.removeItem).toHaveBeenCalledWith('ibooking.student.accessToken');
+    expect(onSessionRefresh).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accessToken: 'access-token',
+        kind: 'admin',
+        name: '系统管理员'
       })
     );
     expect(rooms[0].name).toBe('经管自习室 301');
