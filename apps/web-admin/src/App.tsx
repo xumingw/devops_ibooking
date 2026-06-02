@@ -3098,6 +3098,7 @@ const STUDENT_ROOM_STATUS_META = {
 } as const;
 
 const STUDENT_ROOM_FILTERS = ['全部楼栋', '全校开放', '有空位', '有插座', '靠窗', '我的收藏'] as const;
+type StudentRoomFilter = (typeof STUDENT_ROOM_FILTERS)[number];
 const STUDENT_DEFAULT_FAVORITE_ROOMS = ['经管自习室 301', '理工自习室 201', '文史馆阅览室 A'] as const;
 const STUDENT_ROOM_DATE_OPTIONS = ['今天', '明天', '后天'] as const;
 const STUDENT_ROOM_START_TIMES = [
@@ -7108,6 +7109,7 @@ export function StudentHomePreview({
   const [seatBookingDraft, setSeatBookingDraft] = useState<StudentSeatBookingDraft>(() =>
     createStudentSeatBookingDraft(DEFAULT_STUDENT_SEAT_ROOM_CONTEXT, 'C3', ['插座', '安静区'])
   );
+  const [roomInitialFilter, setRoomInitialFilter] = useState<StudentRoomFilter>('全部楼栋');
   const [bookingConfirmOpen, setBookingConfirmOpen] = useState(false);
   const [assistantBookingAction, setAssistantBookingAction] =
     useState<StudentAssistantBookingActionContext | null>(null);
@@ -7125,6 +7127,7 @@ export function StudentHomePreview({
 
   const handleStudentMenuChange = (nextMenu: StudentMenuId) => {
     const normalizedMenu = normalizeStudentPageId(nextMenu);
+    setRoomInitialFilter('全部楼栋');
     setActiveMenu(normalizedMenu);
     setStudentActionNotice('');
     setBookingConfirmOpen(false);
@@ -7166,6 +7169,7 @@ export function StudentHomePreview({
 
   const handleStudentQuickAction = (label: string) => {
     if (label === '立即找座') {
+      setRoomInitialFilter('全部楼栋');
       handleStudentPageChange('rooms', '已进入自习室列表，可按日期、时间、楼栋和座位属性筛选。');
       return;
     }
@@ -7175,6 +7179,7 @@ export function StudentHomePreview({
       return;
     }
     if (label === '我的收藏') {
+      setRoomInitialFilter('我的收藏');
       handleStudentPageChange('rooms', '已切换到常用自习室列表，可继续选择自习室预约。');
       return;
     }
@@ -7441,6 +7446,7 @@ export function StudentHomePreview({
 
         {activeMenu === 'rooms' ? (
           <StudentRoomsPanel
+            initialFilter={roomInitialFilter}
             onBookRoom={(room, bookingOptions) =>
               handleStudentRoomBook(
                 createStudentSeatRoomContextFromRoom(room),
@@ -7682,17 +7688,18 @@ export function StudentHomePreview({
 }
 
 function StudentRoomsPanel({
+  initialFilter = '全部楼栋',
   onBookRoom,
   onWaitlist
 }: {
+  initialFilter?: StudentRoomFilter;
   onBookRoom?: (
     room: (typeof STUDENT_ROOM_LIST)[number],
     bookingOptions: { dateLabel: string; time: string }
   ) => void;
   onWaitlist?: (room: (typeof STUDENT_ROOM_LIST)[number]) => void;
 }) {
-  const [activeFilter, setActiveFilter] =
-    useState<(typeof STUDENT_ROOM_FILTERS)[number]>('全部楼栋');
+  const [activeFilter, setActiveFilter] = useState<StudentRoomFilter>(initialFilter);
   const [activeBuilding, setActiveBuilding] = useState('');
   const [activeFloor, setActiveFloor] = useState('');
   const roomSearchNow = useMemo(() => new Date(), []);
@@ -7745,6 +7752,10 @@ function StudentRoomsPanel({
   useEffect(() => {
     if (activeFloor && !floorOptions.includes(activeFloor)) setActiveFloor('');
   }, [activeFloor, floorOptions]);
+
+  useEffect(() => {
+    setActiveFilter(initialFilter);
+  }, [initialFilter]);
 
   useEffect(() => {
     if (activeRoomName && !roomOptions.some((room) => room.name === activeRoomName)) {

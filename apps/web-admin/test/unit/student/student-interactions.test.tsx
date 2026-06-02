@@ -57,6 +57,11 @@ describe('student interactive controls', () => {
     await clickButton('我的收藏');
     expect(container?.textContent).toContain('已切换到常用自习室列表');
     expect(container?.textContent).toContain('自习室列表');
+    expect(getButton('我的收藏').className).toContain('is-active');
+    expect(getRoomGridText()).toContain('经管自习室 301');
+    expect(getRoomGridText()).toContain('理工自习室 201');
+    expect(getRoomGridText()).toContain('文史馆阅览室 A');
+    expect(getRoomGridText()).not.toContain('新闻学院研讨室');
 
     await clickButton('首页概览');
     await clickButton('智能推荐');
