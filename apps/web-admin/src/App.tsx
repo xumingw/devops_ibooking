@@ -1,5 +1,5 @@
 import type { CSSProperties, FormEvent, ReactNode } from 'react';
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { F } from '@ibooking/design-tokens';
 
 export type EntryKind = 'student' | 'admin';
@@ -397,6 +397,17 @@ const ENTRY_PRESETS: Record<EntryKind, { account: string; password: string }> = 
 
 type AuthSessionPayload = NonNullable<LoginPayload['data']>;
 type AuthSessionStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
+type AuthTokenStorage = Pick<Storage, 'setItem' | 'removeItem'>;
+type AuthenticatedRequestOptions = {
+  onSessionExpired?: () => void;
+  onSessionRefresh?: (session: SessionView) => void;
+  storage?: AuthTokenStorage;
+};
+type InFlightSessionRefresh = {
+  apiBaseUrl: string;
+  fetcher: typeof fetch;
+  promise: Promise<SessionView>;
+};
 
 export const resolveApiBaseUrl = (env: ApiRuntimeEnv = import.meta.env) => {
   const configuredApiBaseUrl = env.VITE_API_BASE_URL?.trim();
@@ -485,7 +496,7 @@ const toSessionView = (authSession: AuthSessionPayload): SessionView => {
 
 const persistSessionAccessToken = (
   session: SessionView,
-  storage: Pick<Storage, 'setItem' | 'removeItem'>
+  storage: AuthTokenStorage
 ) => {
   const activeTokenKey =
     session.kind === 'admin' ? ADMIN_ACCESS_TOKEN_KEY : STUDENT_ACCESS_TOKEN_KEY;
@@ -514,16 +525,94 @@ export const restoreRememberedSession = async (
   }
 };
 
+const resolveAuthTokenStorage = (storage?: AuthTokenStorage): AuthTokenStorage | null => {
+  if (storage) return storage;
+  if (typeof window === 'undefined') return null;
+  return window.localStorage;
+};
+
+const clearStoredSession = (storage?: AuthTokenStorage) => {
+  const targetStorage = resolveAuthTokenStorage(storage);
+  if (!targetStorage) return;
+  targetStorage.removeItem(AUTH_REMEMBER_KEY);
+  targetStorage.removeItem(ADMIN_ACCESS_TOKEN_KEY);
+  targetStorage.removeItem(STUDENT_ACCESS_TOKEN_KEY);
+};
+
+let inFlightSessionRefresh: InFlightSessionRefresh | null = null;
+
+const requestSharedSessionRefresh = (
+  fetcher: typeof fetch,
+  apiBaseUrl: string
+): Promise<SessionView> => {
+  if (
+    !inFlightSessionRefresh ||
+    inFlightSessionRefresh.fetcher !== fetcher ||
+    inFlightSessionRefresh.apiBaseUrl !== apiBaseUrl
+  ) {
+    const promise = requestRefresh(fetcher, apiBaseUrl).then(toSessionView);
+    inFlightSessionRefresh = { apiBaseUrl, fetcher, promise };
+    const clearInFlightRefresh = () => {
+      if (inFlightSessionRefresh?.promise === promise) {
+        inFlightSessionRefresh = null;
+      }
+    };
+    void promise.then(clearInFlightRefresh, clearInFlightRefresh);
+  }
+
+  return inFlightSessionRefresh.promise;
+};
+
+const refreshAccessTokenForRetry = async (
+  fetcher: typeof fetch,
+  apiBaseUrl: string,
+  options: AuthenticatedRequestOptions
+): Promise<string> => {
+  try {
+    const nextSession = await requestSharedSessionRefresh(fetcher, apiBaseUrl);
+    const storage = resolveAuthTokenStorage(options.storage);
+    if (storage) persistSessionAccessToken(nextSession, storage);
+    options.onSessionRefresh?.(nextSession);
+    return nextSession.accessToken;
+  } catch (error) {
+    clearStoredSession(options.storage);
+    options.onSessionExpired?.();
+    throw error;
+  }
+};
+
+const fetchWithSessionRefresh = async (
+  accessToken: string,
+  request: (nextAccessToken: string) => Promise<Response>,
+  fetcher: typeof fetch,
+  apiBaseUrl: string,
+  options: AuthenticatedRequestOptions = {}
+): Promise<Response> => {
+  const response = await request(accessToken);
+  if (response.status !== 401) return response;
+
+  const nextAccessToken = await refreshAccessTokenForRetry(fetcher, apiBaseUrl, options);
+  return request(nextAccessToken);
+};
+
 export const requestRooms = async (
   accessToken: string,
   fetcher: typeof fetch = fetch,
-  apiBaseUrl = resolveApiBaseUrl()
+  apiBaseUrl = resolveApiBaseUrl(),
+  authOptions: AuthenticatedRequestOptions = {}
 ): Promise<AdminRoom[]> => {
-  const response = await fetcher(`${apiBaseUrl}/api/v1/rooms`, {
-    method: 'GET',
-    credentials: 'include',
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
+  const response = await fetchWithSessionRefresh(
+    accessToken,
+    (nextAccessToken) =>
+      fetcher(`${apiBaseUrl}/api/v1/rooms`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${nextAccessToken}` }
+      }),
+    fetcher,
+    apiBaseUrl,
+    authOptions
+  );
   const payload = (await response.json().catch(() => null)) as {
     code?: string;
     message?: string;
@@ -540,30 +629,38 @@ export const saveAdminRoom = async (
   input: AdminRoomFormState,
   options: SaveRoomOptions,
   fetcher: typeof fetch = fetch,
-  apiBaseUrl = resolveApiBaseUrl()
+  apiBaseUrl = resolveApiBaseUrl(),
+  authOptions: AuthenticatedRequestOptions = {}
 ): Promise<AdminRoom> => {
   const isEdit = Boolean(options.roomId);
-  const response = await fetcher(
-    isEdit ? `${apiBaseUrl}/api/v1/rooms/${options.roomId}` : `${apiBaseUrl}/api/v1/rooms`,
-    {
-      method: isEdit ? 'PATCH' : 'POST',
-      credentials: 'include',
-      headers: {
-        Authorization: `Bearer ${options.accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        name: input.name,
-        building: input.building,
-        floor: Number(input.floor),
-        capacity: Number(input.capacity),
-        scopeType: input.scopeType,
-        departmentId: input.scopeType === 'DEPARTMENT' ? input.departmentId || 'dept-cs' : null,
-        openHour: Number(input.openHour),
-        closeHour: Number(input.closeHour),
-        overnight: Boolean(input.overnight)
-      })
-    }
+  const url = isEdit
+    ? `${apiBaseUrl}/api/v1/rooms/${options.roomId}`
+    : `${apiBaseUrl}/api/v1/rooms`;
+  const response = await fetchWithSessionRefresh(
+    options.accessToken,
+    (nextAccessToken) =>
+      fetcher(url, {
+        method: isEdit ? 'PATCH' : 'POST',
+        credentials: 'include',
+        headers: {
+          Authorization: `Bearer ${nextAccessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: input.name,
+          building: input.building,
+          floor: Number(input.floor),
+          capacity: Number(input.capacity),
+          scopeType: input.scopeType,
+          departmentId: input.scopeType === 'DEPARTMENT' ? input.departmentId || 'dept-cs' : null,
+          openHour: Number(input.openHour),
+          closeHour: Number(input.closeHour),
+          overnight: Boolean(input.overnight)
+        })
+      }),
+    fetcher,
+    apiBaseUrl,
+    authOptions
   );
   const payload = (await response.json().catch(() => null)) as {
     code?: string;
@@ -580,13 +677,21 @@ export const saveAdminRoom = async (
 export const requestSeats = async (
   accessToken: string,
   fetcher: typeof fetch = fetch,
-  apiBaseUrl = resolveApiBaseUrl()
+  apiBaseUrl = resolveApiBaseUrl(),
+  authOptions: AuthenticatedRequestOptions = {}
 ): Promise<AdminSeat[]> => {
-  const response = await fetcher(`${apiBaseUrl}/api/v1/seats`, {
-    method: 'GET',
-    credentials: 'include',
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
+  const response = await fetchWithSessionRefresh(
+    accessToken,
+    (nextAccessToken) =>
+      fetcher(`${apiBaseUrl}/api/v1/seats`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${nextAccessToken}` }
+      }),
+    fetcher,
+    apiBaseUrl,
+    authOptions
+  );
   const payload = (await response.json().catch(() => null)) as {
     code?: string;
     message?: string;
@@ -603,7 +708,8 @@ export const requestUsers = async (
   accessToken: string,
   filters: AdminUserFilters = {},
   fetcher: typeof fetch = fetch,
-  apiBaseUrl = resolveApiBaseUrl()
+  apiBaseUrl = resolveApiBaseUrl(),
+  authOptions: AuthenticatedRequestOptions = {}
 ): Promise<AdminUser[]> => {
   const params = new URLSearchParams();
   const keyword = filters.keyword?.trim();
@@ -617,11 +723,18 @@ export const requestUsers = async (
   if (roleCode) params.set('roleCode', roleCode);
 
   const query = params.toString();
-  const response = await fetcher(`${apiBaseUrl}/api/v1/users${query ? `?${query}` : ''}`, {
-    method: 'GET',
-    credentials: 'include',
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
+  const response = await fetchWithSessionRefresh(
+    accessToken,
+    (nextAccessToken) =>
+      fetcher(`${apiBaseUrl}/api/v1/users${query ? `?${query}` : ''}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${nextAccessToken}` }
+      }),
+    fetcher,
+    apiBaseUrl,
+    authOptions
+  );
   const payload = (await response.json().catch(() => null)) as {
     code?: string;
     message?: string;
@@ -638,18 +751,26 @@ export const requestRoles = async (
   accessToken: string,
   filters: AdminRoleFilters = {},
   fetcher: typeof fetch = fetch,
-  apiBaseUrl = resolveApiBaseUrl()
+  apiBaseUrl = resolveApiBaseUrl(),
+  authOptions: AuthenticatedRequestOptions = {}
 ): Promise<AdminRole[]> => {
   const params = new URLSearchParams();
   const keyword = filters.keyword?.trim();
   if (keyword) params.set('keyword', keyword);
 
   const query = params.toString();
-  const response = await fetcher(`${apiBaseUrl}/api/v1/roles${query ? `?${query}` : ''}`, {
-    method: 'GET',
-    credentials: 'include',
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
+  const response = await fetchWithSessionRefresh(
+    accessToken,
+    (nextAccessToken) =>
+      fetcher(`${apiBaseUrl}/api/v1/roles${query ? `?${query}` : ''}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${nextAccessToken}` }
+      }),
+    fetcher,
+    apiBaseUrl,
+    authOptions
+  );
   const payload = (await response.json().catch(() => null)) as {
     code?: string;
     message?: string;
@@ -665,13 +786,21 @@ export const requestRoles = async (
 export const requestStudentViolationSummary = async (
   accessToken: string,
   fetcher: typeof fetch = fetch,
-  apiBaseUrl = resolveApiBaseUrl()
+  apiBaseUrl = resolveApiBaseUrl(),
+  authOptions: AuthenticatedRequestOptions = {}
 ): Promise<StudentViolationSummary> => {
-  const response = await fetcher(`${apiBaseUrl}/api/v1/violations/me`, {
-    method: 'GET',
-    credentials: 'include',
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
+  const response = await fetchWithSessionRefresh(
+    accessToken,
+    (nextAccessToken) =>
+      fetcher(`${apiBaseUrl}/api/v1/violations/me`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${nextAccessToken}` }
+      }),
+    fetcher,
+    apiBaseUrl,
+    authOptions
+  );
   const payload = (await response.json().catch(() => null)) as {
     code?: string;
     message?: string;
@@ -687,13 +816,21 @@ export const requestStudentViolationSummary = async (
 export const requestStudentNotifications = async (
   accessToken: string,
   fetcher: typeof fetch = fetch,
-  apiBaseUrl = resolveApiBaseUrl()
+  apiBaseUrl = resolveApiBaseUrl(),
+  authOptions: AuthenticatedRequestOptions = {}
 ): Promise<StudentNotificationSummary> => {
-  const response = await fetcher(`${apiBaseUrl}/api/v1/notifications/me`, {
-    method: 'GET',
-    credentials: 'include',
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
+  const response = await fetchWithSessionRefresh(
+    accessToken,
+    (nextAccessToken) =>
+      fetcher(`${apiBaseUrl}/api/v1/notifications/me`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${nextAccessToken}` }
+      }),
+    fetcher,
+    apiBaseUrl,
+    authOptions
+  );
   const payload = (await response.json().catch(() => null)) as {
     code?: string;
     message?: string;
@@ -709,13 +846,21 @@ export const requestStudentNotifications = async (
 export const requestStudentBookings = async (
   accessToken: string,
   fetcher: typeof fetch = fetch,
-  apiBaseUrl = resolveApiBaseUrl()
+  apiBaseUrl = resolveApiBaseUrl(),
+  authOptions: AuthenticatedRequestOptions = {}
 ): Promise<StudentBookingSummary> => {
-  const response = await fetcher(`${apiBaseUrl}/api/v1/bookings/me`, {
-    method: 'GET',
-    credentials: 'include',
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
+  const response = await fetchWithSessionRefresh(
+    accessToken,
+    (nextAccessToken) =>
+      fetcher(`${apiBaseUrl}/api/v1/bookings/me`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${nextAccessToken}` }
+      }),
+    fetcher,
+    apiBaseUrl,
+    authOptions
+  );
   const payload = (await response.json().catch(() => null)) as {
     code?: string;
     message?: string;
@@ -732,13 +877,21 @@ export const requestStudentBookingCancel = async (
   accessToken: string,
   bookingId: string,
   fetcher: typeof fetch = fetch,
-  apiBaseUrl = resolveApiBaseUrl()
+  apiBaseUrl = resolveApiBaseUrl(),
+  authOptions: AuthenticatedRequestOptions = {}
 ): Promise<StudentBookingRecord> => {
-  const response = await fetcher(`${apiBaseUrl}/api/v1/bookings/me/${bookingId}/cancel`, {
-    method: 'PATCH',
-    credentials: 'include',
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
+  const response = await fetchWithSessionRefresh(
+    accessToken,
+    (nextAccessToken) =>
+      fetcher(`${apiBaseUrl}/api/v1/bookings/me/${bookingId}/cancel`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${nextAccessToken}` }
+      }),
+    fetcher,
+    apiBaseUrl,
+    authOptions
+  );
   const payload = (await response.json().catch(() => null)) as {
     code?: string;
     message?: string;
@@ -755,17 +908,25 @@ export const requestStudentBookingCreate = async (
   accessToken: string,
   input: CreateStudentBookingRequest,
   fetcher: typeof fetch = fetch,
-  apiBaseUrl = resolveApiBaseUrl()
+  apiBaseUrl = resolveApiBaseUrl(),
+  authOptions: AuthenticatedRequestOptions = {}
 ): Promise<StudentBookingRecord> => {
-  const response = await fetcher(`${apiBaseUrl}/api/v1/bookings/me`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(input)
-  });
+  const response = await fetchWithSessionRefresh(
+    accessToken,
+    (nextAccessToken) =>
+      fetcher(`${apiBaseUrl}/api/v1/bookings/me`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          Authorization: `Bearer ${nextAccessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(input)
+      }),
+    fetcher,
+    apiBaseUrl,
+    authOptions
+  );
   const payload = (await response.json().catch(() => null)) as {
     code?: string;
     message?: string;
@@ -814,13 +975,21 @@ export const getStudentBookingConfirmUiState = ({
 export const requestStudentCheckInSession = async (
   accessToken: string,
   fetcher: typeof fetch = fetch,
-  apiBaseUrl = resolveApiBaseUrl()
+  apiBaseUrl = resolveApiBaseUrl(),
+  authOptions: AuthenticatedRequestOptions = {}
 ): Promise<StudentCheckInSession | null> => {
-  const response = await fetcher(`${apiBaseUrl}/api/v1/checkins/me/current`, {
-    method: 'GET',
-    credentials: 'include',
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
+  const response = await fetchWithSessionRefresh(
+    accessToken,
+    (nextAccessToken) =>
+      fetcher(`${apiBaseUrl}/api/v1/checkins/me/current`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${nextAccessToken}` }
+      }),
+    fetcher,
+    apiBaseUrl,
+    authOptions
+  );
   const payload = (await response.json().catch(() => null)) as {
     code?: string;
     message?: string;
@@ -837,17 +1006,25 @@ export const requestStudentCheckInCode = async (
   accessToken: string,
   code: string,
   fetcher: typeof fetch = fetch,
-  apiBaseUrl = resolveApiBaseUrl()
+  apiBaseUrl = resolveApiBaseUrl(),
+  authOptions: AuthenticatedRequestOptions = {}
 ): Promise<StudentCheckInResult> => {
-  const response = await fetcher(`${apiBaseUrl}/api/v1/checkins/me`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ code })
-  });
+  const response = await fetchWithSessionRefresh(
+    accessToken,
+    (nextAccessToken) =>
+      fetcher(`${apiBaseUrl}/api/v1/checkins/me`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          Authorization: `Bearer ${nextAccessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ code })
+      }),
+    fetcher,
+    apiBaseUrl,
+    authOptions
+  );
   const payload = (await response.json().catch(() => null)) as {
     code?: string;
     message?: string;
@@ -864,17 +1041,25 @@ export const requestStudentAssistantMessage = async (
   accessToken: string,
   message: string,
   fetcher: typeof fetch = fetch,
-  apiBaseUrl = resolveApiBaseUrl()
+  apiBaseUrl = resolveApiBaseUrl(),
+  authOptions: AuthenticatedRequestOptions = {}
 ): Promise<StudentAssistantReply> => {
-  const response = await fetcher(`${apiBaseUrl}/api/v1/assistant/me/messages`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ message })
-  });
+  const response = await fetchWithSessionRefresh(
+    accessToken,
+    (nextAccessToken) =>
+      fetcher(`${apiBaseUrl}/api/v1/assistant/me/messages`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          Authorization: `Bearer ${nextAccessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ message })
+      }),
+    fetcher,
+    apiBaseUrl,
+    authOptions
+  );
   const payload = (await response.json().catch(() => null)) as {
     code?: string;
     message?: string;
@@ -900,29 +1085,37 @@ export const saveAdminSeat = async (
   input: AdminSeatFormState,
   options: SaveSeatOptions,
   fetcher: typeof fetch = fetch,
-  apiBaseUrl = resolveApiBaseUrl()
+  apiBaseUrl = resolveApiBaseUrl(),
+  authOptions: AuthenticatedRequestOptions = {}
 ): Promise<AdminSeat> => {
   const isEdit = Boolean(options.seatId);
-  const response = await fetcher(
-    isEdit ? `${apiBaseUrl}/api/v1/seats/${options.seatId}` : `${apiBaseUrl}/api/v1/seats`,
-    {
-      method: isEdit ? 'PATCH' : 'POST',
-      credentials: 'include',
-      headers: {
-        Authorization: `Bearer ${options.accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        roomId: input.roomId,
-        code: input.code.trim(),
-        x: Number(input.x),
-        y: Number(input.y),
-        hasPower: Boolean(input.hasPower),
-        nearWindow: Boolean(input.nearWindow),
-        quietZone: Boolean(input.quietZone),
-        status: input.status
-      })
-    }
+  const url = isEdit
+    ? `${apiBaseUrl}/api/v1/seats/${options.seatId}`
+    : `${apiBaseUrl}/api/v1/seats`;
+  const response = await fetchWithSessionRefresh(
+    options.accessToken,
+    (nextAccessToken) =>
+      fetcher(url, {
+        method: isEdit ? 'PATCH' : 'POST',
+        credentials: 'include',
+        headers: {
+          Authorization: `Bearer ${nextAccessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          roomId: input.roomId,
+          code: input.code.trim(),
+          x: Number(input.x),
+          y: Number(input.y),
+          hasPower: Boolean(input.hasPower),
+          nearWindow: Boolean(input.nearWindow),
+          quietZone: Boolean(input.quietZone),
+          status: input.status
+        })
+      }),
+    fetcher,
+    apiBaseUrl,
+    authOptions
   );
   const payload = (await response.json().catch(() => null)) as {
     code?: string;
@@ -1175,6 +1368,15 @@ export function App() {
     pushAppPath('/');
   };
 
+  const handleSessionRefresh = useCallback((nextSession: SessionView) => {
+    setSession(nextSession);
+  }, []);
+
+  const handleSessionExpired = useCallback(() => {
+    setSession(null);
+    pushAppPath('/');
+  }, []);
+
   if (session?.kind === 'admin') {
     return (
       <AdminDashboard
@@ -1182,6 +1384,8 @@ export function App() {
         adminName={session.name}
         adminRoles={session.roles}
         onLogout={handleLogout}
+        onSessionExpired={handleSessionExpired}
+        onSessionRefresh={handleSessionRefresh}
       />
     );
   }
@@ -1192,6 +1396,8 @@ export function App() {
         accessToken={session.accessToken}
         studentName={session.name}
         onLogout={handleLogout}
+        onSessionExpired={handleSessionExpired}
+        onSessionRefresh={handleSessionRefresh}
       />
     );
   }
@@ -1339,6 +1545,8 @@ type DashboardProps = {
   adminRoles?: RoleView[];
   initialActive?: AdminMenuId;
   onLogout?: () => void;
+  onSessionExpired?: () => void;
+  onSessionRefresh?: (session: SessionView) => void;
 };
 
 type StudentDashboardProps = {
@@ -1346,6 +1554,8 @@ type StudentDashboardProps = {
   studentName: string;
   initialActive?: StudentPageId;
   onLogout?: () => void;
+  onSessionExpired?: () => void;
+  onSessionRefresh?: (session: SessionView) => void;
 };
 
 const ADMIN_MENU_IDS = [
@@ -3910,7 +4120,9 @@ export function AdminDashboard({
   adminName,
   adminRoles = [],
   initialActive,
-  onLogout
+  onLogout,
+  onSessionExpired,
+  onSessionRefresh
 }: DashboardProps) {
   const [activeMenu, setActiveMenu] = useState<AdminMenuId>(
     () => initialActive ?? resolveInitialAdminMenu()
@@ -4011,10 +4223,17 @@ export function AdminDashboard({
           <RoomManagementPanel
             accessToken={accessToken}
             createSignal={roomCreateSignal}
+            onSessionExpired={onSessionExpired}
+            onSessionRefresh={onSessionRefresh}
             refreshSignal={roomRefreshSignal}
           />
         ) : activeMenu === 'seats' ? (
-          <SeatManagementPanel accessToken={accessToken} createSignal={seatCreateSignal} />
+          <SeatManagementPanel
+            accessToken={accessToken}
+            createSignal={seatCreateSignal}
+            onSessionExpired={onSessionExpired}
+            onSessionRefresh={onSessionRefresh}
+          />
         ) : activeMenu === 'editor' ? (
           <FloorEditorPanel />
         ) : activeMenu === 'schedule' ? (
@@ -4026,9 +4245,17 @@ export function AdminDashboard({
         ) : activeMenu === 'qrcode' ? (
           <DynamicCodePanel />
         ) : activeMenu === 'users' ? (
-          <UserManagementPanel accessToken={accessToken} />
+          <UserManagementPanel
+            accessToken={accessToken}
+            onSessionExpired={onSessionExpired}
+            onSessionRefresh={onSessionRefresh}
+          />
         ) : activeMenu === 'roles' ? (
-          <RoleManagementPanel accessToken={accessToken} />
+          <RoleManagementPanel
+            accessToken={accessToken}
+            onSessionExpired={onSessionExpired}
+            onSessionRefresh={onSessionRefresh}
+          />
         ) : activeMenu === 'params' ? (
           <SystemParameterPanel />
         ) : activeMenu === 'audit' ? (
@@ -4221,10 +4448,14 @@ function AdminModulePanel({ meta }: { meta: AdminMenuMeta }) {
 function RoomManagementPanel({
   accessToken,
   createSignal,
+  onSessionExpired,
+  onSessionRefresh,
   refreshSignal
 }: {
   accessToken?: string;
   createSignal: number;
+  onSessionExpired?: () => void;
+  onSessionRefresh?: (session: SessionView) => void;
   refreshSignal: number;
 }) {
   const [rooms, setRooms] = useState<AdminRoomRow[]>(() =>
@@ -4250,7 +4481,7 @@ function RoomManagementPanel({
     }
 
     setLoading(true);
-    requestRooms(accessToken)
+    requestRooms(accessToken, fetch, resolveApiBaseUrl(), { onSessionExpired, onSessionRefresh })
       .then((nextRooms) => {
         if (!alive) return;
         setRooms(nextRooms.map(toAdminRoomRow));
@@ -4268,7 +4499,7 @@ function RoomManagementPanel({
     return () => {
       alive = false;
     };
-  }, [accessToken, refreshSignal]);
+  }, [accessToken, onSessionExpired, onSessionRefresh, refreshSignal]);
 
   useEffect(() => {
     if (createSignal === 0) return;
@@ -4324,7 +4555,7 @@ function RoomManagementPanel({
       const savedRoom = await saveAdminRoom(form, {
         accessToken,
         roomId: isEdit ? editor.room.id : undefined
-      });
+      }, fetch, resolveApiBaseUrl(), { onSessionExpired, onSessionRefresh });
       setRooms((currentRooms) => {
         const nextRooms = isEdit
           ? currentRooms.map((room) => (room.id === savedRoom.id ? savedRoom : room))
@@ -4562,10 +4793,14 @@ function RoomFormField({
 
 function SeatManagementPanel({
   accessToken,
-  createSignal
+  createSignal,
+  onSessionExpired,
+  onSessionRefresh
 }: {
   accessToken?: string;
   createSignal: number;
+  onSessionExpired?: () => void;
+  onSessionRefresh?: (session: SessionView) => void;
 }) {
   const [seats, setSeats] = useState<AdminSeat[]>(ADMIN_SEAT_FALLBACKS);
   const [query, setQuery] = useState('');
@@ -4588,7 +4823,7 @@ function SeatManagementPanel({
     }
 
     setLoading(true);
-    requestSeats(accessToken)
+    requestSeats(accessToken, fetch, resolveApiBaseUrl(), { onSessionExpired, onSessionRefresh })
       .then((nextSeats) => {
         if (!alive) return;
         setSeats(nextSeats);
@@ -4606,7 +4841,7 @@ function SeatManagementPanel({
     return () => {
       alive = false;
     };
-  }, [accessToken]);
+  }, [accessToken, onSessionExpired, onSessionRefresh]);
 
   useEffect(() => {
     if (createSignal === 0) return;
@@ -4663,7 +4898,7 @@ function SeatManagementPanel({
       const savedSeat = await saveAdminSeat(form, {
         accessToken,
         seatId: isEdit ? editor.seat.id : undefined
-      });
+      }, fetch, resolveApiBaseUrl(), { onSessionExpired, onSessionRefresh });
       setSeats((currentSeats) =>
         isEdit
           ? currentSeats.map((seat) => (seat.id === savedSeat.id ? savedSeat : seat))
@@ -5564,7 +5799,15 @@ function DynamicCodePanel() {
   );
 }
 
-function UserManagementPanel({ accessToken }: { accessToken?: string }) {
+function UserManagementPanel({
+  accessToken,
+  onSessionExpired,
+  onSessionRefresh
+}: {
+  accessToken?: string;
+  onSessionExpired?: () => void;
+  onSessionRefresh?: (session: SessionView) => void;
+}) {
   const [users, setUsers] = useState<AdminUserRow[]>(() => ADMIN_USER_FALLBACKS.map(toAdminUserRow));
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -5582,7 +5825,10 @@ function UserManagementPanel({ accessToken }: { accessToken?: string }) {
     }
 
     setLoading(true);
-    requestUsers(accessToken, { keyword: query })
+    requestUsers(accessToken, { keyword: query }, fetch, resolveApiBaseUrl(), {
+      onSessionExpired,
+      onSessionRefresh
+    })
       .then((nextUsers) => {
         if (!alive) return;
         setUsers(nextUsers.map(toAdminUserRow));
@@ -5600,7 +5846,7 @@ function UserManagementPanel({ accessToken }: { accessToken?: string }) {
     return () => {
       alive = false;
     };
-  }, [accessToken, query]);
+  }, [accessToken, onSessionExpired, onSessionRefresh, query]);
 
   const filteredUsers = users.filter((user) => {
     const keyword = query.trim().toLowerCase();
@@ -5777,7 +6023,15 @@ function UserManagementPanel({ accessToken }: { accessToken?: string }) {
   );
 }
 
-function RoleManagementPanel({ accessToken }: { accessToken?: string }) {
+function RoleManagementPanel({
+  accessToken,
+  onSessionExpired,
+  onSessionRefresh
+}: {
+  accessToken?: string;
+  onSessionExpired?: () => void;
+  onSessionRefresh?: (session: SessionView) => void;
+}) {
   const [roles, setRoles] = useState<AdminRoleRow[]>(() =>
     ADMIN_ROLE_FALLBACKS.map(mapAdminRoleToRow)
   );
@@ -5797,7 +6051,10 @@ function RoleManagementPanel({ accessToken }: { accessToken?: string }) {
     }
 
     setLoading(true);
-    requestRoles(accessToken, { keyword: query })
+    requestRoles(accessToken, { keyword: query }, fetch, resolveApiBaseUrl(), {
+      onSessionExpired,
+      onSessionRefresh
+    })
       .then((nextRoles) => {
         if (!alive) return;
         setRoles(nextRoles.map(mapAdminRoleToRow));
@@ -5815,7 +6072,7 @@ function RoleManagementPanel({ accessToken }: { accessToken?: string }) {
     return () => {
       alive = false;
     };
-  }, [accessToken, query]);
+  }, [accessToken, onSessionExpired, onSessionRefresh, query]);
 
   const filteredRoles = roles.filter((role) => {
     const keyword = query.trim().toLowerCase();
@@ -6396,7 +6653,9 @@ export function StudentHomePreview({
   accessToken,
   studentName,
   initialActive,
-  onLogout
+  onLogout,
+  onSessionExpired,
+  onSessionRefresh
 }: StudentDashboardProps) {
   const [activeMenu, setActiveMenu] = useState<StudentPageId>(
     () => initialActive ?? resolveInitialStudentMenu()
@@ -6682,6 +6941,8 @@ export function StudentHomePreview({
             accessToken={accessToken}
             assistantSeatSelection={assistantSeatSelection ?? undefined}
             onBack={() => handleStudentPageChange('select')}
+            onSessionExpired={onSessionExpired}
+            onSessionRefresh={onSessionRefresh}
             onSubmitted={handleStudentBookingSubmitted}
           />
         ) : activeMenu === 'bookings' ? (
@@ -6689,6 +6950,8 @@ export function StudentHomePreview({
             accessToken={accessToken}
             assistantBookingAction={assistantBookingAction ?? undefined}
             onCheckIn={() => handleStudentPageChange('checkin')}
+            onSessionExpired={onSessionExpired}
+            onSessionRefresh={onSessionRefresh}
             onSummaryChange={setStudentBookingSummary}
           />
         ) : activeMenu === 'checkin' ? (
@@ -6696,6 +6959,8 @@ export function StudentHomePreview({
             accessToken={accessToken}
             actionNotice={checkInNotice}
             onActionNotice={setCheckInNotice}
+            onSessionExpired={onSessionExpired}
+            onSessionRefresh={onSessionRefresh}
           />
         ) : activeMenu === 'assistant' ? (
           <StudentAssistantPanel
@@ -6704,6 +6969,8 @@ export function StudentHomePreview({
             onBookings={() => handleStudentPageChange('bookings')}
             onCheckIn={() => handleStudentPageChange('checkin')}
             onConfirmSeat={handleAssistantSeatConfirm}
+            onSessionExpired={onSessionExpired}
+            onSessionRefresh={onSessionRefresh}
             onSelect={() => handleStudentPageChange('select')}
             onSelectSeat={handleAssistantSeatSelect}
             resetKey={assistantResetKey}
@@ -6711,11 +6978,15 @@ export function StudentHomePreview({
         ) : activeMenu === 'notify' ? (
           <StudentNotificationPanel
             accessToken={accessToken}
+            onSessionExpired={onSessionExpired}
+            onSessionRefresh={onSessionRefresh}
             onSummaryChange={setStudentNotificationSummary}
           />
         ) : activeMenu === 'violation' ? (
           <StudentViolationPanel
             accessToken={accessToken}
+            onSessionExpired={onSessionExpired}
+            onSessionRefresh={onSessionRefresh}
             onSummaryChange={setStudentViolationSummary}
           />
         ) : (
@@ -7120,11 +7391,15 @@ export function StudentBookingConfirmPanel({
   accessToken,
   assistantSeatSelection,
   onBack,
+  onSessionExpired,
+  onSessionRefresh,
   onSubmitted
 }: {
   accessToken?: string;
   assistantSeatSelection?: StudentAssistantSeatCandidate;
   onBack?: () => void;
+  onSessionExpired?: () => void;
+  onSessionRefresh?: (session: SessionView) => void;
   onSubmitted?: (booking: StudentBookingRecord) => void;
 }) {
   const bookingDetails = createStudentBookingConfirmDetails(assistantSeatSelection);
@@ -7145,7 +7420,13 @@ export function StudentBookingConfirmPanel({
     setSubmitting(true);
     setSubmitError('');
     setSubmitMessage('');
-    requestStudentBookingCreate(accessToken, buildStudentBookingRequest(assistantSeatSelection))
+    requestStudentBookingCreate(
+      accessToken,
+      buildStudentBookingRequest(assistantSeatSelection),
+      fetch,
+      resolveApiBaseUrl(),
+      { onSessionExpired, onSessionRefresh }
+    )
       .then((booking) => {
         setSubmitted(true);
         setSubmitMessage(`预约成功：${booking.room} · ${booking.seat} · ${booking.time}`);
@@ -7250,11 +7531,15 @@ function StudentBookingsPanel({
   accessToken,
   assistantBookingAction,
   onCheckIn,
+  onSessionExpired,
+  onSessionRefresh,
   onSummaryChange
 }: {
   accessToken?: string;
   assistantBookingAction?: StudentAssistantBookingActionContext;
   onCheckIn?: () => void;
+  onSessionExpired?: () => void;
+  onSessionRefresh?: (session: SessionView) => void;
   onSummaryChange?: (summary: StudentBookingSummaryView) => void;
 }) {
   const [summary, setSummary] = useState<StudentBookingSummaryView>(() =>
@@ -7285,7 +7570,10 @@ function StudentBookingsPanel({
     }
 
     setLoading(true);
-    requestStudentBookings(accessToken)
+    requestStudentBookings(accessToken, fetch, resolveApiBaseUrl(), {
+      onSessionExpired,
+      onSessionRefresh
+    })
       .then((nextSummary) => {
         if (!alive) return;
         const nextSummaryView = mapStudentBookingSummaryToView(nextSummary);
@@ -7307,7 +7595,7 @@ function StudentBookingsPanel({
     return () => {
       alive = false;
     };
-  }, [accessToken, onSummaryChange]);
+  }, [accessToken, onSessionExpired, onSessionRefresh, onSummaryChange]);
 
   return (
     <section className="student-bookings-panel" aria-label="学生我的预约">
@@ -7385,7 +7673,13 @@ function StudentBookingsPanel({
                                 return;
                               }
                               setCancellingBookingId(booking.id);
-                              requestStudentBookingCancel(accessToken, booking.id)
+                              requestStudentBookingCancel(
+                                accessToken,
+                                booking.id,
+                                fetch,
+                                resolveApiBaseUrl(),
+                                { onSessionExpired, onSessionRefresh }
+                              )
                                 .then((cancelled) => {
                                   const [cancelledView] = mapStudentBookingSummaryToView({
                                     totalCount: 1,
@@ -7442,11 +7736,15 @@ function StudentBookingsPanel({
 function StudentCheckInPanel({
   accessToken,
   actionNotice = '',
-  onActionNotice
+  onActionNotice,
+  onSessionExpired,
+  onSessionRefresh
 }: {
   accessToken?: string;
   actionNotice?: string;
   onActionNotice?: (message: string) => void;
+  onSessionExpired?: () => void;
+  onSessionRefresh?: (session: SessionView) => void;
 }) {
   const [session, setSession] = useState<StudentCheckInSession | null>(() =>
     accessToken ? null : STUDENT_CHECKIN_FALLBACK_SESSION
@@ -7484,7 +7782,10 @@ function StudentCheckInPanel({
     setLoading(true);
     setLoadError('');
     setSubmitMessage('');
-    requestStudentCheckInSession(accessToken)
+    requestStudentCheckInSession(accessToken, fetch, resolveApiBaseUrl(), {
+      onSessionExpired,
+      onSessionRefresh
+    })
       .then((nextSession) => {
         if (!alive) return;
         setSession(nextSession);
@@ -7507,7 +7808,7 @@ function StudentCheckInPanel({
     return () => {
       alive = false;
     };
-  }, [accessToken]);
+  }, [accessToken, onSessionExpired, onSessionRefresh]);
 
   useEffect(() => {
     if (!session || submitMessage.includes('已签到')) return;
@@ -7564,7 +7865,10 @@ function StudentCheckInPanel({
     onActionNotice?.('');
     setSubmitting(true);
     setLoadError('');
-    requestStudentCheckInCode(accessToken, enteredCode)
+    requestStudentCheckInCode(accessToken, enteredCode, fetch, resolveApiBaseUrl(), {
+      onSessionExpired,
+      onSessionRefresh
+    })
       .then((result) => {
         setSubmitMessage(`${result.room} · ${result.seat} 已签到`);
       })
@@ -7686,6 +7990,8 @@ function StudentAssistantPanel({
   onBookings,
   onCheckIn,
   onConfirmSeat,
+  onSessionExpired,
+  onSessionRefresh,
   onSelect,
   onSelectSeat,
   resetKey = 0
@@ -7698,6 +8004,8 @@ function StudentAssistantPanel({
   onBookings?: () => void;
   onCheckIn?: () => void;
   onConfirmSeat?: (seat?: StudentAssistantSeatCandidate) => void;
+  onSessionExpired?: () => void;
+  onSessionRefresh?: (session: SessionView) => void;
   onSelect?: () => void;
   onSelectSeat?: (seat?: StudentAssistantSeatCandidate) => void;
   resetKey?: number;
@@ -7735,7 +8043,10 @@ function StudentAssistantPanel({
       }
     ]);
 
-    requestStudentAssistantMessage(accessToken, trimmed)
+    requestStudentAssistantMessage(accessToken, trimmed, fetch, resolveApiBaseUrl(), {
+      onSessionExpired,
+      onSessionRefresh
+    })
       .then((reply) => {
         setMessages((current) => [...current, toStudentAssistantMessage(reply)]);
       })
@@ -7769,7 +8080,13 @@ function StudentAssistantPanel({
     if (action === 'CANCEL' && booking && accessToken) {
       setError('');
       setSubmitting(true);
-      requestStudentBookingCancel(accessToken, booking.bookingId)
+      requestStudentBookingCancel(
+        accessToken,
+        booking.bookingId,
+        fetch,
+        resolveApiBaseUrl(),
+        { onSessionExpired, onSessionRefresh }
+      )
         .then((cancelled) => {
           setMessages((current) => {
             const updatedMessages = current.map((message) => ({
@@ -8034,9 +8351,13 @@ function StudentAssistantPanel({
 
 function StudentNotificationPanel({
   accessToken,
+  onSessionExpired,
+  onSessionRefresh,
   onSummaryChange
 }: {
   accessToken?: string;
+  onSessionExpired?: () => void;
+  onSessionRefresh?: (session: SessionView) => void;
   onSummaryChange?: (summary: StudentNotificationSummaryView) => void;
 }) {
   const [summary, setSummary] = useState<StudentNotificationSummaryView>(() =>
@@ -8059,7 +8380,10 @@ function StudentNotificationPanel({
     }
 
     setLoading(true);
-    requestStudentNotifications(accessToken)
+    requestStudentNotifications(accessToken, fetch, resolveApiBaseUrl(), {
+      onSessionExpired,
+      onSessionRefresh
+    })
       .then((nextSummary) => {
         if (!alive) return;
         const nextSummaryView = mapStudentNotificationSummaryToView(nextSummary);
@@ -8081,7 +8405,7 @@ function StudentNotificationPanel({
     return () => {
       alive = false;
     };
-  }, [accessToken, onSummaryChange]);
+  }, [accessToken, onSessionExpired, onSessionRefresh, onSummaryChange]);
 
   const handleMarkAllRead = () => {
     const nextSummary = markStudentNotificationSummaryRead(summary);
@@ -8146,9 +8470,13 @@ function StudentNotificationPanel({
 
 function StudentViolationPanel({
   accessToken,
+  onSessionExpired,
+  onSessionRefresh,
   onSummaryChange
 }: {
   accessToken?: string;
+  onSessionExpired?: () => void;
+  onSessionRefresh?: (session: SessionView) => void;
   onSummaryChange?: (summary: StudentViolationSummaryView) => void;
 }) {
   const [summary, setSummary] = useState<StudentViolationSummaryView>(() =>
@@ -8171,7 +8499,10 @@ function StudentViolationPanel({
     }
 
     setLoading(true);
-    requestStudentViolationSummary(accessToken)
+    requestStudentViolationSummary(accessToken, fetch, resolveApiBaseUrl(), {
+      onSessionExpired,
+      onSessionRefresh
+    })
       .then((nextSummary) => {
         if (!alive) return;
         const nextSummaryView = mapStudentViolationSummaryToView(nextSummary);
@@ -8193,7 +8524,7 @@ function StudentViolationPanel({
     return () => {
       alive = false;
     };
-  }, [accessToken, onSummaryChange]);
+  }, [accessToken, onSessionExpired, onSessionRefresh, onSummaryChange]);
 
   return (
     <section className="student-violation-panel" aria-label="学生违约记录">
