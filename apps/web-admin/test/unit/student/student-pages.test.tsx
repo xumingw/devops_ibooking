@@ -45,6 +45,10 @@ describe('student pages', () => {
     expect(html).toContain('今日 14:00 – 17:00');
     expect(html).toContain('已于 17:00 结束');
     expect(html).not.toContain('距开始还有');
+    expect(html).not.toContain('立即签到');
+    expect(html).not.toContain('取消预约');
+    expect(html).toContain('查看记录');
+    expect(html).toContain('再次预约');
   });
 
   it('渲染学生自习室列表页面', () => {

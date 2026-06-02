@@ -30,6 +30,8 @@ describe('student interactive controls', () => {
   });
 
   it('学生首页按钮会导航到对应页面或给出操作反馈', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-02T03:42:00.000Z'));
     await renderStudentHome();
 
     await clickButton('搜索自习室');

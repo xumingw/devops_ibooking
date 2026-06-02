@@ -3693,6 +3693,7 @@ const createStudentHomeBookingBanner = (now = new Date()) => {
 
   if (now.getTime() < startAt.getTime()) {
     return {
+      actionState: 'upcoming',
       label: '下一场预约',
       statTrend: `${STUDENT_HOME_BOOKING.startClock} 开始`,
       statusPrefix: '距开始还有',
@@ -3703,6 +3704,7 @@ const createStudentHomeBookingBanner = (now = new Date()) => {
 
   if (now.getTime() < endAt.getTime()) {
     return {
+      actionState: 'active',
       label: '进行中预约',
       statTrend: '进行中',
       statusPrefix: '距结束还有',
@@ -3712,6 +3714,7 @@ const createStudentHomeBookingBanner = (now = new Date()) => {
   }
 
   return {
+    actionState: 'ended',
     label: '最近预约',
     statTrend: '已结束',
     statusPrefix: `已于 ${STUDENT_HOME_BOOKING.endClock} 结束`,
@@ -7533,23 +7536,50 @@ export function StudentHomePreview({
             </p>
           </div>
           <div className="student-home-booking-actions">
-            <button
-              type="button"
-              onClick={() => {
-                setCheckInNotice('当前预约会在开始前 15 分钟开放签到，请到教室后扫码或输入动态码。');
-                handleStudentPageChange('checkin');
-              }}
-            >
-              立即签到
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                handleStudentPageChange('bookings', '请在我的预约列表中选择对应记录取消，开始前 1 小时以上取消不记违约。')
-              }
-            >
-              取消预约
-            </button>
+            {homeBookingBanner.actionState === 'ended' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleStudentPageChange('bookings', '已进入我的预约，可查看已结束预约记录。')}
+                >
+                  查看记录
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleStudentRoomBook(
+                      createStudentSeatRoomContextFromName('经管自习室 301'),
+                      '请选择新的预约时间和座位。'
+                    )
+                  }
+                >
+                  再次预约
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCheckInNotice('当前预约会在开始前 15 分钟开放签到，请到教室后扫码或输入动态码。');
+                    handleStudentPageChange('checkin');
+                  }}
+                >
+                  立即签到
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleStudentPageChange(
+                      'bookings',
+                      '请在我的预约列表中选择对应记录取消，开始前 1 小时以上取消不记违约。'
+                    )
+                  }
+                >
+                  取消预约
+                </button>
+              </>
+            )}
           </div>
         </section>
 
