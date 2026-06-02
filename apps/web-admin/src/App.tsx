@@ -849,6 +849,36 @@ export const requestStudentNotifications = async (
   return payload.data;
 };
 
+export const requestStudentNotificationsMarkAllRead = async (
+  accessToken: string,
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl(),
+  authOptions: AuthenticatedRequestOptions = {}
+): Promise<StudentNotificationSummary> => {
+  const response = await fetchWithSessionRefresh(
+    accessToken,
+    (nextAccessToken) =>
+      fetcher(`${apiBaseUrl}/api/v1/notifications/me/read-all`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${nextAccessToken}` }
+      }),
+    fetcher,
+    apiBaseUrl,
+    authOptions
+  );
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: StudentNotificationSummary;
+  } | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
+    throw new Error(payload?.message || '通知已读状态保存失败');
+  }
+
+  return payload.data;
+};
+
 export const requestStudentBookings = async (
   accessToken: string,
   fetcher: typeof fetch = fetch,
@@ -7103,6 +7133,7 @@ export function StudentHomePreview({
   );
   const [checkInNotice, setCheckInNotice] = useState('');
   const [studentActionNotice, setStudentActionNotice] = useState('');
+  const [notificationMarkingRead, setNotificationMarkingRead] = useState(false);
   const [assistantResetKey, setAssistantResetKey] = useState(0);
   const [assistantSeatSelection, setAssistantSeatSelection] =
     useState<StudentAssistantSeatCandidate | null>(null);
@@ -7125,6 +7156,29 @@ export function StudentHomePreview({
     }
   }, []);
 
+  useEffect(() => {
+    let alive = true;
+    if (!accessToken) return () => {
+      alive = false;
+    };
+
+    requestStudentNotifications(accessToken, fetch, resolveApiBaseUrl(), {
+      onSessionExpired,
+      onSessionRefresh
+    })
+      .then((nextSummary) => {
+        if (!alive) return;
+        setStudentNotificationSummary(mapStudentNotificationSummaryToView(nextSummary));
+      })
+      .catch(() => {
+        // Keep the local fallback summary if the notification service is temporarily unavailable.
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [accessToken, onSessionExpired, onSessionRefresh]);
+
   const handleStudentMenuChange = (nextMenu: StudentMenuId) => {
     const normalizedMenu = normalizeStudentPageId(nextMenu);
     setRoomInitialFilter('全部楼栋');
@@ -7144,6 +7198,30 @@ export function StudentHomePreview({
 
   const showStudentActionNotice = (message: string) => {
     setStudentActionNotice(message);
+  };
+
+  const handleStudentNotificationsMarkAllRead = () => {
+    if (notificationMarkingRead) return;
+    if (!accessToken) {
+      const nextSummary = markStudentNotificationSummaryRead(studentNotificationSummary);
+      setStudentNotificationSummary(nextSummary);
+      showStudentActionNotice('已将当前通知标记为已读。');
+      return;
+    }
+
+    setNotificationMarkingRead(true);
+    requestStudentNotificationsMarkAllRead(accessToken, fetch, resolveApiBaseUrl(), {
+      onSessionExpired,
+      onSessionRefresh
+    })
+      .then((nextSummary) => {
+        setStudentNotificationSummary(mapStudentNotificationSummaryToView(nextSummary));
+        showStudentActionNotice('已将全部通知标记为已读。');
+      })
+      .catch((error) => {
+        showStudentActionNotice(error instanceof Error ? error.message : '通知已读状态保存失败');
+      })
+      .finally(() => setNotificationMarkingRead(false));
   };
 
   const handleStudentRoomBook = (
@@ -7338,11 +7416,12 @@ export function StudentHomePreview({
             ) : activeMenu === 'notify' ? (
               <>
                 <button
-                  onClick={() => showStudentActionNotice('请使用通知列表上方的“标记全部已读”按钮完成批量已读。')}
+                  disabled={notificationMarkingRead}
+                  onClick={handleStudentNotificationsMarkAllRead}
                   type="button"
                 >
                   <DashboardIcon name="check-circle" size={13} />
-                  全部已读
+                  {notificationMarkingRead ? '保存中' : '全部已读'}
                 </button>
                 <button
                   onClick={() => showStudentActionNotice('通知设置暂未开放，当前默认接收预约、签到和系统公告提醒。')}
@@ -7510,6 +7589,7 @@ export function StudentHomePreview({
             onSessionExpired={onSessionExpired}
             onSessionRefresh={onSessionRefresh}
             onSummaryChange={setStudentNotificationSummary}
+            summarySnapshot={studentNotificationSummary}
           />
         ) : activeMenu === 'violation' ? (
           <StudentViolationPanel
@@ -9614,21 +9694,35 @@ function StudentNotificationPanel({
   accessToken,
   onSessionExpired,
   onSessionRefresh,
-  onSummaryChange
+  onSummaryChange,
+  summarySnapshot
 }: {
   accessToken?: string;
   onSessionExpired?: () => void;
   onSessionRefresh?: (session: SessionView) => void;
   onSummaryChange?: (summary: StudentNotificationSummaryView) => void;
+  summarySnapshot?: StudentNotificationSummaryView;
 }) {
   const [summary, setSummary] = useState<StudentNotificationSummaryView>(() =>
     getStudentNotificationFallbackSummary()
   );
   const [loading, setLoading] = useState(false);
+  const [markingRead, setMarkingRead] = useState(false);
   const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
+    if (summarySnapshot) setSummary(summarySnapshot);
+  }, [summarySnapshot]);
+
+  useEffect(() => {
     let alive = true;
+    if (summarySnapshot) {
+      setLoading(false);
+      setLoadError('');
+      return () => {
+        alive = false;
+      };
+    }
     if (!accessToken) {
       const fallbackSummary = getStudentNotificationFallbackSummary();
       setSummary(fallbackSummary);
@@ -9666,12 +9760,32 @@ function StudentNotificationPanel({
     return () => {
       alive = false;
     };
-  }, [accessToken, onSessionExpired, onSessionRefresh, onSummaryChange]);
+  }, [accessToken, onSessionExpired, onSessionRefresh, onSummaryChange, summarySnapshot]);
 
   const handleMarkAllRead = () => {
-    const nextSummary = markStudentNotificationSummaryRead(summary);
-    setSummary(nextSummary);
-    onSummaryChange?.(nextSummary);
+    if (markingRead) return;
+    if (!accessToken) {
+      const nextSummary = markStudentNotificationSummaryRead(summary);
+      setSummary(nextSummary);
+      onSummaryChange?.(nextSummary);
+      return;
+    }
+
+    setMarkingRead(true);
+    setLoadError('');
+    requestStudentNotificationsMarkAllRead(accessToken, fetch, resolveApiBaseUrl(), {
+      onSessionExpired,
+      onSessionRefresh
+    })
+      .then((nextSummary) => {
+        const nextSummaryView = mapStudentNotificationSummaryToView(nextSummary);
+        setSummary(nextSummaryView);
+        onSummaryChange?.(nextSummaryView);
+      })
+      .catch((error) => {
+        setLoadError(error instanceof Error ? error.message : '通知已读状态保存失败');
+      })
+      .finally(() => setMarkingRead(false));
   };
 
   return (
@@ -9688,9 +9802,9 @@ function StudentNotificationPanel({
           <strong>{formatStudentNotificationSubtitle(summary)}</strong>
           <span>站内提醒会同步展示预约、签到、自动取消和系统公告。</span>
         </div>
-        <button type="button" onClick={handleMarkAllRead}>
+        <button disabled={markingRead} type="button" onClick={handleMarkAllRead}>
           <DashboardIcon name="check-circle" size={13} />
-          标记全部已读
+          {markingRead ? '保存中' : '标记全部已读'}
         </button>
       </div>
 

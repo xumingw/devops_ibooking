@@ -7,8 +7,9 @@ describe('NotificationsService', () => {
 
   beforeEach(() => {
     repository = {
-      listByUserId: jest.fn()
-    };
+      listByUserId: jest.fn(),
+      markAllReadByUserId: jest.fn()
+    } as jest.Mocked<NotificationRepository>;
     service = new NotificationsService(repository);
   });
 
@@ -65,6 +66,29 @@ describe('NotificationsService', () => {
         { date: '更早', items: [records[3]] }
       ]
     });
+    expect(repository.listByUserId).toHaveBeenCalledWith('user-stu-cse-01');
+  });
+
+  it('标记全部已读会写入仓储并返回重新汇总后的未读数', async () => {
+    const records: StudentNotificationRecord[] = [
+      notificationFixture({
+        id: 'notice-booking-start',
+        group: '今天',
+        iconType: 'bell',
+        tone: 'teal',
+        title: '预约提醒',
+        description: '您今日 14:00 在经管自习室 301 的预约将在 15 分钟后开始',
+        timeLabel: '13:45',
+        read: true
+      })
+    ];
+    repository.listByUserId.mockResolvedValue(records);
+
+    await expect(service.markAllRead('user-stu-cse-01')).resolves.toEqual({
+      unreadCount: 0,
+      groups: [{ date: '今天', items: records }]
+    });
+    expect(repository.markAllReadByUserId).toHaveBeenCalledWith('user-stu-cse-01');
     expect(repository.listByUserId).toHaveBeenCalledWith('user-stu-cse-01');
   });
 });

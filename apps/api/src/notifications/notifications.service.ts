@@ -12,6 +12,7 @@ const NOTIFICATION_GROUPS: StudentNotificationGroupLabel[] = ['今天', '昨天'
 
 export interface NotificationRepository {
   listByUserId(userId: string): Promise<StudentNotificationRecord[]>;
+  markAllReadByUserId(userId: string): Promise<void>;
 }
 
 @Injectable()
@@ -26,6 +27,11 @@ export class NotificationsService {
       unreadCount: records.filter((record) => !record.read).length,
       groups: this.groupRecords(records)
     };
+  }
+
+  async markAllRead(userId: string): Promise<StudentNotificationSummary> {
+    await this.repository.markAllReadByUserId(userId);
+    return this.getStudentSummary(userId);
   }
 
   private groupRecords(records: StudentNotificationRecord[]): StudentNotificationGroup[] {
