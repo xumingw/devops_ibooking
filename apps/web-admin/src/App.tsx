@@ -1189,6 +1189,18 @@ const pushAppPath = (path: string) => {
   }
 };
 
+const replaceAppPath = (path: string) => {
+  if (typeof window !== 'undefined') {
+    window.history.replaceState(null, '', path);
+  }
+};
+
+const isProtectedAppPath = (pathname: string) =>
+  pathname === '/student' ||
+  pathname.startsWith('/student/') ||
+  pathname === '/dashboard' ||
+  pathname.startsWith('/dashboard/');
+
 function FieldIcon({ type }: { type: 'account' | 'password' }) {
   const path =
     type === 'account'
@@ -1325,7 +1337,13 @@ export function App() {
     let active = true;
 
     void restoreRememberedSession().then((restoredSession) => {
-      if (!active || !restoredSession) return;
+      if (!active) return;
+      if (!restoredSession) {
+        if (isProtectedAppPath(window.location.pathname)) {
+          replaceAppPath('/');
+        }
+        return;
+      }
       setSession(restoredSession);
       pushAppPath(resolvePostLoginPath(restoredSession.kind));
     });

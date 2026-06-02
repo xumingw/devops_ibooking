@@ -25,6 +25,24 @@ describe('auth session restore ui', () => {
     vi.unstubAllGlobals();
   });
 
+  it('未登录访问学生子页面时重定向到统一登录入口', async () => {
+    const storage = createMemoryStorage({});
+    vi.stubGlobal('localStorage', storage);
+    window.history.pushState(null, '', '/student/rooms');
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(<App />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain('统一登录');
+    expect(window.location.pathname).toBe('/');
+  });
+
   it('挂载时会用记住登录状态刷新并恢复管理端会话', async () => {
     const storage = createMemoryStorage({ 'ibooking.auth.remember': '1' });
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(successfulLoginResponse());
