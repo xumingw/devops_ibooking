@@ -7139,24 +7139,21 @@ button {
   font-size: 13px;
 }
 
-.student-booking-position-card label {
+.student-booking-seat-map {
   display: grid;
-  gap: 8px;
-  color: #49645f;
-  font-size: 12px;
-  font-weight: 800;
+  gap: 12px;
 }
 
-.student-booking-position-card select {
-  width: 100%;
-  min-height: 42px;
-  border: 1px solid #d6e7e4;
-  border-radius: 8px;
-  padding: 0 12px;
-  background: #f8fbfa;
-  color: #1a2e2a;
-  font-size: 13px;
-  font-weight: 800;
+.student-booking-seat-map .student-seat-legend {
+  justify-content: flex-start;
+}
+
+.student-booking-seat-map-board {
+  overflow-x: auto;
+  border: 1px solid #d8e8e5;
+  border-radius: 12px;
+  padding: 16px;
+  background: #fbfefe;
 }
 
 .student-booking-position-card p {

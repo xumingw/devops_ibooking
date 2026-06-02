@@ -3176,12 +3176,6 @@ type StudentSeatBookingDraft = {
   seatId: string;
 };
 
-type StudentBookingPositionOption = {
-  seat: string;
-  tags: string[];
-  label: string;
-};
-
 const DEFAULT_STUDENT_SEAT_ROOM_CONTEXT: StudentSeatRoomContext = {
   name: '经管自习室 301',
   location: '光华楼 A座 · 3楼',
@@ -4135,38 +4129,6 @@ const doesStudentSeatMatchFeatures = (seatFeatures: string[], selectedFeatures: 
 
 const formatStudentSeatWithTags = (seat: string, tags: string[]) =>
   `${seat}${tags.length > 0 ? `（${tags.join(' · ')}）` : ''}`;
-
-const createStudentBookingPositionOptions = (
-  currentDraft?: StudentSeatBookingDraft
-): StudentBookingPositionOption[] => {
-  const options = STUDENT_SEAT_ROWS.flatMap((row, rowIndex) =>
-    row.flatMap((status, colIndex) => {
-      if (!isStudentSeatBookableStatus(status)) return [];
-      const seat = getStudentSeatNumber(rowIndex, colIndex);
-      const tags = getStudentSeatFeatures(rowIndex, colIndex, status);
-      return [
-        {
-          seat,
-          tags,
-          label: formatStudentSeatWithTags(seat, tags)
-        }
-      ];
-    })
-  );
-
-  if (currentDraft && !options.some((option) => option.seat === currentDraft.seat)) {
-    return [
-      {
-        seat: currentDraft.seat,
-        tags: currentDraft.tags,
-        label: formatStudentSeatWithTags(currentDraft.seat, currentDraft.tags)
-      },
-      ...options
-    ];
-  }
-
-  return options;
-};
 
 const STUDENT_QUICK_ACTIONS = [
   { label: '立即找座', icon: 'search', tone: F.navy },
@@ -8429,6 +8391,99 @@ function StudentSeatSelectorPanel({
   );
 }
 
+function StudentBookingSeatMap({
+  draft,
+  onChange
+}: {
+  draft: StudentSeatBookingDraft;
+  onChange: (draft: StudentSeatBookingDraft) => void;
+}) {
+  return (
+    <div className="student-booking-seat-map">
+      <div className="student-seat-legend" aria-label="座位图例">
+        {STUDENT_SEAT_LEGEND.map((item) => (
+          <span key={item.status}>
+            <i data-status={item.status} />
+            {item.label}
+          </span>
+        ))}
+      </div>
+
+      <div className="student-booking-seat-map-board">
+        <div className="student-seat-entry">入 口</div>
+        <div className="student-seat-window-row">
+          <i />
+          靠窗排
+        </div>
+
+        <div className="student-seat-grid" aria-label={`${draft.room} 座位图`}>
+          {STUDENT_SEAT_ROWS.map((row, rowIndex) => (
+            <div className="student-seat-row-block" key={`booking-row-${rowIndex}`}>
+              {rowIndex === 3 ? (
+                <div className="student-seat-aisle">
+                  <span>过道</span>
+                </div>
+              ) : null}
+              <div className="student-seat-row">
+                <span className="student-seat-row-label">
+                  {String.fromCharCode(65 + rowIndex)}
+                </span>
+                <div className="student-seat-row-side">
+                  {row.slice(0, 4).map((status, colIndex) => {
+                    const seatNo = getStudentSeatNumber(rowIndex, colIndex);
+                    const seatFeatures = getStudentSeatFeatures(rowIndex, colIndex, status);
+                    const displayStatus =
+                      seatNo === draft.seat ? 'selected' : status === 'selected' ? 'available' : status;
+                    return (
+                      <StudentSeatCell
+                        hasPower={seatFeatures.includes('插座')}
+                        key={seatNo}
+                        onSelect={() =>
+                          onChange(updateStudentSeatBookingDraftPosition(draft, seatNo, seatFeatures))
+                        }
+                        seatNo={seatNo}
+                        status={displayStatus}
+                      />
+                    );
+                  })}
+                </div>
+                <span className="student-seat-row-gap" />
+                <div className="student-seat-row-side">
+                  {row.slice(4).map((status, colIndex) => {
+                    const actualColIndex = colIndex + 4;
+                    const seatNo = getStudentSeatNumber(rowIndex, actualColIndex);
+                    const seatFeatures = getStudentSeatFeatures(rowIndex, actualColIndex, status);
+                    const displayStatus =
+                      seatNo === draft.seat ? 'selected' : status === 'selected' ? 'available' : status;
+                    return (
+                      <StudentSeatCell
+                        hasPower={seatFeatures.includes('插座')}
+                        key={seatNo}
+                        onSelect={() =>
+                          onChange(updateStudentSeatBookingDraftPosition(draft, seatNo, seatFeatures))
+                        }
+                        seatNo={seatNo}
+                        status={displayStatus}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="student-seat-column-labels" aria-hidden="true">
+          <span />
+          {[1, 2, 3, 4, '', 5, 6, 7, 8].map((label, index) => (
+            <span key={`${label}-${index}`}>{label}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function StudentBookingConfirmPanel({
   accessToken,
   assistantSeatSelection,
@@ -8459,10 +8514,6 @@ export function StudentBookingConfirmPanel({
   const [submitError, setSubmitError] = useState('');
   const [selectedReminder, setSelectedReminder] =
     useState<(typeof STUDENT_REMINDER_OPTIONS)[number]>('微信服务通知');
-  const positionOptions = useMemo(
-    () => createStudentBookingPositionOptions(initialSeatBookingDraft),
-    [initialSeatBookingDraft]
-  );
   const effectiveSeatBookingDraft = assistantSeatSelection ? seatBookingDraft : selectedDraft;
   const bookingDetails = createStudentBookingConfirmDetails(
     assistantSeatSelection,
@@ -8473,14 +8524,6 @@ export function StudentBookingConfirmPanel({
   useEffect(() => {
     setSelectedDraft(initialSeatBookingDraft);
   }, [initialSeatBookingDraft]);
-
-  const handlePositionChange = (seat: string) => {
-    const option = positionOptions.find((candidate) => candidate.seat === seat);
-    if (!option) return;
-    setSelectedDraft((current) =>
-      updateStudentSeatBookingDraftPosition(current, option.seat, option.tags)
-    );
-  };
 
   const handleSubmit = () => {
     if (submitting || submitted) return;
@@ -8564,19 +8607,7 @@ export function StudentBookingConfirmPanel({
               <DashboardIcon name="grid" size={16} />
               <h2>位置选择</h2>
             </header>
-            <label>
-              <span>位置选择</span>
-              <select
-                onChange={(event) => handlePositionChange(event.target.value)}
-                value={selectedDraft.seat}
-              >
-                {positionOptions.map((option) => (
-                  <option key={option.seat} value={option.seat}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <StudentBookingSeatMap draft={selectedDraft} onChange={setSelectedDraft} />
             <p>选择靠窗、插座或安静区座位后，预约详情和提交信息会同步更新。</p>
           </article>
         ) : null}

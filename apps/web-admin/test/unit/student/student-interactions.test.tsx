@@ -194,11 +194,13 @@ describe('student interactive controls', () => {
     const dialog = container?.querySelector('.student-booking-confirm-dialog');
     expect(dialog).not.toBeNull();
     expect(dialog?.textContent).toContain('位置选择');
-    expect(getSelect('位置选择').value).toBe('C3');
+    expect(dialog?.querySelector('.student-booking-seat-map')).not.toBeNull();
+    expect(dialog?.querySelector('.student-booking-position-card select')).toBeNull();
+    expect(getSeatButton('C3').getAttribute('data-status')).toBe('selected');
 
-    await selectOption('位置选择', 'B1');
+    await clickSeatButton('B1');
 
-    expect(getSelect('位置选择').value).toBe('B1');
+    expect(getSeatButton('B1').getAttribute('data-status')).toBe('selected');
     const seatDetail = [...(dialog?.querySelectorAll('.student-booking-detail-grid div') ?? [])].find(
       (candidate) => normalize(candidate.textContent).includes('座位编号')
     );
@@ -275,7 +277,7 @@ describe('student interactive controls', () => {
     await renderStudentHome('rooms', { accessToken: 'student-token' });
 
     await clickButtonInArticle('经管自习室 301', '预约');
-    await selectOption('位置选择', 'A1');
+    await clickSeatButton('A1');
     await clickButton('确认提交预约');
     await act(async () => {
       await Promise.resolve();
@@ -357,6 +359,13 @@ describe('student interactive controls', () => {
     });
   }
 
+  async function clickSeatButton(seatNo: string) {
+    await act(async () => {
+      getSeatButton(seatNo).click();
+      await Promise.resolve();
+    });
+  }
+
   async function clickButtonInSelector(selector: string, label: string) {
     const rootElement = container?.querySelector(selector);
     if (!rootElement) throw new Error(`selector not found: ${selector}`);
@@ -409,6 +418,14 @@ describe('student interactive controls', () => {
       return normalize(label).includes('收藏') && normalize(label).includes(normalize(roomName));
     });
     if (!button) throw new Error(`favorite button not found: ${roomName}`);
+    return button as HTMLButtonElement;
+  }
+
+  function getSeatButton(seatNo: string) {
+    const button = container?.querySelector(
+      `.student-booking-seat-map button[aria-label^="${seatNo} "]`
+    );
+    if (!button) throw new Error(`seat button not found: ${seatNo}`);
     return button as HTMLButtonElement;
   }
 
