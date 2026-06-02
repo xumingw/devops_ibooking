@@ -159,6 +159,25 @@ describe('student interactive controls', () => {
     expect(dialog?.textContent).toContain('18:00 – 21:00（3小时）');
   });
 
+  it('预约弹窗内可以选择座位位置', async () => {
+    await renderStudentHome('rooms');
+
+    await clickButtonInArticle('经管自习室 301', '预约');
+    const dialog = container?.querySelector('.student-booking-confirm-dialog');
+    expect(dialog).not.toBeNull();
+    expect(dialog?.textContent).toContain('位置选择');
+    expect(getSelect('位置选择').value).toBe('C3');
+
+    await selectOption('位置选择', 'B1');
+
+    expect(getSelect('位置选择').value).toBe('B1');
+    const seatDetail = [...(dialog?.querySelectorAll('.student-booking-detail-grid div') ?? [])].find(
+      (candidate) => normalize(candidate.textContent).includes('座位编号')
+    );
+    expect(seatDetail?.textContent).toContain('B1（靠窗）');
+    expect(seatDetail?.textContent).not.toContain('C3（插座');
+  });
+
   it('旧的选座预约地址会收敛到自习室列表页', async () => {
     window.history.pushState(null, '', '/student/select');
     await renderStudentHome();
@@ -228,6 +247,7 @@ describe('student interactive controls', () => {
     await renderStudentHome('rooms', { accessToken: 'student-token' });
 
     await clickButtonInArticle('经管自习室 301', '预约');
+    await selectOption('位置选择', 'A1');
     await clickButton('确认提交预约');
     await act(async () => {
       await Promise.resolve();
@@ -239,6 +259,15 @@ describe('student interactive controls', () => {
         ([input, init]) => String(input).endsWith('/api/v1/bookings/me') && init?.method === 'POST'
       )
     ).toHaveLength(1);
+    const [, submitRequest] = fetcher.mock.calls.find(
+      ([input, init]) => String(input).endsWith('/api/v1/bookings/me') && init?.method === 'POST'
+    )!;
+    expect(JSON.parse(submitRequest.body as string)).toEqual(
+      expect.objectContaining({
+        roomId: 'room-gm-301',
+        seatId: 'seat-gm-301-a1'
+      })
+    );
     expect(container?.textContent).toContain('我的预约');
     expect(container?.textContent).toContain('预约成功');
     expect(window.location.pathname).toBe('/student/bookings');

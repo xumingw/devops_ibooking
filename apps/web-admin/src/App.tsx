@@ -3157,6 +3157,12 @@ type StudentSeatBookingDraft = {
   seatId: string;
 };
 
+type StudentBookingPositionOption = {
+  seat: string;
+  tags: string[];
+  label: string;
+};
+
 const DEFAULT_STUDENT_SEAT_ROOM_CONTEXT: StudentSeatRoomContext = {
   name: '经管自习室 301',
   location: '光华楼 A座 · 3楼',
@@ -3242,6 +3248,17 @@ const createStudentSeatBookingDraft = (
   time,
   roomId: roomContext.roomId,
   seatId: createStudentSeatId(roomContext.roomId, seat)
+});
+
+const updateStudentSeatBookingDraftPosition = (
+  draft: StudentSeatBookingDraft,
+  seat: string,
+  tags: string[]
+): StudentSeatBookingDraft => ({
+  ...draft,
+  seat,
+  tags,
+  seatId: createStudentSeatId(draft.roomId, seat)
 });
 
 const parseStudentClockMinutes = (clock: string) => {
@@ -3565,7 +3582,7 @@ const createStudentBookingConfirmDetails = (
     return [
       ['自习室', seat.room],
       ['楼栋位置', seat.location],
-      ['座位编号', `${seat.seat}${seat.tags.length > 0 ? `（${seat.tags.join(' · ')}）` : ''}`],
+      ['座位编号', formatStudentSeatWithTags(seat.seat, seat.tags)],
       ['预约时段', seat.time]
     ];
   }
@@ -3574,7 +3591,7 @@ const createStudentBookingConfirmDetails = (
     return [
       ['自习室', draft.room],
       ['楼栋位置', draft.location],
-      ['座位编号', `${draft.seat}${draft.tags.length > 0 ? `（${draft.tags.join(' · ')}）` : ''}`],
+      ['座位编号', formatStudentSeatWithTags(draft.seat, draft.tags)],
       ['预约日期', draft.dateLabel],
       ['预约时间', draft.time]
     ];
@@ -4093,6 +4110,41 @@ const isStudentSeatBookableStatus = (status: StudentSeatStatus) =>
 
 const doesStudentSeatMatchFeatures = (seatFeatures: string[], selectedFeatures: string[]) =>
   selectedFeatures.length === 0 || selectedFeatures.every((feature) => seatFeatures.includes(feature));
+
+const formatStudentSeatWithTags = (seat: string, tags: string[]) =>
+  `${seat}${tags.length > 0 ? `（${tags.join(' · ')}）` : ''}`;
+
+const createStudentBookingPositionOptions = (
+  currentDraft?: StudentSeatBookingDraft
+): StudentBookingPositionOption[] => {
+  const options = STUDENT_SEAT_ROWS.flatMap((row, rowIndex) =>
+    row.flatMap((status, colIndex) => {
+      if (!isStudentSeatBookableStatus(status)) return [];
+      const seat = getStudentSeatNumber(rowIndex, colIndex);
+      const tags = getStudentSeatFeatures(rowIndex, colIndex, status);
+      return [
+        {
+          seat,
+          tags,
+          label: formatStudentSeatWithTags(seat, tags)
+        }
+      ];
+    })
+  );
+
+  if (currentDraft && !options.some((option) => option.seat === currentDraft.seat)) {
+    return [
+      {
+        seat: currentDraft.seat,
+        tags: currentDraft.tags,
+        label: formatStudentSeatWithTags(currentDraft.seat, currentDraft.tags)
+      },
+      ...options
+    ];
+  }
+
+  return options;
+};
 
 const STUDENT_QUICK_ACTIONS = [
   { label: '立即找座', icon: 'search', tone: F.navy },
@@ -8319,14 +8371,41 @@ export function StudentBookingConfirmPanel({
   onSubmitted?: (booking: StudentBookingRecord) => void;
   seatBookingDraft?: StudentSeatBookingDraft;
 }) {
-  const bookingDetails = createStudentBookingConfirmDetails(assistantSeatSelection, seatBookingDraft);
+  const initialSeatBookingDraft = useMemo(
+    () =>
+      seatBookingDraft ??
+      createStudentSeatBookingDraft(DEFAULT_STUDENT_SEAT_ROOM_CONTEXT, 'C3', ['插座', '安静区']),
+    [seatBookingDraft]
+  );
+  const [selectedDraft, setSelectedDraft] = useState<StudentSeatBookingDraft>(initialSeatBookingDraft);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submitMessage, setSubmitMessage] = useState('');
   const [submitError, setSubmitError] = useState('');
   const [selectedReminder, setSelectedReminder] =
     useState<(typeof STUDENT_REMINDER_OPTIONS)[number]>('微信服务通知');
+  const positionOptions = useMemo(
+    () => createStudentBookingPositionOptions(initialSeatBookingDraft),
+    [initialSeatBookingDraft]
+  );
+  const effectiveSeatBookingDraft = assistantSeatSelection ? seatBookingDraft : selectedDraft;
+  const bookingDetails = createStudentBookingConfirmDetails(
+    assistantSeatSelection,
+    effectiveSeatBookingDraft
+  );
   const submitUiState = getStudentBookingConfirmUiState({ submitted, submitting });
+
+  useEffect(() => {
+    setSelectedDraft(initialSeatBookingDraft);
+  }, [initialSeatBookingDraft]);
+
+  const handlePositionChange = (seat: string) => {
+    const option = positionOptions.find((candidate) => candidate.seat === seat);
+    if (!option) return;
+    setSelectedDraft((current) =>
+      updateStudentSeatBookingDraftPosition(current, option.seat, option.tags)
+    );
+  };
 
   const handleSubmit = () => {
     if (submitting || submitted) return;
@@ -8341,7 +8420,7 @@ export function StudentBookingConfirmPanel({
     setSubmitMessage('');
     requestStudentBookingCreate(
       accessToken,
-      buildStudentBookingRequest(assistantSeatSelection, new Date(), seatBookingDraft),
+      buildStudentBookingRequest(assistantSeatSelection, new Date(), effectiveSeatBookingDraft),
       fetch,
       resolveApiBaseUrl(),
       { onSessionExpired, onSessionRefresh }
@@ -8403,6 +8482,29 @@ export function StudentBookingConfirmPanel({
             ))}
           </dl>
         </article>
+
+        {!assistantSeatSelection ? (
+          <article className="dashboard-card student-booking-position-card">
+            <header>
+              <DashboardIcon name="grid" size={16} />
+              <h2>位置选择</h2>
+            </header>
+            <label>
+              <span>位置选择</span>
+              <select
+                onChange={(event) => handlePositionChange(event.target.value)}
+                value={selectedDraft.seat}
+              >
+                {positionOptions.map((option) => (
+                  <option key={option.seat} value={option.seat}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p>选择靠窗、插座或安静区座位后，预约详情和提交信息会同步更新。</p>
+          </article>
+        ) : null}
 
         <article className="dashboard-card student-booking-confirm-card">
           <header>

@@ -7088,11 +7088,13 @@ button {
 }
 
 .student-booking-confirm-card,
+.student-booking-position-card,
 .student-booking-reminder-card {
   padding: 20px;
 }
 
-.student-booking-confirm-card header {
+.student-booking-confirm-card header,
+.student-booking-position-card header {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -7101,10 +7103,38 @@ button {
 }
 
 .student-booking-confirm-card h2,
+.student-booking-position-card h2,
 .student-booking-reminder-card h2 {
   margin: 0;
   color: #1a2e2a;
   font-size: 13px;
+}
+
+.student-booking-position-card label {
+  display: grid;
+  gap: 8px;
+  color: #49645f;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.student-booking-position-card select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #d6e7e4;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #f8fbfa;
+  color: #1a2e2a;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.student-booking-position-card p {
+  margin: 10px 0 0;
+  color: #8aaaa4;
+  font-size: 11px;
+  line-height: 1.6;
 }
 
 .student-booking-detail-grid {
