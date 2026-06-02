@@ -263,7 +263,7 @@ describe('student interactive controls', () => {
     expect(container?.textContent).toContain('已生成预约记录导出任务');
   });
 
-  it('提交预约成功后返回我的预约页', async () => {
+  it('提交预约成功后关闭弹窗并在自习室列表提示结果', async () => {
     const fetcher = vi.fn<typeof fetch>((input, init) => {
       if (String(input).endsWith('/api/v1/bookings/me') && init?.method === 'POST') {
         return Promise.resolve(successfulStudentBookingCreateResponse());
@@ -298,9 +298,38 @@ describe('student interactive controls', () => {
         seatId: 'seat-gm-301-a1'
       })
     );
-    expect(container?.textContent).toContain('我的预约');
+    expect(container?.querySelector('.student-booking-confirm-dialog')).toBeNull();
+    expect(container?.textContent).toContain('自习室列表');
     expect(container?.textContent).toContain('预约成功');
-    expect(window.location.pathname).toBe('/student/bookings');
+    expect(window.location.pathname).toBe('/student/rooms');
+  });
+
+  it('提交预约失败后关闭弹窗并提示失败原因', async () => {
+    const fetcher = vi.fn<typeof fetch>((input, init) => {
+      if (String(input).endsWith('/api/v1/bookings/me') && init?.method === 'POST') {
+        return Promise.resolve(
+          new Response(JSON.stringify({ code: 'BOOKING_CONFLICT', message: '座位已被预约' }), {
+            status: 409,
+            headers: { 'Content-Type': 'application/json' }
+          })
+        );
+      }
+      return Promise.resolve(successfulStudentBookingsResponse());
+    });
+    vi.stubGlobal('fetch', fetcher);
+    await renderStudentHome('rooms', { accessToken: 'student-token' });
+
+    await clickButtonInArticle('经管自习室 301', '预约');
+    await clickSeatButton('A1');
+    await clickButton('确认提交预约');
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container?.querySelector('.student-booking-confirm-dialog')).toBeNull();
+    expect(container?.textContent).toContain('预约失败：座位已被预约');
+    expect(window.location.pathname).toBe('/student/rooms');
   });
 
   it('从首页去预约后直接打开预约弹窗', async () => {

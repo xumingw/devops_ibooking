@@ -287,6 +287,12 @@ type StudentBookingRecord = {
   endAt: string;
 };
 
+type StudentBookingSubmitResult = {
+  type: 'success' | 'error';
+  message: string;
+  booking?: StudentBookingRecord;
+};
+
 type StudentBookingSummary = {
   totalCount: number;
   activeCount: number;
@@ -7221,8 +7227,11 @@ export function StudentHomePreview({
       activeCount: current.activeCount + 1,
       records: [createdRecord, ...current.records.filter((record) => record.id !== booking.id)]
     }));
+  };
+
+  const handleStudentBookingSubmitResult = (result: StudentBookingSubmitResult) => {
     setBookingConfirmOpen(false);
-    handleStudentPageChange('bookings', `预约成功：${booking.room} · ${booking.seat} · ${booking.time}`);
+    handleStudentPageChange('rooms', result.message);
   };
 
   const pageTitleByMenu: Record<StudentMenuId, string> = {
@@ -7448,6 +7457,7 @@ export function StudentHomePreview({
             onBack={() => handleStudentPageChange('select')}
             onSessionExpired={onSessionExpired}
             onSessionRefresh={onSessionRefresh}
+            onSubmitResult={handleStudentBookingSubmitResult}
             onSubmitted={handleStudentBookingSubmitted}
             seatBookingDraft={seatBookingDraft}
           />
@@ -7661,6 +7671,7 @@ export function StudentHomePreview({
             onClose={() => setBookingConfirmOpen(false)}
             onSessionExpired={onSessionExpired}
             onSessionRefresh={onSessionRefresh}
+            onSubmitResult={handleStudentBookingSubmitResult}
             onSubmitted={handleStudentBookingSubmitted}
             seatBookingDraft={seatBookingDraft}
           />
@@ -8490,6 +8501,7 @@ export function StudentBookingConfirmPanel({
   onBack,
   onSessionExpired,
   onSessionRefresh,
+  onSubmitResult,
   onSubmitted,
   seatBookingDraft
 }: {
@@ -8498,6 +8510,7 @@ export function StudentBookingConfirmPanel({
   onBack?: () => void;
   onSessionExpired?: () => void;
   onSessionRefresh?: (session: SessionView) => void;
+  onSubmitResult?: (result: StudentBookingSubmitResult) => void;
   onSubmitted?: (booking: StudentBookingRecord) => void;
   seatBookingDraft?: StudentSeatBookingDraft;
 }) {
@@ -8528,6 +8541,10 @@ export function StudentBookingConfirmPanel({
   const handleSubmit = () => {
     if (submitting || submitted) return;
     if (!accessToken) {
+      if (onSubmitResult) {
+        onSubmitResult({ type: 'error', message: '预约失败：请先登录后提交预约' });
+        return;
+      }
       setSubmitError('请先登录后提交预约');
       setSubmitMessage('');
       return;
@@ -8544,13 +8561,23 @@ export function StudentBookingConfirmPanel({
       { onSessionExpired, onSessionRefresh }
     )
       .then((booking) => {
-        setSubmitted(true);
-        setSubmitMessage(`预约成功：${booking.room} · ${booking.seat} · ${booking.time}`);
+        const message = `预约成功：${booking.room} · ${booking.seat} · ${booking.time}`;
         onSubmitted?.(booking);
+        if (onSubmitResult) {
+          onSubmitResult({ type: 'success', message, booking });
+          return;
+        }
+        setSubmitted(true);
+        setSubmitMessage(message);
       })
       .catch((error) => {
+        const errorMessage = error instanceof Error ? error.message : '预约提交失败';
+        if (onSubmitResult) {
+          onSubmitResult({ type: 'error', message: `预约失败：${errorMessage}` });
+          return;
+        }
         setSubmitted(false);
-        setSubmitError(error instanceof Error ? error.message : '预约提交失败');
+        setSubmitError(errorMessage);
       })
       .finally(() => setSubmitting(false));
   };
@@ -8665,6 +8692,7 @@ function StudentBookingConfirmDialog({
   onClose,
   onSessionExpired,
   onSessionRefresh,
+  onSubmitResult,
   onSubmitted,
   seatBookingDraft
 }: {
@@ -8673,6 +8701,7 @@ function StudentBookingConfirmDialog({
   onClose: () => void;
   onSessionExpired?: () => void;
   onSessionRefresh?: (session: SessionView) => void;
+  onSubmitResult?: (result: StudentBookingSubmitResult) => void;
   onSubmitted?: (booking: StudentBookingRecord) => void;
   seatBookingDraft?: StudentSeatBookingDraft;
 }) {
@@ -8705,6 +8734,7 @@ function StudentBookingConfirmDialog({
           onBack={onClose}
           onSessionExpired={onSessionExpired}
           onSessionRefresh={onSessionRefresh}
+          onSubmitResult={onSubmitResult}
           onSubmitted={onSubmitted}
           seatBookingDraft={seatBookingDraft}
         />
