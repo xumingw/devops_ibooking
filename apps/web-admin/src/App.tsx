@@ -7268,7 +7268,7 @@ export function StudentHomePreview({
                 </button>
                 <button disabled type="button">
                   <DashboardIcon name="zap" size={13} />
-                  GLM / 关键词兜底
+                  DeepSeek / 关键词兜底
                 </button>
               </>
             ) : activeMenu === 'checkin' ? (
@@ -9091,7 +9091,7 @@ function StudentAssistantPanel({
       <div className="student-assistant-chat dashboard-card">
         <div className="student-assistant-mode-note">
           <DashboardIcon name="info" size={13} />
-          优先使用 GLM 4.7 Flash 解析意图；未读取到 API Key 时自动切换本地关键词规则。
+          优先使用 DeepSeek V4 Flash 解析意图；未读取到 API Key 时自动切换本地关键词规则。
         </div>
         <div className="student-assistant-messages" aria-label="助手会话">
           {messages.map((message) =>
