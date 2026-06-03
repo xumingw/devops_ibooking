@@ -42,6 +42,18 @@ export class PrismaNotificationsRepository implements NotificationRepository {
     return rows.map((row) => this.toNotification(row));
   }
 
+  async markAllReadByUserId(userId: string): Promise<void> {
+    await this.prisma.reminderLog.updateMany({
+      where: {
+        readAt: null,
+        booking: { is: { userId } }
+      },
+      data: {
+        readAt: new Date()
+      }
+    });
+  }
+
   private toNotification(row: ReminderLogWithBooking): StudentNotificationRecord {
     const group = this.formatGroup(row.sentAt);
     const meta = this.getReminderMeta(row);
@@ -53,7 +65,7 @@ export class PrismaNotificationsRepository implements NotificationRepository {
       title: meta.title,
       description: meta.description,
       timeLabel: this.formatTimeLabel(row.sentAt, group),
-      read: group !== '今天',
+      read: row.readAt !== null || group !== '今天',
       occurredAt: row.sentAt.toISOString()
     };
   }

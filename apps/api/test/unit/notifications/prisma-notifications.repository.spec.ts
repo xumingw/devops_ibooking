@@ -7,6 +7,7 @@ describe('PrismaNotificationsRepository', () => {
   let prisma: {
     reminderLog: {
       findMany: jest.Mock;
+      updateMany: jest.Mock;
     };
   };
   let repository: PrismaNotificationsRepository;
@@ -16,6 +17,7 @@ describe('PrismaNotificationsRepository', () => {
     prisma = {
       reminderLog: {
         findMany: jest.fn(),
+        updateMany: jest.fn(),
       },
     };
     repository = new PrismaNotificationsRepository(prisma as unknown as PrismaService);
@@ -48,11 +50,47 @@ describe('PrismaNotificationsRepository', () => {
       }),
     ]);
   });
+
+  it('已写入 readAt 的今日通知重新登录后不再算未读', async () => {
+    prisma.reminderLog.findMany.mockResolvedValue([
+      reminderLogFixture({
+        id: 'notice-auto-cancel',
+        type: 'AUTO_CANCEL_NO_CHECKIN',
+        sentAt: NOW,
+        readAt: NOW,
+      }),
+    ]);
+
+    const records = await repository.listByUserId('user-stu-cse-01');
+
+    expect(records[0]).toMatchObject({
+      id: 'notice-auto-cancel',
+      group: '今天',
+      read: true,
+    });
+  });
+
+  it('标记全部已读会持久化当前学生通知的读取时间', async () => {
+    prisma.reminderLog.updateMany.mockResolvedValue({ count: 2 });
+
+    await repository.markAllReadByUserId('user-stu-cse-01');
+
+    expect(prisma.reminderLog.updateMany).toHaveBeenCalledWith({
+      where: {
+        readAt: null,
+        booking: { is: { userId: 'user-stu-cse-01' } },
+      },
+      data: {
+        readAt: expect.any(Date),
+      },
+    });
+  });
 });
 
-function reminderLogFixture(input: { id: string; type: string; sentAt: Date }) {
+function reminderLogFixture(input: { id: string; type: string; sentAt: Date; readAt?: Date | null }) {
   return {
     ...input,
+    readAt: input.readAt ?? null,
     bookingId: 'booking-expired',
     channel: 'SYSTEM',
     createdAt: input.sentAt,

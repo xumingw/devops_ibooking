@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { PasswordHasher } from '../src/auth/password-hasher';
+import { createStudentRoomSeatFixtures } from './seed-seat-fixtures';
 import { STUDENT_PERMISSION_CODES } from './seed-permissions';
 
 const prisma = new PrismaClient();
@@ -177,8 +178,56 @@ async function main() {
     overnight: true
   });
 
-  await Promise.all([
-    upsertSeat({
+  await upsertRoom({
+    id: 'room-news-seminar',
+    name: '新闻学院研讨室',
+    building: '新闻学院楼',
+    floor: 4,
+    capacity: 20,
+    scopeType: 'SCHOOL',
+    departmentId: null,
+    openHour: 9,
+    closeHour: 20,
+    overnight: false
+  });
+
+  await upsertRoom({
+    id: 'room-science-403',
+    name: '理工自习室 403',
+    building: '逸夫楼',
+    floor: 4,
+    capacity: 56,
+    scopeType: 'SCHOOL',
+    departmentId: null,
+    openHour: 8,
+    closeHour: 23,
+    overnight: false
+  });
+
+  await upsertRoom({
+    id: 'room-library-zone',
+    name: '图书馆自习区',
+    building: '李兆基图书馆',
+    floor: 2,
+    capacity: 120,
+    scopeType: 'SCHOOL',
+    departmentId: null,
+    openHour: 8,
+    closeHour: 22,
+    overnight: false
+  });
+
+  const studentRoomIds = [
+    'room-gm-301',
+    'room-science-201',
+    'room-humanities-a',
+    'room-news-seminar',
+    'room-science-403',
+    'room-library-zone'
+  ] as const;
+  const seatFixtures = [
+    ...createStudentRoomSeatFixtures(studentRoomIds),
+    {
       id: 'seat-gm-301-c3',
       roomId: 'room-gm-301',
       code: 'C3',
@@ -186,8 +235,8 @@ async function main() {
       y: 3,
       hasPower: true,
       nearWindow: false
-    }),
-    upsertSeat({
+    },
+    {
       id: 'seat-science-201-f12',
       roomId: 'room-science-201',
       code: 'F12',
@@ -195,8 +244,8 @@ async function main() {
       y: 2,
       hasPower: true,
       nearWindow: true
-    }),
-    upsertSeat({
+    },
+    {
       id: 'seat-humanities-a-a5',
       roomId: 'room-humanities-a',
       code: 'A5',
@@ -204,7 +253,18 @@ async function main() {
       y: 1,
       hasPower: false,
       nearWindow: true
-    })
+    }
+  ];
+  const seatFixturesByRoomAndCode = new Map(
+    seatFixtures.map((fixture) => [`${fixture.roomId}:${fixture.code}`, fixture])
+  );
+
+  await Promise.all([...seatFixturesByRoomAndCode.values()].map((fixture) => upsertSeat(fixture)));
+
+  await Promise.all([
+    upsertFavorite('favorite-stu-gm-301', 'user-stu-cse-01', 'room-gm-301'),
+    upsertFavorite('favorite-stu-science-201', 'user-stu-cse-01', 'room-science-201'),
+    upsertFavorite('favorite-stu-humanities-a', 'user-stu-cse-01', 'room-humanities-a')
   ]);
 }
 
@@ -327,6 +387,23 @@ async function upsertSeat(input: {
     create: {
       ...input,
       status: 'ACTIVE'
+    }
+  });
+}
+
+async function upsertFavorite(id: string, userId: string, roomId: string) {
+  await prisma.favorite.upsert({
+    where: {
+      userId_roomId: {
+        userId,
+        roomId
+      }
+    },
+    update: {},
+    create: {
+      id,
+      userId,
+      roomId
     }
   });
 }

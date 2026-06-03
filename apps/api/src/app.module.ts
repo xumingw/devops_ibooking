@@ -17,10 +17,21 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { CheckInsModule } from './checkins/checkins.module';
 import { AssistantModule } from './assistant/assistant.module';
+import { FavoritesModule } from './favorites/favorites.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: [
+        '.env.local',
+        '.env',
+        'apps/api/.env.local',
+        'apps/api/.env',
+        '../../.env.local',
+        '../../.env'
+      ]
+    }),
     AuthModule,
     RoomsModule,
     SeatsModule,
@@ -30,7 +41,8 @@ import { AssistantModule } from './assistant/assistant.module';
     NotificationsModule,
     BookingsModule,
     CheckInsModule,
-    AssistantModule
+    AssistantModule,
+    FavoritesModule
   ],
   controllers: [HealthController],
   providers: [

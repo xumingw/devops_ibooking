@@ -92,6 +92,30 @@ describe('student bookings api', () => {
 	  expect(booking.status).toBe('upcoming');
 	});
 
+  it('学生确认预约请求支持半小时开始和结束时间', () => {
+    const request = buildStudentBookingRequest(
+      undefined,
+      new Date('2026-05-31T03:00:00.000Z'),
+      {
+        roomId: 'room-science-201',
+        seatId: 'seat-room-science-201-c3',
+        room: '理工自习室 201',
+        location: '逸夫楼 · 2楼',
+        seat: 'C3',
+        dateLabel: '明天',
+        time: '18:30 – 21:00（2.5小时）',
+        tags: ['插座']
+      }
+    );
+
+    expect(request).toEqual({
+      roomId: 'room-science-201',
+      seatId: 'seat-room-science-201-c3',
+      startAt: '2026-06-01T10:30:00.000Z',
+      endAt: '2026-06-01T13:00:00.000Z'
+    });
+  });
+
 	it('学生确认预约成功后会锁定提交按钮并推进完成步骤', () => {
 	  expect(
 	    getStudentBookingConfirmUiState({

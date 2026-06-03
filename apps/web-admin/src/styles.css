@@ -5352,6 +5352,23 @@ button {
   color: #c84040;
 }
 
+.student-action-notice {
+  width: 100%;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  border: 1px solid #b6dfd8;
+  border-radius: 10px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  background: #f3fbf9;
+  color: #1d6c5f;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .student-home-booking-banner {
   position: relative;
   display: flex;
@@ -5664,6 +5681,126 @@ button {
   gap: 18px;
 }
 
+.student-room-selection-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  overflow: hidden;
+  border: 1px solid #d8e8e5;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(26, 46, 42, 0.07);
+}
+
+.student-room-filter-panel {
+  display: grid;
+  gap: 16px;
+  border-bottom: 1px solid #d8e8e5;
+  padding: 18px;
+  background: #fbfdfd;
+}
+
+.student-room-filter-fields {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(130px, 1fr));
+  gap: 12px;
+}
+
+.student-room-filter-fields label,
+.student-room-filter-fields fieldset {
+  min-width: 0;
+}
+
+.student-room-filter-fields fieldset {
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.student-room-filter-fields label span,
+.student-room-filter-fields legend {
+  display: block;
+  margin-bottom: 8px;
+  color: #4a6b64;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.student-room-time-field {
+  grid-column: span 2;
+}
+
+.student-room-time-picker {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(64px, 1fr) auto minmax(64px, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.student-room-time-picker span {
+  color: #6c8780;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.student-room-filter-fields select,
+.student-room-search input {
+  width: 100%;
+  height: 36px;
+  border: 1.5px solid #d8e8e5;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #ffffff;
+  color: #1a2e2a;
+  font-size: 13px;
+  font-weight: 700;
+  outline: none;
+}
+
+.student-room-filter-fields select:focus,
+.student-room-search input:focus {
+  border-color: #2d7a6e;
+}
+
+.student-room-search-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.student-room-search-actions button {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1.5px solid #2d7a6e;
+  border-radius: 8px;
+  padding: 0 14px;
+  background: #2d7a6e;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.student-room-search-actions span {
+  color: #6f8d86;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.student-room-selection-results {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 18px;
+  background: #f8fcfb;
+}
+
 .student-rooms-filterbar {
   display: flex;
   align-items: center;
@@ -5672,9 +5809,28 @@ button {
   flex-wrap: wrap;
 }
 
+.student-rooms-filterbar h3 {
+  margin: 0 0 10px;
+  color: #4a6b64;
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .student-rooms-filterbar > span {
   color: #8aaaa4;
   font-size: 12px;
+}
+
+.student-room-search {
+  min-width: min(260px, 100%);
+}
+
+.student-room-search span {
+  display: block;
+  margin-bottom: 8px;
+  color: #4a6b64;
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .student-rooms-filterchips {
@@ -5714,6 +5870,23 @@ button {
   padding: 18px;
 }
 
+.student-room-card.is-selected {
+  border-color: rgba(45, 122, 110, 0.48);
+  box-shadow: 0 12px 28px rgba(45, 122, 110, 0.12);
+}
+
+.student-room-empty {
+  grid-column: 1 / -1;
+  border: 1px dashed #b6dfd8;
+  border-radius: 10px;
+  padding: 24px;
+  background: #f8fcfb;
+  color: #4a6b64;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
 .student-room-card header,
 .student-room-card footer,
 .student-room-seat-meter > div {
@@ -5721,6 +5894,12 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+
+.student-room-card-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .student-room-icon {
@@ -5731,6 +5910,29 @@ button {
   border-radius: 10px;
   background: #ecf4f2;
   color: #2d7a6e;
+}
+
+.student-room-favorite {
+  width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  border: 1.5px solid #d8e8e5;
+  border-radius: 8px;
+  background: #fafefe;
+  color: #8aaaa4;
+  cursor: pointer;
+}
+
+.student-room-favorite:hover,
+.student-room-favorite.is-active {
+  border-color: #f3cf68;
+  background: #fffbeb;
+  color: #c8820a;
+}
+
+.student-room-favorite.is-active .dashboard-icon path {
+  fill: currentColor;
 }
 
 .student-room-card mark {
@@ -5855,12 +6057,356 @@ button {
   color: #2d7a6e;
 }
 
+.student-room-seat-section {
+  display: grid;
+  gap: 14px;
+}
+
+.student-room-seat-section > header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid #d8e8e5;
+  border-radius: 14px;
+  padding: 16px 18px;
+  background: #ffffff;
+}
+
+.student-room-seat-section > header small {
+  color: #8aaaa4;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.student-room-seat-section > header h2 {
+  margin: 4px 0 5px;
+  color: #1a2e2a;
+  font-size: 18px;
+}
+
+.student-room-seat-section > header p {
+  margin: 0;
+  color: #6f8d86;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.student-room-seat-section > header > span {
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #ecf4f2;
+  color: #2d7a6e;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.student-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  border: 0;
+  background: rgba(13, 35, 30, 0.44);
+  cursor: pointer;
+}
+
+.student-room-picker-layer,
+.student-booking-confirm-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+}
+
+.student-room-picker-dialog,
+.student-booking-confirm-dialog {
+  width: min(1120px, calc(100vw - 56px));
+  max-height: min(760px, calc(100vh - 56px));
+  position: relative;
+  z-index: 91;
+  overflow: hidden;
+  padding: 0;
+  background: #ffffff;
+}
+
+.student-room-picker-head,
+.student-booking-confirm-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid #d8e8e5;
+  padding: 18px 20px;
+  background: #f8fcfb;
+}
+
+.student-room-picker-head h2,
+.student-booking-confirm-dialog-head h2 {
+  margin: 0;
+  color: #1a2e2a;
+  font-size: 18px;
+}
+
+.student-room-picker-head p,
+.student-booking-confirm-dialog-head p {
+  margin: 5px 0 0;
+  color: #6f8d86;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.student-room-picker-head > button,
+.student-booking-confirm-dialog-head > button {
+  height: 34px;
+  border: 1px solid #d8e8e5;
+  border-radius: 8px;
+  padding: 0 13px;
+  background: #ffffff;
+  color: #2d7a6e;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.student-room-picker-body {
+  height: min(642px, calc(100vh - 154px));
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  min-height: 0;
+}
+
+.student-room-tree-panel {
+  min-height: 0;
+  overflow: auto;
+  border-right: 1px solid #d8e8e5;
+  padding: 16px;
+  background: #fbfdfd;
+}
+
+.student-room-tree-panel h3,
+.student-room-picker-tools h3 {
+  margin: 0 0 10px;
+  color: #4a6b64;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.student-room-tree-panel button {
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  margin-bottom: 5px;
+  padding: 7px 10px;
+  background: transparent;
+  color: #4a6b64;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.student-room-tree-panel button small {
+  color: #8aaaa4;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.student-room-tree-panel button.is-active {
+  border-color: rgba(45, 122, 110, 0.2);
+  background: #ecf4f2;
+  color: #2d7a6e;
+}
+
+.student-room-tree-group > div {
+  border-left: 1px solid #d8e8e5;
+  margin: 0 0 8px 12px;
+  padding-left: 8px;
+}
+
+.student-room-tree-group > div button {
+  min-height: 30px;
+  padding-left: 9px;
+}
+
+.student-room-picker-results {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.student-room-picker-tools {
+  display: grid;
+  grid-template-columns: minmax(230px, 0.8fr) minmax(0, 1.2fr);
+  gap: 16px;
+  border-bottom: 1px solid #ecf4f2;
+  padding: 16px 18px;
+}
+
+.student-room-picker-tools label span {
+  display: block;
+  margin-bottom: 8px;
+  color: #4a6b64;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.student-room-picker-tools input {
+  width: 100%;
+  height: 36px;
+  border: 1.5px solid #d8e8e5;
+  border-radius: 8px;
+  padding: 0 12px;
+  color: #1a2e2a;
+  font-size: 13px;
+  outline: none;
+}
+
+.student-room-picker-tools input:focus {
+  border-color: #2d7a6e;
+}
+
+.student-room-picker-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.student-room-picker-chips button {
+  min-height: 30px;
+  border: 1px solid #d8e8e5;
+  border-radius: 999px;
+  padding: 4px 12px;
+  background: #ffffff;
+  color: #4a6b64;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.student-room-picker-chips button.is-active {
+  border-color: #2d7a6e;
+  background: #2d7a6e;
+  color: #ffffff;
+}
+
+.student-room-picker-list {
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  gap: 12px;
+  padding: 18px;
+  background: #f4f8f7;
+}
+
+.student-room-picker-card {
+  display: grid;
+  gap: 9px;
+  border: 1px solid #d8e8e5;
+  border-radius: 10px;
+  padding: 14px;
+  background: #ffffff;
+}
+
+.student-room-picker-card > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.student-room-picker-card mark {
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: #ecf4f2;
+  color: #2d7a6e;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.student-room-picker-card mark[data-variant="gold"] {
+  background: #fffbeb;
+  color: #c8820a;
+}
+
+.student-room-picker-card mark[data-variant="red"] {
+  background: #fef2f2;
+  color: #c84040;
+}
+
+.student-room-picker-card > div:first-child span {
+  color: #d4a843;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.student-room-picker-card strong {
+  color: #1a2e2a;
+  font-size: 14px;
+}
+
+.student-room-picker-card small,
+.student-room-picker-card p {
+  margin: 0;
+  color: #6f8d86;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.student-room-picker-card > div:not(:first-child) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.student-room-picker-card em {
+  border-radius: 999px;
+  padding: 2px 7px;
+  background: #ecf4f2;
+  color: #4a6b64;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.student-room-picker-card button {
+  height: 34px;
+  border: 1.5px solid #2d7a6e;
+  border-radius: 8px;
+  background: #2d7a6e;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.student-room-picker-card button:disabled {
+  border-color: #d8e8e5;
+  background: #f3f4f6;
+  color: #8aaaa4;
+  cursor: not-allowed;
+}
+
 .student-seat-selector-panel {
   min-height: calc(100vh - 58px);
   display: grid;
   grid-template-columns: 254px minmax(430px, 1fr) 276px;
   margin: -22px;
   background: #f4f8f7;
+}
+
+.student-action-notice + .student-seat-selector-panel {
+  margin-top: 0;
 }
 
 .student-seat-filter-panel,
@@ -5896,6 +6442,17 @@ button {
   color: #4a6b64;
   font-size: 11px;
   font-weight: 800;
+}
+
+.student-seat-room-context p {
+  margin: 0;
+  border: 1px solid #d8e8e5;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #f8fcfb;
+  color: #1a2e2a;
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .student-seat-segment {
@@ -6268,6 +6825,14 @@ button {
   cursor: not-allowed;
 }
 
+.student-seat-cell[data-filtered="true"] {
+  border-color: #e5e7eb;
+  background: #f8fafc;
+  color: #cbd5e1;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
 .student-seat-column-labels {
   width: max-content;
   display: grid;
@@ -6476,6 +7041,20 @@ button {
   padding: 10px 0 34px;
 }
 
+.student-booking-confirm-dialog {
+  width: min(760px, calc(100vw - 56px));
+  overflow: auto;
+}
+
+.student-booking-confirm-dialog .student-booking-confirm-panel {
+  min-height: 0;
+  padding: 18px;
+}
+
+.student-booking-confirm-dialog .student-booking-confirm-inner {
+  width: 100%;
+}
+
 .student-booking-confirm-inner {
   width: min(100%, 700px);
   display: grid;
@@ -6565,11 +7144,13 @@ button {
 }
 
 .student-booking-confirm-card,
+.student-booking-position-card,
 .student-booking-reminder-card {
   padding: 20px;
 }
 
-.student-booking-confirm-card header {
+.student-booking-confirm-card header,
+.student-booking-position-card header {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -6578,10 +7159,35 @@ button {
 }
 
 .student-booking-confirm-card h2,
+.student-booking-position-card h2,
 .student-booking-reminder-card h2 {
   margin: 0;
   color: #1a2e2a;
   font-size: 13px;
+}
+
+.student-booking-seat-map {
+  display: grid;
+  gap: 12px;
+}
+
+.student-booking-seat-map .student-seat-legend {
+  justify-content: flex-start;
+}
+
+.student-booking-seat-map-board {
+  overflow-x: auto;
+  border: 1px solid #d8e8e5;
+  border-radius: 12px;
+  padding: 16px;
+  background: #fbfefe;
+}
+
+.student-booking-position-card p {
+  margin: 10px 0 0;
+  color: #8aaaa4;
+  font-size: 11px;
+  line-height: 1.6;
 }
 
 .student-booking-detail-grid {
@@ -7178,6 +7784,18 @@ button {
   flex-direction: column;
   overflow: hidden;
   padding: 0;
+}
+
+.student-assistant-mode-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid #d8e8e5;
+  padding: 10px 16px;
+  background: #f3fbf9;
+  color: #1d6c5f;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .student-assistant-messages {
@@ -8038,7 +8656,57 @@ button {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .student-room-selection-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .student-room-selection-results {
+    padding: 16px;
+  }
+
+  .student-room-filter-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .student-room-time-field {
+    grid-column: span 2;
+  }
+
   .student-seat-selector-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .student-room-picker-layer,
+  .student-booking-confirm-layer {
+    align-items: start;
+    padding: 18px;
+  }
+
+  .student-room-picker-dialog,
+  .student-booking-confirm-dialog {
+    width: calc(100vw - 36px);
+    max-height: calc(100vh - 36px);
+  }
+
+  .student-room-picker-body {
+    height: auto;
+    max-height: calc(100vh - 126px);
+    grid-template-columns: 1fr;
+    overflow: auto;
+  }
+
+  .student-room-tree-panel {
+    max-height: 220px;
+    border-right: 0;
+    border-bottom: 1px solid #d8e8e5;
+  }
+
+  .student-room-picker-tools {
+    grid-template-columns: 1fr;
+  }
+
+  .student-room-picker-list {
+    overflow: visible;
     grid-template-columns: 1fr;
   }
 
@@ -8196,8 +8864,62 @@ button {
     flex-direction: column;
   }
 
+  .student-room-selection-layout {
+    border-radius: 12px;
+  }
+
+  .student-room-selection-results {
+    padding: 14px;
+  }
+
+  .student-room-search {
+    min-width: 100%;
+  }
+
+  .student-room-filter-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .student-room-time-field {
+    grid-column: 1;
+  }
+
+  .student-room-seat-section > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .student-seat-selector-panel {
     margin: -18px;
+  }
+
+  .student-room-picker-layer,
+  .student-booking-confirm-layer {
+    padding: 10px;
+  }
+
+  .student-room-picker-dialog,
+  .student-booking-confirm-dialog {
+    width: calc(100vw - 20px);
+    max-height: calc(100vh - 20px);
+  }
+
+  .student-room-picker-head,
+  .student-booking-confirm-dialog-head {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 14px;
+  }
+
+  .student-room-picker-head > button,
+  .student-booking-confirm-dialog-head > button {
+    width: 100%;
+  }
+
+  .student-room-picker-tools,
+  .student-room-picker-list,
+  .student-booking-confirm-dialog .student-booking-confirm-panel {
+    padding: 14px;
   }
 
   .student-seat-floor-panel {

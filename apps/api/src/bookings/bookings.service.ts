@@ -61,10 +61,10 @@ export class BookingsService {
         message: '不能预约已过去的时段'
       });
     }
-    if (!this.isWholeHour(startAt) || !this.isWholeHour(endAt)) {
+    if (!this.isHalfHourBoundary(startAt) || !this.isHalfHourBoundary(endAt)) {
       throw new BadRequestException({
         code: ErrorCode.VALIDATION_FAILED,
-        message: '预约必须按整点开始和结束'
+        message: '预约必须按 30 分钟粒度开始和结束'
       });
     }
     if (durationMs > MAX_BOOKING_HOURS * hourMs) {
@@ -88,7 +88,11 @@ export class BookingsService {
     return date;
   }
 
-  private isWholeHour(date: Date): boolean {
-    return date.getMinutes() === 0 && date.getSeconds() === 0 && date.getMilliseconds() === 0;
+  private isHalfHourBoundary(date: Date): boolean {
+    return (
+      (date.getMinutes() === 0 || date.getMinutes() === 30) &&
+      date.getSeconds() === 0 &&
+      date.getMilliseconds() === 0
+    );
   }
 }

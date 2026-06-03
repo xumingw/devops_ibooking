@@ -8,7 +8,7 @@ import {
   AssistantSeatFilters
 } from './assistant.service';
 
-type GlmChatResponse = {
+type DeepSeekChatResponse = {
   choices?: Array<{
     message?: {
       content?: string;
@@ -49,12 +49,12 @@ JSON schema:
 - 没有明确日期时 dateLabel=今天；没有明确时间时使用 8-22 全天。`;
 
 @Injectable()
-export class GlmAssistantClient implements AssistantModelClient {
+export class DeepSeekAssistantClient implements AssistantModelClient {
   constructor(private readonly configService: ConfigService) {}
 
   async interpret(input: AssistantModelInput): Promise<AssistantModelDecision> {
     const apiKey =
-      this.configService.get<string>('BIGMODEL_API_KEY')?.trim() ||
+      this.configService.get<string>('DEEPSEEK_API_KEY')?.trim() ||
       this.configService.get<string>('LLM_API_KEY')?.trim();
     if (!apiKey) {
       throw new ServiceUnavailableException({
@@ -76,9 +76,9 @@ export class GlmAssistantClient implements AssistantModelClient {
         },
         body: JSON.stringify({
           model:
-            this.configService.get<string>('BIGMODEL_MODEL')?.trim() ||
+            this.configService.get<string>('DEEPSEEK_MODEL')?.trim() ||
             this.configService.get<string>('LLM_MODEL')?.trim() ||
-            'glm-4.7-flash',
+            'deepseek-v4-flash',
           messages: [
             { role: 'system', content: SYSTEM_PROMPT },
             {
@@ -86,6 +86,9 @@ export class GlmAssistantClient implements AssistantModelClient {
               content: `当前时间：${input.now.toISOString()}\n用户问题：${input.message}`
             }
           ],
+          response_format: {
+            type: 'json_object'
+          },
           thinking: {
             type: 'disabled'
           },
@@ -100,7 +103,7 @@ export class GlmAssistantClient implements AssistantModelClient {
       clearTimeout(timeout);
     }
 
-    const payload = (await response.json().catch(() => null)) as GlmChatResponse | null;
+    const payload = (await response.json().catch(() => null)) as DeepSeekChatResponse | null;
     const content = payload?.choices?.[0]?.message?.content;
     if (!response.ok || !content) {
       throw new BadGatewayException({
@@ -114,15 +117,15 @@ export class GlmAssistantClient implements AssistantModelClient {
 
   private resolveEndpoint(): string {
     const baseUrl =
-      this.configService.get<string>('BIGMODEL_BASE_URL')?.trim() ||
+      this.configService.get<string>('DEEPSEEK_BASE_URL')?.trim() ||
       this.configService.get<string>('LLM_BASE_URL')?.trim() ||
-      'https://open.bigmodel.cn';
-    return `${baseUrl.replace(/\/+$/, '')}/api/paas/v4/chat/completions`;
+      'https://api.deepseek.com';
+    return `${baseUrl.replace(/\/+$/, '')}/chat/completions`;
   }
 
   private resolveTimeoutMs(): number {
     const value = Number(
-      this.configService.get<string>('BIGMODEL_TIMEOUT_MS')?.trim() ||
+      this.configService.get<string>('DEEPSEEK_TIMEOUT_MS')?.trim() ||
         this.configService.get<string>('LLM_TIMEOUT_MS')?.trim()
     );
     return Number.isFinite(value) && value > 0 ? value : 15000;

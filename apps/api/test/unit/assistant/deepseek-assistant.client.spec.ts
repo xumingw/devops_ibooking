@@ -1,8 +1,8 @@
 import { BadGatewayException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { GlmAssistantClient } from '../../../src/assistant/glm-assistant.client';
+import { DeepSeekAssistantClient } from '../../../src/assistant/deepseek-assistant.client';
 
-describe('GlmAssistantClient', () => {
+describe('DeepSeek assistant model client', () => {
   const fetchMock = jest.fn();
   let originalFetch: typeof globalThis.fetch;
 
@@ -16,7 +16,7 @@ describe('GlmAssistantClient', () => {
     globalThis.fetch = originalFetch;
   });
 
-  it('使用 glm-4.7-flash 调用 BigModel 聊天补全并解析 JSON 意图', async () => {
+  it('使用 deepseek-v4-flash 调用 DeepSeek 聊天补全并解析 JSON 意图', async () => {
     fetchMock.mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -39,7 +39,7 @@ describe('GlmAssistantClient', () => {
         { headers: { 'Content-Type': 'application/json' }, status: 200 }
       )
     );
-    const client = new GlmAssistantClient(configServiceFixture({ BIGMODEL_API_KEY: 'test-key' }));
+    const client = new DeepSeekAssistantClient(configServiceFixture({ DEEPSEEK_API_KEY: 'test-key' }));
 
     const decision = await client.interpret({
       message: '今晚找靠窗有插座的座位',
@@ -55,7 +55,7 @@ describe('GlmAssistantClient', () => {
       filters: { hasPower: true, nearWindow: true, quietZone: false }
     });
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+      'https://api.deepseek.com/chat/completions',
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: 'Bearer test-key',
@@ -66,8 +66,11 @@ describe('GlmAssistantClient', () => {
     );
     const [, request] = fetchMock.mock.calls[0];
     expect(JSON.parse(request.body as string)).toMatchObject({
-      model: 'glm-4.7-flash',
+      model: 'deepseek-v4-flash',
       stream: false,
+      response_format: {
+        type: 'json_object'
+      },
       thinking: {
         type: 'disabled'
       },
@@ -81,8 +84,8 @@ describe('GlmAssistantClient', () => {
     });
   });
 
-  it('缺少 BIGMODEL_API_KEY 时拒绝调用远端模型', async () => {
-    const client = new GlmAssistantClient(configServiceFixture({}));
+  it('缺少 DEEPSEEK_API_KEY 时拒绝调用远端模型', async () => {
+    const client = new DeepSeekAssistantClient(configServiceFixture({}));
 
     await expect(
       client.interpret({
@@ -95,7 +98,7 @@ describe('GlmAssistantClient', () => {
 
   it('远端网络错误时返回稳定的模型调用失败异常', async () => {
     fetchMock.mockRejectedValue(new Error('network down'));
-    const client = new GlmAssistantClient(configServiceFixture({ BIGMODEL_API_KEY: 'test-key' }));
+    const client = new DeepSeekAssistantClient(configServiceFixture({ DEEPSEEK_API_KEY: 'test-key' }));
 
     await expect(
       client.interpret({

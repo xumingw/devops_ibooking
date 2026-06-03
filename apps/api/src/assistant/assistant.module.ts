@@ -7,7 +7,7 @@ import {
   ASSISTANT_REPOSITORY,
   AssistantService
 } from './assistant.service';
-import { GlmAssistantClient } from './glm-assistant.client';
+import { DeepSeekAssistantClient } from './deepseek-assistant.client';
 import { PrismaAssistantRepository } from './prisma-assistant.repository';
 
 @Module({
@@ -16,7 +16,7 @@ import { PrismaAssistantRepository } from './prisma-assistant.repository';
   providers: [
     PrismaService,
     AssistantService,
-    GlmAssistantClient,
+    DeepSeekAssistantClient,
     PrismaAssistantRepository,
     {
       provide: ASSISTANT_REPOSITORY,
@@ -24,7 +24,7 @@ import { PrismaAssistantRepository } from './prisma-assistant.repository';
     },
     {
       provide: ASSISTANT_MODEL_CLIENT,
-      useExisting: GlmAssistantClient
+      useExisting: DeepSeekAssistantClient
     }
   ]
 })

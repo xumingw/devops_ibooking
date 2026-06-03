@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import {
   StudentAssistantBookingCandidate,
   StudentAssistantIntent,
@@ -74,10 +74,7 @@ export class AssistantService {
   ) {}
 
   async reply(input: AssistantReplyInput): Promise<StudentAssistantReply> {
-    const decision = await this.modelClient.interpret({
-      message: input.message,
-      now: new Date()
-    });
+    const decision = await this.resolveDecision(input.message);
 
     if (decision.intent === 'my_bookings') {
       return this.replyWithMyBookings(input.userId, decision);
@@ -86,6 +83,77 @@ export class AssistantService {
       return this.replyWithSeats(input, decision);
     }
     return this.fallbackReply(decision.fallbackText);
+  }
+
+  private async resolveDecision(message: string): Promise<AssistantModelDecision> {
+    try {
+      return await this.modelClient.interpret({
+        message,
+        now: new Date()
+      });
+    } catch (error) {
+      if (this.isModelNotConfigured(error)) {
+        return this.interpretWithKeywords(message);
+      }
+      throw error;
+    }
+  }
+
+  private isModelNotConfigured(error: unknown): boolean {
+    if (!(error instanceof ServiceUnavailableException)) return false;
+    const response = error.getResponse();
+    if (typeof response === 'string') return response.includes('智能助手模型未配置');
+    return (
+      typeof response === 'object' &&
+      response !== null &&
+      'message' in response &&
+      String(response.message).includes('智能助手模型未配置')
+    );
+  }
+
+  private interpretWithKeywords(message: string): AssistantModelDecision {
+    const normalized = message.trim();
+    const dateLabel: '今天' | '明天' = /明天/.test(normalized) ? '明天' : '今天';
+    const filters = {
+      hasPower: /插座|电源|充电/.test(normalized),
+      nearWindow: /靠窗|窗边|窗户/.test(normalized),
+      quietZone: /安静|低噪|静音/.test(normalized)
+    };
+    const timeRange = this.resolveKeywordTimeRange(normalized, dateLabel);
+    const asksBookings = /我的预约|我.*(定|订|预约).*哪|我今天定了哪里|我今天订了哪里/.test(
+      normalized
+    );
+    const asksSeat = /座位|找座|靠窗|窗边|插座|电源|安静|低噪|静音/.test(normalized);
+    const asksAvailability = /空座|空位|有座|还有.*座|有没有.*座/.test(normalized);
+
+    return {
+      intent: asksBookings
+        ? 'my_bookings'
+        : asksSeat
+          ? 'seat_search'
+          : asksAvailability
+            ? 'availability'
+            : 'fallback',
+      dateLabel,
+      timeLabel: timeRange.timeLabel,
+      startHour: timeRange.startHour,
+      endHour: timeRange.endHour,
+      filters,
+      fallbackText: '当前使用关键词规则，我能帮你查空座、按条件找座、查看我的预约。'
+    };
+  }
+
+  private resolveKeywordTimeRange(message: string, dateLabel: '今天' | '明天') {
+    if (/晚上|今晚/.test(message)) {
+      return { timeLabel: `${dateLabel}晚上`, startHour: 18, endHour: 22 };
+    }
+    if (/下午/.test(message)) {
+      return { timeLabel: `${dateLabel}下午`, startHour: 14, endHour: 18 };
+    }
+    if (/上午|早上/.test(message)) {
+      return { timeLabel: `${dateLabel}上午`, startHour: 8, endHour: 12 };
+    }
+    return { timeLabel: `${dateLabel}全天`, startHour: 8, endHour: 22 };
   }
 
   private async replyWithSeats(
