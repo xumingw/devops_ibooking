@@ -8044,40 +8044,48 @@ function StudentRoomsPanel({
                 ))}
               </select>
             </label>
-            <label>
-              <span>开始时间</span>
-              <select onChange={(event) => handleStartTimeChange(event.target.value)} value={startTime}>
-                {STUDENT_ROOM_START_TIMES.map((time) => (
-                  <option
-                    disabled={isStudentRoomPastStartTime(selectedDate, time, roomSearchNow)}
-                    key={time}
-                    value={time}
-                  >
-                    {time}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>结束时间</span>
-              <select
-                onChange={(event) =>
-                  setEndTime(normalizeStudentRoomEndTime(startTime, event.target.value))
-                }
-                value={endTime}
-              >
+            <fieldset className="student-room-time-field" aria-label="开始时间">
+              <legend>开始时间</legend>
+              <div className="student-room-time-options" role="group" aria-label="开始时间选项">
+                {STUDENT_ROOM_START_TIMES.map((time) => {
+                  const disabled = isStudentRoomPastStartTime(selectedDate, time, roomSearchNow);
+                  return (
+                    <button
+                      aria-pressed={time === startTime}
+                      className={time === startTime ? 'is-active' : ''}
+                      disabled={disabled}
+                      key={time}
+                      onClick={() => handleStartTimeChange(time)}
+                      type="button"
+                    >
+                      {time}
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+            <fieldset className="student-room-time-field" aria-label="结束时间">
+              <legend>结束时间</legend>
+              <div className="student-room-time-options" role="group" aria-label="结束时间选项">
                 {STUDENT_ROOM_END_TIMES.map((time) => {
                   const duration = getStudentBookingDurationHours(startTime, time);
                   const disabled =
                     parseStudentClockMinutes(time) <= parseStudentClockMinutes(startTime) || duration > 4;
                   return (
-                    <option disabled={disabled} key={time} value={time}>
+                    <button
+                      aria-pressed={time === endTime}
+                      className={time === endTime ? 'is-active' : ''}
+                      disabled={disabled}
+                      key={time}
+                      onClick={() => setEndTime(time)}
+                      type="button"
+                    >
                       {time}
-                    </option>
+                    </button>
                   );
                 })}
-              </select>
-            </label>
+              </div>
+            </fieldset>
             <label>
               <span>楼栋</span>
               <select

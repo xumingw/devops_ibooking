@@ -180,8 +180,8 @@ describe('student interactive controls', () => {
     await renderStudentHome('rooms');
 
     await selectOption('日期', '明天');
-    await selectOption('开始时间', '18:00');
-    await selectOption('结束时间', '21:00');
+    await clickTimeOption('开始时间', '18:00');
+    await clickTimeOption('结束时间', '21:00');
     await selectOption('楼栋', '逸夫楼');
     await selectOption('楼层', '2楼');
     await selectOption('教室', '理工自习室 201');
@@ -189,8 +189,8 @@ describe('student interactive controls', () => {
     await clickButton('搜索可预约自习室');
 
     expect(getSelect('日期').value).toBe('明天');
-    expect(getSelect('开始时间').value).toBe('18:00');
-    expect(getSelect('结束时间').value).toBe('21:00');
+    expect(getTimeButton('开始时间', '18:00').className).toContain('is-active');
+    expect(getTimeButton('结束时间', '21:00').className).toContain('is-active');
     expect(getSelect('楼栋').value).toBe('逸夫楼');
     expect(getSelect('楼层').value).toBe('2楼');
     expect(getSelect('教室').value).toBe('理工自习室 201');
@@ -208,16 +208,33 @@ describe('student interactive controls', () => {
     await renderStudentHome('rooms');
 
     expect(getSelect('日期').value).toBe('今天');
-    expect(getSelect('开始时间').value).toBe('20:00');
-    expect(getSelectOption('开始时间', '18:00').disabled).toBe(true);
-    expect(getSelectOption('开始时间', '19:00').disabled).toBe(true);
-    expect(getSelectOption('开始时间', '20:00').disabled).toBe(false);
-    expect(getSelectOption('开始时间', '21:00').disabled).toBe(false);
+    expect(getTimeButton('开始时间', '20:00').className).toContain('is-active');
+    expect(getTimeButton('开始时间', '18:00').disabled).toBe(true);
+    expect(getTimeButton('开始时间', '19:00').disabled).toBe(true);
+    expect(getTimeButton('开始时间', '20:00').disabled).toBe(false);
+    expect(getTimeButton('开始时间', '21:00').disabled).toBe(false);
 
     await selectOption('日期', '明天');
-    expect(getSelectOption('开始时间', '18:00').disabled).toBe(false);
-    await selectOption('开始时间', '18:00');
-    expect(getSelect('开始时间').value).toBe('18:00');
+    expect(getTimeButton('开始时间', '18:00').disabled).toBe(false);
+    await clickTimeOption('开始时间', '18:00');
+    expect(getTimeButton('开始时间', '18:00').className).toContain('is-active');
+  });
+
+  it('自习室列表时间控件不用原生下拉，避免滚动选择失效', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-02T03:42:00.000Z'));
+    await renderStudentHome('rooms');
+
+    expect(getTimeField('开始时间').querySelector('select')).toBeNull();
+    expect(getTimeField('结束时间').querySelector('select')).toBeNull();
+
+    await clickTimeOption('开始时间', '15:00');
+    expect(getTimeButton('开始时间', '15:00').className).toContain('is-active');
+    expect(getTimeButton('结束时间', '20:00').disabled).toBe(true);
+
+    await clickTimeOption('结束时间', '18:00');
+    expect(getTimeButton('结束时间', '18:00').className).toContain('is-active');
+    expect(container?.textContent).toContain('今天 15:00 – 18:00（3小时）');
   });
 
   it('从自习室列表点预约后直接打开预约弹窗', async () => {
@@ -239,8 +256,8 @@ describe('student interactive controls', () => {
     await renderStudentHome('rooms');
 
     await selectOption('日期', '明天');
-    await selectOption('开始时间', '18:00');
-    await selectOption('结束时间', '21:00');
+    await clickTimeOption('开始时间', '18:00');
+    await clickTimeOption('结束时间', '21:00');
     await selectOption('楼栋', '逸夫楼');
     await selectOption('楼层', '2楼');
     await selectOption('教室', '理工自习室 201');
@@ -501,6 +518,29 @@ describe('student interactive controls', () => {
       select.dispatchEvent(new Event('change', { bubbles: true }));
       await Promise.resolve();
     });
+  }
+
+  async function clickTimeOption(label: string, value: string) {
+    const button = getTimeButton(label, value);
+    await act(async () => {
+      button.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+  }
+
+  function getTimeField(label: string) {
+    const field = container?.querySelector(`.student-room-time-field[aria-label="${label}"]`);
+    if (!field) throw new Error(`time field not found: ${label}`);
+    return field as HTMLElement;
+  }
+
+  function getTimeButton(label: string, value: string) {
+    const button = [...getTimeField(label).querySelectorAll('button')].find((candidate) =>
+      normalize(candidate.textContent).includes(normalize(value))
+    );
+    if (!button) throw new Error(`time button not found: ${label} ${value}`);
+    return button as HTMLButtonElement;
   }
 
   function getSelect(label: string) {

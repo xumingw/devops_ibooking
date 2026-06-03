@@ -5705,16 +5705,63 @@ button {
   gap: 12px;
 }
 
-.student-room-filter-fields label {
+.student-room-filter-fields label,
+.student-room-filter-fields fieldset {
   min-width: 0;
 }
 
-.student-room-filter-fields label span {
+.student-room-filter-fields fieldset {
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.student-room-filter-fields label span,
+.student-room-filter-fields legend {
   display: block;
   margin-bottom: 8px;
   color: #4a6b64;
   font-size: 12px;
   font-weight: 900;
+}
+
+.student-room-time-field {
+  grid-column: span 2;
+}
+
+.student-room-time-options {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  overflow: visible;
+}
+
+.student-room-time-options button {
+  width: 58px;
+  height: 36px;
+  flex: 0 0 58px;
+  border: 1.5px solid #d8e8e5;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #1a2e2a;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.student-room-time-options button:hover:not(:disabled),
+.student-room-time-options button.is-active {
+  border-color: #2d7a6e;
+  background: #eaf5f2;
+  color: #1d6f63;
+}
+
+.student-room-time-options button:disabled {
+  cursor: not-allowed;
+  border-color: #e3ebe9;
+  background: #f3f7f6;
+  color: #9ca9a6;
 }
 
 .student-room-filter-fields select,
@@ -8641,6 +8688,10 @@ button {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .student-room-time-field {
+    grid-column: span 2;
+  }
+
   .student-seat-selector-panel {
     grid-template-columns: 1fr;
   }
@@ -8847,6 +8898,10 @@ button {
 
   .student-room-filter-fields {
     grid-template-columns: 1fr;
+  }
+
+  .student-room-time-field {
+    grid-column: 1;
   }
 
   .student-room-seat-section > header {
