@@ -4,6 +4,7 @@ import {
   STUDENT_CHECKIN_TIMER_CIRCUMFERENCE,
   calculateStudentCheckInTimerDashOffset,
   canSubmitStudentCheckIn,
+  getStudentCheckInTimerUiState,
   requestStudentCheckInCode,
   requestStudentCheckInSession,
   tickStudentCheckInRemaining,
@@ -102,5 +103,18 @@ describe('student checkin api', () => {
     expect(
       canSubmitStudentCheckIn({ ...baseInput, enteredCode: '27415', remainingSeconds: 1 }),
     ).toBe(false);
+  });
+
+  it('签到成功后计时器不再展示剩余倒计时', () => {
+    expect(
+      getStudentCheckInTimerUiState({
+        remainingSeconds: 1002,
+        submitted: true,
+      }),
+    ).toEqual({
+      ariaLabel: '签到已完成',
+      caption: '签到状态',
+      label: '已完成',
+    });
   });
 });

@@ -2049,9 +2049,9 @@ const SCHEDULE_SUMMARY = [
     tone: F.navy
   },
   {
-    label: '整点时段',
-    value: '1 小时粒度',
-    note: '选座与预约统一按整点计算',
+    label: '半小时时段',
+    value: '30 分钟粒度',
+    note: '选座与预约统一按 30 分钟计算',
     icon: 'grid',
     tone: '#3A6FA8'
   },
@@ -2775,7 +2775,7 @@ const ADMIN_PARAM_RECORDS = [
     scope: '全校',
     type: '预约规则',
     status: 'active',
-    note: '单次预约按整点开始结束，不允许超过 4 小时'
+    note: '单次预约按 30 分钟粒度开始结束，不允许超过 4 小时'
   },
   {
     name: '默认开放时间',
@@ -3210,40 +3210,31 @@ const STUDENT_ROOM_FILTERS = ['全部楼栋', '全校开放', '有空位', '有�
 type StudentRoomFilter = (typeof STUDENT_ROOM_FILTERS)[number];
 const STUDENT_DEFAULT_FAVORITE_ROOM_IDS = ['room-gm-301', 'room-science-201', 'room-humanities-a'] as const;
 const STUDENT_ROOM_DATE_OPTIONS = ['今天', '明天', '后天'] as const;
-const STUDENT_ROOM_START_TIMES = [
-  '07:00',
-  '08:00',
-  '09:00',
-  '10:00',
-  '11:00',
-  '12:00',
-  '13:00',
-  '14:00',
-  '15:00',
-  '16:00',
-  '17:00',
-  '18:00',
-  '19:00',
-  '20:00',
-  '21:00'
-] as const;
-const STUDENT_ROOM_END_TIMES = [
-  '08:00',
-  '09:00',
-  '10:00',
-  '11:00',
-  '12:00',
-  '13:00',
-  '14:00',
-  '15:00',
-  '16:00',
-  '17:00',
-  '18:00',
-  '19:00',
-  '20:00',
-  '21:00',
-  '22:00'
-] as const;
+const STUDENT_ROOM_MINUTE_STEP = 30;
+const STUDENT_ROOM_MINUTE_OPTIONS = ['00', '30'] as const;
+const STUDENT_ROOM_MIN_OPEN_MINUTES = 7 * 60;
+const STUDENT_ROOM_MAX_CLOSE_MINUTES = 22 * 60;
+const formatStudentClockFromMinutes = (minutes: number) =>
+  `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+const createStudentRoomTimeOptions = (startMinutes: number, endMinutes: number) =>
+  Array.from(
+    { length: Math.floor((endMinutes - startMinutes) / STUDENT_ROOM_MINUTE_STEP) + 1 },
+    (_, index) => formatStudentClockFromMinutes(startMinutes + index * STUDENT_ROOM_MINUTE_STEP)
+  );
+const createStudentRoomHourOptions = (startHour: number, endHour: number) =>
+  Array.from({ length: endHour - startHour + 1 }, (_, index) =>
+    String(startHour + index).padStart(2, '0')
+  );
+const STUDENT_ROOM_START_TIMES = createStudentRoomTimeOptions(
+  STUDENT_ROOM_MIN_OPEN_MINUTES,
+  STUDENT_ROOM_MAX_CLOSE_MINUTES - STUDENT_ROOM_MINUTE_STEP
+);
+const STUDENT_ROOM_END_TIMES = createStudentRoomTimeOptions(
+  STUDENT_ROOM_MIN_OPEN_MINUTES + STUDENT_ROOM_MINUTE_STEP,
+  STUDENT_ROOM_MAX_CLOSE_MINUTES
+);
+const STUDENT_ROOM_START_HOUR_OPTIONS = createStudentRoomHourOptions(7, 21);
+const STUDENT_ROOM_END_HOUR_OPTIONS = createStudentRoomHourOptions(7, 22);
 
 type StudentSeatStatus = 'available' | 'window' | 'taken' | 'selected' | 'disabled';
 
@@ -3293,6 +3284,14 @@ const normalizeStudentRoomFavoriteIds = (summary: StudentRoomFavoriteSummary) =>
   });
 
   return Array.from(favoriteIds);
+};
+
+const formatStudentFavoriteRoomSummary = (favoriteRoomIds: string[]) => {
+  if (favoriteRoomIds.length === 0) return '暂无收藏自习室';
+  const roomNames = favoriteRoomIds
+    .map((roomId) => STUDENT_ROOM_LIST.find((room) => room.id === roomId)?.building)
+    .filter((building): building is string => Boolean(building));
+  return Array.from(new Set(roomNames)).slice(0, 3).join(' · ') || '已收藏自习室';
 };
 
 const createStudentSeatId = (roomId: string, seat: string) => {
@@ -3414,22 +3413,76 @@ const parseStudentClockMinutes = (clock: string) => {
   return Number(hour) * 60 + Number(minute);
 };
 
-const getStudentBookingDurationHours = (startClock: string, endClock: string) =>
-  Math.max(1, Math.round((parseStudentClockMinutes(endClock) - parseStudentClockMinutes(startClock)) / 60));
+const splitStudentClock = (clock: string) => {
+  const [hour = '00', minute = '00'] = clock.split(':');
+  return {
+    hour: String(Number(hour)).padStart(2, '0'),
+    minute: STUDENT_ROOM_MINUTE_OPTIONS.includes(
+      minute as (typeof STUDENT_ROOM_MINUTE_OPTIONS)[number]
+    )
+      ? minute
+      : '00'
+  };
+};
 
-const formatStudentClockFromMinutes = (minutes: number) =>
-  `${String(Math.floor(minutes / 60)).padStart(2, '0')}:00`;
+const createStudentClock = (hour: string, minute: string) =>
+  `${String(Number(hour)).padStart(2, '0')}:${minute}`;
+
+const formatStudentBookingDurationLabel = (startClock: string, endClock: string) => {
+  const durationMinutes = Math.max(
+    STUDENT_ROOM_MINUTE_STEP,
+    parseStudentClockMinutes(endClock) - parseStudentClockMinutes(startClock)
+  );
+  const hours = Math.floor(durationMinutes / 60);
+  const minutes = durationMinutes % 60;
+  if (minutes === 0) return `${hours}小时`;
+  if (hours === 0) return `${minutes}分钟`;
+  return `${hours}.${minutes === 30 ? '5' : String(Math.round((minutes / 60) * 10))}小时`;
+};
+
+const isStudentRoomStartClockBookable = (
+  dateLabel: (typeof STUDENT_ROOM_DATE_OPTIONS)[number],
+  startClock: string,
+  now = new Date()
+) =>
+  STUDENT_ROOM_START_TIMES.includes(startClock) &&
+  !isStudentRoomPastStartTime(dateLabel, startClock, now);
+
+const isStudentRoomEndClockBookable = (startClock: string, endClock: string) => {
+  const startMinutes = parseStudentClockMinutes(startClock);
+  const endMinutes = parseStudentClockMinutes(endClock);
+  return (
+    STUDENT_ROOM_END_TIMES.includes(endClock) &&
+    endMinutes >= startMinutes + STUDENT_ROOM_MINUTE_STEP &&
+    endMinutes <= startMinutes + 240
+  );
+};
+
+const getStudentRoomBookableStartMinutes = (
+  dateLabel: (typeof STUDENT_ROOM_DATE_OPTIONS)[number],
+  hour: string,
+  now = new Date()
+) =>
+  STUDENT_ROOM_MINUTE_OPTIONS.filter((minute) =>
+    isStudentRoomStartClockBookable(dateLabel, createStudentClock(hour, minute), now)
+  );
+
+const getStudentRoomBookableEndMinutes = (startClock: string, hour: string) =>
+  STUDENT_ROOM_MINUTE_OPTIONS.filter((minute) =>
+    isStudentRoomEndClockBookable(startClock, createStudentClock(hour, minute))
+  );
 
 const normalizeStudentRoomEndTime = (startClock: string, endClock: string) => {
   const startMinutes = parseStudentClockMinutes(startClock);
   const endMinutes = parseStudentClockMinutes(endClock);
-  const minEndMinutes = startMinutes + 60;
+  const minEndMinutes = startMinutes + STUDENT_ROOM_MINUTE_STEP;
   const maxEndMinutes = startMinutes + 240;
-  if (endMinutes > startMinutes && endMinutes <= maxEndMinutes) return endClock;
-  const fallbackMinutes = Math.min(maxEndMinutes, 22 * 60);
+  if (endMinutes >= minEndMinutes && endMinutes <= maxEndMinutes && STUDENT_ROOM_END_TIMES.includes(endClock)) {
+    return endClock;
+  }
+  const fallbackMinutes = Math.min(startMinutes + 180, maxEndMinutes, STUDENT_ROOM_MAX_CLOSE_MINUTES);
   const normalizedMinutes = Math.max(minEndMinutes, fallbackMinutes);
-  const hour = String(Math.floor(normalizedMinutes / 60)).padStart(2, '0');
-  return `${hour}:00`;
+  return formatStudentClockFromMinutes(normalizedMinutes);
 };
 
 const getStudentShanghaiClockMinutes = (now = new Date()) => {
@@ -3493,7 +3546,7 @@ const isStudentRoomOpenForTime = (
 };
 
 const formatStudentRoomBookingTime = (startClock: string, endClock: string) =>
-  `${startClock} – ${endClock}（${getStudentBookingDurationHours(startClock, endClock)}小时）`;
+  `${startClock} – ${endClock}（${formatStudentBookingDurationLabel(startClock, endClock)}）`;
 
 type StudentRoomWithContext = (typeof STUDENT_ROOM_LIST)[number] & {
   roomContext: StudentSeatRoomContext;
@@ -3648,6 +3701,8 @@ const STUDENT_BOOKING_STATUS_META: Record<
   violation: { label: '违约', variant: 'red', icon: 'alert' },
   cancelled: { label: '已取消', variant: 'gray', icon: 'x' }
 };
+
+const STUDENT_DAILY_BOOKING_LIMIT = 3;
 
 const getStudentBookingStatusLabel = (status: StudentBookingStatus) =>
   STUDENT_BOOKING_STATUS_META[status].label;
@@ -3834,7 +3889,162 @@ const formatStudentRelativeDuration = (minutes: number) => {
   return hours > 0 ? `${hours}小时${remainingMinutes}分` : `${remainingMinutes}分`;
 };
 
-const createStudentHomeBookingBanner = (now = new Date()) => {
+type StudentHomeBookingActionState = 'upcoming' | 'active' | 'ended' | 'empty';
+
+type StudentHomeBookingBanner = {
+  actionState: StudentHomeBookingActionState;
+  label: string;
+  statTrend: string;
+  statusPrefix: string;
+  statusValue: string;
+  timeRangeLabel: string;
+  title: string;
+};
+
+const normalizeStudentBookingTimeRangeLabel = (time: string) => time.replace(/\s*-\s*/g, ' – ');
+
+const getStudentBookingClockLabel = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Shanghai'
+  }).format(date);
+};
+
+const formatStudentDatePartsKey = ({ year, month, day }: StudentBookingDateParts) =>
+  `${year}-${month}-${day}`;
+
+const getStudentShanghaiDateKey = (date: Date) => formatStudentDatePartsKey(getShanghaiDateParts(date, 0));
+
+const isStudentActiveBookingRecord = (record: StudentBookingRecord) =>
+  record.status === 'upcoming' || record.status === 'using';
+
+const resolveStudentBookingStartDateKey = (record: StudentBookingRecord, now: Date) => {
+  const startAt = new Date(record.startAt);
+  if (!Number.isNaN(startAt.getTime())) return getStudentShanghaiDateKey(startAt);
+  if (/今天|今日/.test(record.time)) return getStudentShanghaiDateKey(now);
+  if (/明天/.test(record.time)) return formatStudentDatePartsKey(getShanghaiDateParts(now, 1));
+  if (/后天/.test(record.time)) return formatStudentDatePartsKey(getShanghaiDateParts(now, 2));
+  return '';
+};
+
+const getStudentTodayActiveBookings = (summary: StudentBookingSummaryView, now: Date) => {
+  const todayKey = getStudentShanghaiDateKey(now);
+  return summary.records.filter(
+    (record) =>
+      isStudentActiveBookingRecord(record) && resolveStudentBookingStartDateKey(record, now) === todayKey
+  );
+};
+
+const formatStudentTodayBookingStatTrend = (
+  bookings: StudentBookingRecord[],
+  now: Date
+) => {
+  if (bookings.length === 0) return '今日暂无';
+  if (bookings.some((booking) => booking.status === 'using')) return '进行中';
+
+  const nextBooking = [...bookings]
+    .map((booking) => ({ booking, startAt: new Date(booking.startAt) }))
+    .filter(({ startAt }) => !Number.isNaN(startAt.getTime()))
+    .sort((left, right) => left.startAt.getTime() - right.startAt.getTime())
+    .find(({ startAt }) => startAt.getTime() >= now.getTime());
+  const startLabel = nextBooking ? getStudentBookingClockLabel(nextBooking.booking.startAt) : '';
+  return startLabel ? `${startLabel} 开始` : '待签到';
+};
+
+const createStudentRoomAvailabilityByBookingSummary = (
+  summary: StudentBookingSummaryView
+): Record<string, number> => {
+  const reservedCountByRoomId = summary.records.reduce<Record<string, number>>((counts, record) => {
+    if (!isStudentActiveBookingRecord(record)) return counts;
+    const roomId = resolveStudentRoomId(record.room);
+    return {
+      ...counts,
+      [roomId]: (counts[roomId] ?? 0) + 1
+    };
+  }, {});
+
+  return STUDENT_ROOM_LIST.reduce<Record<string, number>>((availabilityById, room) => {
+    const reservedCount = reservedCountByRoomId[room.id] ?? 0;
+    if (reservedCount === 0) return availabilityById;
+    return {
+      ...availabilityById,
+      [room.id]: Math.max(0, room.available - reservedCount)
+    };
+  }, {});
+};
+
+const createStudentHomeEmptyBookingBanner = (): StudentHomeBookingBanner => ({
+  actionState: 'empty',
+  label: '暂无预约',
+  statTrend: '暂无待签到',
+  statusPrefix: '可从自习室列表预约新的学习时段',
+  statusValue: '',
+  timeRangeLabel: '当前没有待开始或进行中的预约',
+  title: '暂无预约'
+});
+
+const createStudentHomeBookingBannerFromSummary = (
+  summary: StudentBookingSummaryView,
+  now = new Date()
+): StudentHomeBookingBanner => {
+  const booking =
+    summary.records.find((record) => record.status === 'using') ??
+    summary.records.find((record) => record.status === 'upcoming');
+
+  if (!booking) return createStudentHomeEmptyBookingBanner();
+
+  const startAt = new Date(booking.startAt);
+  const endAt = new Date(booking.endAt);
+  const hasStartAt = !Number.isNaN(startAt.getTime());
+  const hasEndAt = !Number.isNaN(endAt.getTime());
+  const title = `${booking.location} · ${booking.room} · ${booking.seat} 号座位`;
+  const timeRangeLabel = normalizeStudentBookingTimeRangeLabel(booking.time);
+
+  if (booking.status === 'using' || (hasStartAt && hasEndAt && now >= startAt && now < endAt)) {
+    return {
+      actionState: 'active',
+      label: '进行中预约',
+      statTrend: '进行中',
+      statusPrefix: hasEndAt ? '距结束还有' : '正在使用中',
+      statusValue: hasEndAt ? formatStudentRelativeDuration((endAt.getTime() - now.getTime()) / 60000) : '',
+      timeRangeLabel,
+      title
+    };
+  }
+
+  if (hasEndAt && now >= endAt) {
+    return {
+      actionState: 'ended',
+      label: '最近预约',
+      statTrend: '已结束',
+      statusPrefix: `已于 ${getStudentBookingClockLabel(booking.endAt) || '结束时间'} 结束`,
+      statusValue: '',
+      timeRangeLabel,
+      title
+    };
+  }
+
+  return {
+    actionState: 'upcoming',
+    label: '下一场预约',
+    statTrend: `${getStudentBookingClockLabel(booking.startAt) || '预约时间'} 开始`,
+    statusPrefix: hasStartAt ? '距开始还有' : '待开始',
+    statusValue: hasStartAt ? formatStudentRelativeDuration((startAt.getTime() - now.getTime()) / 60000) : '',
+    timeRangeLabel,
+    title
+  };
+};
+
+const createStudentHomeBookingBanner = (
+  now = new Date(),
+  summary?: StudentBookingSummaryView
+): StudentHomeBookingBanner => {
+  if (summary) return createStudentHomeBookingBannerFromSummary(summary, now);
+
   const startAt = createStudentShanghaiClockDate(now, STUDENT_HOME_BOOKING.startClock);
   const endAt = createStudentShanghaiClockDate(now, STUDENT_HOME_BOOKING.endClock);
   const timeRangeLabel = `今日 ${STUDENT_HOME_BOOKING.startClock} – ${STUDENT_HOME_BOOKING.endClock}`;
@@ -3846,7 +4056,8 @@ const createStudentHomeBookingBanner = (now = new Date()) => {
       statTrend: `${STUDENT_HOME_BOOKING.startClock} 开始`,
       statusPrefix: '距开始还有',
       statusValue: formatStudentRelativeDuration((startAt.getTime() - now.getTime()) / 60000),
-      timeRangeLabel
+      timeRangeLabel,
+      title: STUDENT_HOME_BOOKING.title
     };
   }
 
@@ -3857,7 +4068,8 @@ const createStudentHomeBookingBanner = (now = new Date()) => {
       statTrend: '进行中',
       statusPrefix: '距结束还有',
       statusValue: formatStudentRelativeDuration((endAt.getTime() - now.getTime()) / 60000),
-      timeRangeLabel
+      timeRangeLabel,
+      title: STUDENT_HOME_BOOKING.title
     };
   }
 
@@ -3867,7 +4079,8 @@ const createStudentHomeBookingBanner = (now = new Date()) => {
     statTrend: '已结束',
     statusPrefix: `已于 ${STUDENT_HOME_BOOKING.endClock} 结束`,
     statusValue: '',
-    timeRangeLabel
+    timeRangeLabel,
+    title: STUDENT_HOME_BOOKING.title
   };
 };
 
@@ -3884,6 +4097,29 @@ const formatStudentCheckInRemaining = (seconds: number) => {
   const minutes = Math.floor(safeSeconds / 60);
   const restSeconds = safeSeconds % 60;
   return `${minutes}:${String(restSeconds).padStart(2, '0')}`;
+};
+
+export const getStudentCheckInTimerUiState = ({
+  remainingSeconds,
+  submitted
+}: {
+  remainingSeconds: number;
+  submitted: boolean;
+}) => {
+  if (submitted) {
+    return {
+      ariaLabel: '签到已完成',
+      caption: '签到状态',
+      label: '已完成'
+    };
+  }
+
+  const label = formatStudentCheckInRemaining(remainingSeconds);
+  return {
+    ariaLabel: `剩余签到时间 ${label}`,
+    caption: '剩余签到时间',
+    label
+  };
 };
 
 export const tickStudentCheckInRemaining = (seconds: number) => Math.max(0, seconds - 1);
@@ -5870,7 +6106,7 @@ function ScheduleManagementPanel() {
 
           <div className="schedule-option-list">
             {[
-              ['整点时段', '只允许选择 07:00、08:00 这类整点小时'],
+              ['半小时时段', '只允许选择 07:00、07:30 这类半小时边界'],
               ['跨天开放', '结束时间早于开始时间时按次日计算'],
               ['未配置时回退默认', '房间没有独立规则时使用全校默认 07:00–22:00']
             ].map(([label, desc], index) => (
@@ -7239,13 +7475,33 @@ export function StudentHomePreview({
     createStudentSeatBookingDraft(DEFAULT_STUDENT_SEAT_ROOM_CONTEXT, 'C3', ['插座', '安静区'])
   );
   const [roomInitialFilter, setRoomInitialFilter] = useState<StudentRoomFilter>('全部楼栋');
+  const [favoriteRoomIds, setFavoriteRoomIds] = useState<string[]>(() => [
+    ...STUDENT_DEFAULT_FAVORITE_ROOM_IDS
+  ]);
+  const [studentRoomAvailabilityById, setStudentRoomAvailabilityById] = useState<Record<string, number>>({});
   const [bookingConfirmOpen, setBookingConfirmOpen] = useState(false);
   const [assistantBookingAction, setAssistantBookingAction] =
     useState<StudentAssistantBookingActionContext | null>(null);
   const activeNavMenu: StudentMenuId =
     activeMenu === 'select' || activeMenu === 'confirm' ? 'rooms' : activeMenu;
   const currentStudentNow = new Date();
-  const homeBookingBanner = createStudentHomeBookingBanner(currentStudentNow);
+  const homeBookingBanner = createStudentHomeBookingBanner(
+    currentStudentNow,
+    accessToken ? studentBookingSummary : undefined
+  );
+  const studentTodayActiveBookings = getStudentTodayActiveBookings(
+    studentBookingSummary,
+    currentStudentNow
+  );
+  const studentTodayBookingCount = studentTodayActiveBookings.length;
+  const studentTodayBookingStatTrend = formatStudentTodayBookingStatTrend(
+    studentTodayActiveBookings,
+    currentStudentNow
+  );
+  const handleStudentBookingSummaryChange = useCallback((nextSummary: StudentBookingSummaryView) => {
+    setStudentBookingSummary(nextSummary);
+    setStudentRoomAvailabilityById(createStudentRoomAvailabilityByBookingSummary(nextSummary));
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -7276,6 +7532,32 @@ export function StudentHomePreview({
       alive = false;
     };
   }, [accessToken, onSessionExpired, onSessionRefresh]);
+
+  useEffect(() => {
+    let alive = true;
+    if (!accessToken) return () => {
+      alive = false;
+    };
+    if (activeMenu !== 'home') return () => {
+      alive = false;
+    };
+
+    requestStudentBookings(accessToken, fetch, resolveApiBaseUrl(), {
+      onSessionExpired,
+      onSessionRefresh
+    })
+      .then((nextSummary) => {
+        if (!alive) return;
+        handleStudentBookingSummaryChange(mapStudentBookingSummaryToView(nextSummary));
+      })
+      .catch(() => {
+        // 首页继续保留本地摘要，避免预约服务短暂不可用时清空当前页面。
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [accessToken, activeMenu, handleStudentBookingSummaryChange, onSessionExpired, onSessionRefresh]);
 
   const handleStudentMenuChange = (nextMenu: StudentMenuId) => {
     const normalizedMenu = normalizeStudentPageId(nextMenu);
@@ -7408,6 +7690,55 @@ export function StudentHomePreview({
       activeCount: current.activeCount + 1,
       records: [createdRecord, ...current.records.filter((record) => record.id !== booking.id)]
     }));
+    const roomId = resolveStudentRoomId(booking.room);
+    const sourceRoom = STUDENT_ROOM_LIST.find((room) => room.id === roomId);
+    if (!sourceRoom) return;
+    setStudentRoomAvailabilityById((current) => {
+      const currentAvailable = current[roomId] ?? sourceRoom.available;
+      return {
+        ...current,
+        [roomId]: Math.max(0, currentAvailable - 1)
+      };
+    });
+  };
+
+  const handleStudentBookingCancelled = (
+    booking: StudentBookingRecord,
+    nextSummary?: StudentBookingSummaryView
+  ) => {
+    if (nextSummary) {
+      handleStudentBookingSummaryChange(nextSummary);
+      return;
+    } else {
+      const [cancelledView] = mapStudentBookingSummaryToView({
+        totalCount: 1,
+        activeCount: 0,
+        completedCount: 0,
+        records: [booking]
+      }).records;
+      setStudentBookingSummary((current) => {
+        const existingRecord = current.records.find((record) => record.id === booking.id);
+        const wasActive = existingRecord?.status === 'upcoming' || existingRecord?.status === 'using';
+        return {
+          ...current,
+          activeCount: wasActive ? Math.max(0, current.activeCount - 1) : current.activeCount,
+          records: existingRecord
+            ? current.records.map((record) => (record.id === booking.id ? cancelledView : record))
+            : [cancelledView, ...current.records]
+        };
+      });
+    }
+
+    const roomId = resolveStudentRoomId(booking.room);
+    const sourceRoom = STUDENT_ROOM_LIST.find((room) => room.id === roomId);
+    if (!sourceRoom) return;
+    setStudentRoomAvailabilityById((current) => {
+      const currentAvailable = current[roomId] ?? sourceRoom.available;
+      return {
+        ...current,
+        [roomId]: Math.min(sourceRoom.capacity, currentAvailable + 1)
+      };
+    });
   };
 
   const handleStudentBookingSubmitResult = (result: StudentBookingSubmitResult) => {
@@ -7624,6 +7955,8 @@ export function StudentHomePreview({
         {activeMenu === 'rooms' ? (
           <StudentRoomsPanel
             accessToken={accessToken}
+            availabilityById={studentRoomAvailabilityById}
+            favoriteRoomIds={favoriteRoomIds}
             initialFilter={roomInitialFilter}
             onBookRoom={(room, bookingOptions) =>
               handleStudentRoomBook(
@@ -7632,6 +7965,7 @@ export function StudentHomePreview({
                 bookingOptions
               )
             }
+            onFavoriteRoomIdsChange={setFavoriteRoomIds}
             onSessionExpired={onSessionExpired}
             onSessionRefresh={onSessionRefresh}
             onWaitlist={(room) => showStudentActionNotice(`已为你加入${room.name}候补提醒，有空位会通知。`)}
@@ -7659,9 +7993,10 @@ export function StudentHomePreview({
                 `已带你重新预约${booking.room}，请确认新的时间段。`
               );
             }}
+            onBookingCancelled={handleStudentBookingCancelled}
             onSessionExpired={onSessionExpired}
             onSessionRefresh={onSessionRefresh}
-            onSummaryChange={setStudentBookingSummary}
+            onSummaryChange={handleStudentBookingSummaryChange}
           />
         ) : activeMenu === 'checkin' ? (
           <StudentCheckInPanel
@@ -7678,6 +8013,7 @@ export function StudentHomePreview({
             onBookings={() => handleStudentPageChange('bookings')}
             onCheckIn={() => handleStudentPageChange('checkin')}
             onConfirmSeat={handleAssistantSeatConfirm}
+            onBookingCancelled={handleStudentBookingCancelled}
             onSessionExpired={onSessionExpired}
             onSessionRefresh={onSessionRefresh}
             onSelect={() => handleStudentPageChange('rooms')}
@@ -7707,14 +8043,29 @@ export function StudentHomePreview({
           </span>
           <div>
             <small>{homeBookingBanner.label}</small>
-            <h2>{STUDENT_HOME_BOOKING.title}</h2>
+            <h2>{homeBookingBanner.title}</h2>
             <p>
               {homeBookingBanner.timeRangeLabel} · {homeBookingBanner.statusPrefix}
               {homeBookingBanner.statusValue ? <strong>{homeBookingBanner.statusValue}</strong> : null}
             </p>
           </div>
           <div className="student-home-booking-actions">
-            {homeBookingBanner.actionState === 'ended' ? (
+            {homeBookingBanner.actionState === 'empty' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleStudentPageChange('rooms', '可按日期、时间和自习室条件预约新的座位。')}
+                >
+                  去预约
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleStudentPageChange('bookings', '当前没有待开始或进行中的预约。')}
+                >
+                  查看记录
+                </button>
+              </>
+            ) : homeBookingBanner.actionState === 'ended' ? (
               <>
                 <button
                   type="button"
@@ -7732,6 +8083,25 @@ export function StudentHomePreview({
                   }
                 >
                   再次预约
+                </button>
+              </>
+            ) : homeBookingBanner.actionState === 'active' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleStudentPageChange('bookings', '当前预约已签到，正在使用中。')
+                  }
+                >
+                  查看记录
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleStudentPageChange('rooms', '可继续预约下一场学习时段。')
+                  }
+                >
+                  预约下一场
                 </button>
               </>
             ) : (
@@ -7766,13 +8136,35 @@ export function StudentHomePreview({
             <article className="dashboard-card student-home-stat-card" key={stat.label}>
               <div>
                 <span>{stat.label}</span>
-                <strong>{stat.value}</strong>
-                <small>{stat.note}</small>
+                <strong>
+                  {stat.label === '今日我的预约'
+                    ? studentTodayBookingCount
+                    : stat.label === '常用自习室'
+                      ? favoriteRoomIds.length
+                      : stat.value}
+                </strong>
+                <small>
+                  {stat.label === '今日我的预约'
+                    ? studentTodayBookingCount > 0
+                      ? `还有 ${Math.max(0, STUDENT_DAILY_BOOKING_LIMIT - studentTodayBookingCount)} 次可用`
+                      : '今日暂无预约'
+                    : stat.label === '常用自习室'
+                      ? formatStudentFavoriteRoomSummary(favoriteRoomIds)
+                    : stat.note}
+                </small>
               </div>
               <i style={{ color: stat.tone }}>
                 <DashboardIcon name={stat.icon} size={17} />
               </i>
-              <mark>{stat.label === '今日我的预约' ? homeBookingBanner.statTrend : stat.trend}</mark>
+              <mark>
+                {stat.label === '今日我的预约'
+                  ? studentTodayBookingStatTrend
+                  : stat.label === '常用自习室'
+                    ? favoriteRoomIds.length > 0
+                      ? '已收藏'
+                      : '可添加'
+                    : stat.trend}
+              </mark>
             </article>
           ))}
         </section>
@@ -7787,37 +8179,44 @@ export function StudentHomePreview({
               </button>
             </header>
             <div className="student-home-room-list">
-              {STUDENT_RECOMMENDED_ROOMS.map((room) => (
-                <article className="dashboard-card student-home-room-card" key={room.name}>
-                  <span className="student-home-room-icon" style={{ color: room.tone }}>
-                    <DashboardIcon name="building" size={18} />
-                  </span>
-                  <div className="student-home-room-info">
-                    <strong>{room.name}</strong>
-                    <small>
-                      <DashboardIcon name="pin" size={11} />
-                      {room.location}
-                    </small>
-                  </div>
-                  <div className="student-home-room-tags">
-                    {room.tags.map((tag) => (
-                      <span key={tag}>{tag}</span>
-                    ))}
-                  </div>
-                  <div className="student-home-room-seats">
-                    <strong>{room.seats}</strong>
-                    <small>{room.status}</small>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleStudentRoomBook(createStudentSeatRoomContextFromRecommendedRoom(room))
-                    }
-                  >
-                    去预约
-                  </button>
-                </article>
-              ))}
+              {STUDENT_RECOMMENDED_ROOMS.map((room) => {
+                const sourceRoom = STUDENT_ROOM_LIST.find((candidate) => candidate.name === room.name);
+                const available =
+                  sourceRoom ? studentRoomAvailabilityById[sourceRoom.id] ?? sourceRoom.available : null;
+                const seatLabel = sourceRoom && available !== null ? `${available} / ${sourceRoom.capacity}` : room.seats;
+
+                return (
+                  <article className="dashboard-card student-home-room-card" key={room.name}>
+                    <span className="student-home-room-icon" style={{ color: room.tone }}>
+                      <DashboardIcon name="building" size={18} />
+                    </span>
+                    <div className="student-home-room-info">
+                      <strong>{room.name}</strong>
+                      <small>
+                        <DashboardIcon name="pin" size={11} />
+                        {room.location}
+                      </small>
+                    </div>
+                    <div className="student-home-room-tags">
+                      {room.tags.map((tag) => (
+                        <span key={tag}>{tag}</span>
+                      ))}
+                    </div>
+                    <div className="student-home-room-seats">
+                      <strong>{seatLabel}</strong>
+                      <small>{room.status}</small>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleStudentRoomBook(createStudentSeatRoomContextFromRecommendedRoom(room))
+                      }
+                    >
+                      去预约
+                    </button>
+                  </article>
+                );
+              })}
             </div>
           </section>
 
@@ -7870,18 +8269,24 @@ export function StudentHomePreview({
 
 function StudentRoomsPanel({
   accessToken,
+  availabilityById = {},
+  favoriteRoomIds: controlledFavoriteRoomIds,
   initialFilter = '全部楼栋',
   onBookRoom,
+  onFavoriteRoomIdsChange,
   onSessionExpired,
   onSessionRefresh,
   onWaitlist
 }: {
   accessToken?: string;
+  availabilityById?: Record<string, number>;
+  favoriteRoomIds?: string[];
   initialFilter?: StudentRoomFilter;
   onBookRoom?: (
     room: (typeof STUDENT_ROOM_LIST)[number],
     bookingOptions: { dateLabel: string; time: string }
   ) => void;
+  onFavoriteRoomIdsChange?: (favoriteRoomIds: string[]) => void;
   onSessionExpired?: () => void;
   onSessionRefresh?: (session: SessionView) => void;
   onWaitlist?: (room: (typeof STUDENT_ROOM_LIST)[number]) => void;
@@ -7899,10 +8304,23 @@ function StudentRoomsPanel({
   const [startTime, setStartTime] = useState(initialTimeState.startTime);
   const [endTime, setEndTime] = useState(initialTimeState.endTime);
   const [activeRoomName, setActiveRoomName] = useState('');
-  const [favoriteRoomIds, setFavoriteRoomIds] = useState<string[]>(() => [
+  const [localFavoriteRoomIds, setLocalFavoriteRoomIds] = useState<string[]>(() => [
     ...STUDENT_DEFAULT_FAVORITE_ROOM_IDS
   ]);
+  const favoriteRoomIds = controlledFavoriteRoomIds ?? localFavoriteRoomIds;
   const [searchNotice, setSearchNotice] = useState('');
+  const rooms = useMemo(
+    () =>
+      STUDENT_ROOM_LIST.map((room) => {
+        const available = availabilityById[room.id] ?? room.available;
+        return {
+          ...room,
+          available,
+          status: available <= 0 ? 'full' : room.status
+        };
+      }),
+    [availabilityById]
+  );
   const roomTree = useMemo(groupStudentRoomsByBuilding, []);
   const buildingOptions = roomTree.map((building) => building.building);
   const floorOptions = useMemo(() => {
@@ -7910,19 +8328,19 @@ function StudentRoomsPanel({
       ? (roomTree.find((building) => building.building === activeBuilding)?.floors ?? []).map(
           (floor) => floor.floor
         )
-      : STUDENT_ROOM_LIST.map((room) => room.floor);
+      : rooms.map((room) => room.floor);
     return Array.from(new Set(floors));
-  }, [activeBuilding, roomTree]);
+  }, [activeBuilding, roomTree, rooms]);
   const roomOptions = useMemo(
     () =>
-      STUDENT_ROOM_LIST.filter((room) => {
+      rooms.filter((room) => {
         if (activeBuilding && room.building !== activeBuilding) return false;
         if (activeFloor && room.floor !== activeFloor) return false;
         return isStudentRoomOpenForTime(room, startTime, endTime);
       }),
-    [activeBuilding, activeFloor, startTime, endTime]
+    [activeBuilding, activeFloor, rooms, startTime, endTime]
   );
-  const visibleRooms = STUDENT_ROOM_LIST.filter((room) => {
+  const visibleRooms = rooms.filter((room) => {
     if (activeBuilding && room.building !== activeBuilding) return false;
     if (activeFloor && room.floor !== activeFloor) return false;
     if (activeRoomName && room.name !== activeRoomName) return false;
@@ -7935,10 +8353,14 @@ function StudentRoomsPanel({
     return true;
   });
   const bookingTime = formatStudentRoomBookingTime(startTime, endTime);
+  const startClockParts = splitStudentClock(startTime);
+  const endClockParts = splitStudentClock(endTime);
 
   useEffect(() => {
     if (!accessToken) {
-      setFavoriteRoomIds([...STUDENT_DEFAULT_FAVORITE_ROOM_IDS]);
+      const fallbackFavoriteRoomIds = [...STUDENT_DEFAULT_FAVORITE_ROOM_IDS];
+      setLocalFavoriteRoomIds(fallbackFavoriteRoomIds);
+      onFavoriteRoomIdsChange?.(fallbackFavoriteRoomIds);
       return;
     }
 
@@ -7948,7 +8370,11 @@ function StudentRoomsPanel({
       onSessionRefresh
     })
       .then((summary) => {
-        if (!ignore) setFavoriteRoomIds(normalizeStudentRoomFavoriteIds(summary));
+        if (!ignore) {
+          const nextFavoriteRoomIds = normalizeStudentRoomFavoriteIds(summary);
+          setLocalFavoriteRoomIds(nextFavoriteRoomIds);
+          onFavoriteRoomIdsChange?.(nextFavoriteRoomIds);
+        }
       })
       .catch((error) => {
         if (!ignore) setSearchNotice(error instanceof Error ? error.message : '收藏列表加载失败');
@@ -7957,7 +8383,7 @@ function StudentRoomsPanel({
     return () => {
       ignore = true;
     };
-  }, [accessToken, onSessionExpired, onSessionRefresh]);
+  }, [accessToken, onFavoriteRoomIdsChange, onSessionExpired, onSessionRefresh]);
 
   useEffect(() => {
     if (activeFloor && !floorOptions.includes(activeFloor)) setActiveFloor('');
@@ -7974,10 +8400,40 @@ function StudentRoomsPanel({
   }, [activeRoomName, roomOptions]);
 
   const handleStartTimeChange = (value: string) => {
-    if (isStudentRoomPastStartTime(selectedDate, value, roomSearchNow)) return;
+    if (!isStudentRoomStartClockBookable(selectedDate, value, roomSearchNow)) return;
     setStartTime(value);
     setEndTime((current) => normalizeStudentRoomEndTime(value, current));
     setActiveRoomName('');
+  };
+
+  const handleStartHourChange = (hour: string) => {
+    const minuteOptions = getStudentRoomBookableStartMinutes(selectedDate, hour, roomSearchNow);
+    const nextMinute = minuteOptions.includes(startClockParts.minute as '00' | '30')
+      ? startClockParts.minute
+      : minuteOptions[0];
+    if (nextMinute) handleStartTimeChange(createStudentClock(hour, nextMinute));
+  };
+
+  const handleStartMinuteChange = (minute: string) => {
+    handleStartTimeChange(createStudentClock(startClockParts.hour, minute));
+  };
+
+  const handleEndTimeChange = (value: string) => {
+    if (!isStudentRoomEndClockBookable(startTime, value)) return;
+    setEndTime(value);
+    setActiveRoomName('');
+  };
+
+  const handleEndHourChange = (hour: string) => {
+    const minuteOptions = getStudentRoomBookableEndMinutes(startTime, hour);
+    const nextMinute = minuteOptions.includes(endClockParts.minute as '00' | '30')
+      ? endClockParts.minute
+      : minuteOptions[0];
+    if (nextMinute) handleEndTimeChange(createStudentClock(hour, nextMinute));
+  };
+
+  const handleEndMinuteChange = (minute: string) => {
+    handleEndTimeChange(createStudentClock(endClockParts.hour, minute));
   };
 
   const handleSelectedDateChange = (value: (typeof STUDENT_ROOM_DATE_OPTIONS)[number]) => {
@@ -8002,7 +8458,8 @@ function StudentRoomsPanel({
     const nextFavoriteRoomIds = isFavorite
       ? favoriteRoomIds.filter((favoriteRoomId) => favoriteRoomId !== room.id)
       : [...favoriteRoomIds, room.id];
-    setFavoriteRoomIds(nextFavoriteRoomIds);
+    setLocalFavoriteRoomIds(nextFavoriteRoomIds);
+    onFavoriteRoomIdsChange?.(nextFavoriteRoomIds);
     setSearchNotice(isFavorite ? `已取消收藏${room.name}` : `已收藏${room.name}`);
 
     if (!accessToken) return;
@@ -8011,9 +8468,14 @@ function StudentRoomsPanel({
       onSessionExpired,
       onSessionRefresh
     })
-      .then((summary) => setFavoriteRoomIds(normalizeStudentRoomFavoriteIds(summary)))
+      .then((summary) => {
+        const nextServerFavoriteRoomIds = normalizeStudentRoomFavoriteIds(summary);
+        setLocalFavoriteRoomIds(nextServerFavoriteRoomIds);
+        onFavoriteRoomIdsChange?.(nextServerFavoriteRoomIds);
+      })
       .catch((error) => {
-        setFavoriteRoomIds(previousFavoriteRoomIds);
+        setLocalFavoriteRoomIds(previousFavoriteRoomIds);
+        onFavoriteRoomIdsChange?.(previousFavoriteRoomIds);
         setSearchNotice(error instanceof Error ? error.message : '收藏状态保存失败');
       });
   };
@@ -8046,44 +8508,90 @@ function StudentRoomsPanel({
             </label>
             <fieldset className="student-room-time-field" aria-label="开始时间">
               <legend>开始时间</legend>
-              <div className="student-room-time-options" role="group" aria-label="开始时间选项">
-                {STUDENT_ROOM_START_TIMES.map((time) => {
-                  const disabled = isStudentRoomPastStartTime(selectedDate, time, roomSearchNow);
-                  return (
-                    <button
-                      aria-pressed={time === startTime}
-                      className={time === startTime ? 'is-active' : ''}
-                      disabled={disabled}
-                      key={time}
-                      onClick={() => handleStartTimeChange(time)}
-                      type="button"
+              <div className="student-room-time-picker">
+                <select
+                  aria-label="开始时间小时"
+                  onChange={(event) => handleStartHourChange(event.target.value)}
+                  value={startClockParts.hour}
+                >
+                  {STUDENT_ROOM_START_HOUR_OPTIONS.map((hour) => (
+                    <option
+                      disabled={
+                        getStudentRoomBookableStartMinutes(selectedDate, hour, roomSearchNow)
+                          .length === 0
+                      }
+                      key={hour}
+                      value={hour}
                     >
-                      {time}
-                    </button>
-                  );
-                })}
+                      {hour}
+                    </option>
+                  ))}
+                </select>
+                <span>时</span>
+                <select
+                  aria-label="开始时间分钟"
+                  onChange={(event) => handleStartMinuteChange(event.target.value)}
+                  value={startClockParts.minute}
+                >
+                  {STUDENT_ROOM_MINUTE_OPTIONS.map((minute) => (
+                    <option
+                      disabled={
+                        !isStudentRoomStartClockBookable(
+                          selectedDate,
+                          createStudentClock(startClockParts.hour, minute),
+                          roomSearchNow
+                        )
+                      }
+                      key={minute}
+                      value={minute}
+                    >
+                      {minute}
+                    </option>
+                  ))}
+                </select>
+                <span>分</span>
               </div>
             </fieldset>
             <fieldset className="student-room-time-field" aria-label="结束时间">
               <legend>结束时间</legend>
-              <div className="student-room-time-options" role="group" aria-label="结束时间选项">
-                {STUDENT_ROOM_END_TIMES.map((time) => {
-                  const duration = getStudentBookingDurationHours(startTime, time);
-                  const disabled =
-                    parseStudentClockMinutes(time) <= parseStudentClockMinutes(startTime) || duration > 4;
-                  return (
-                    <button
-                      aria-pressed={time === endTime}
-                      className={time === endTime ? 'is-active' : ''}
-                      disabled={disabled}
-                      key={time}
-                      onClick={() => setEndTime(time)}
-                      type="button"
+              <div className="student-room-time-picker">
+                <select
+                  aria-label="结束时间小时"
+                  onChange={(event) => handleEndHourChange(event.target.value)}
+                  value={endClockParts.hour}
+                >
+                  {STUDENT_ROOM_END_HOUR_OPTIONS.map((hour) => (
+                    <option
+                      disabled={getStudentRoomBookableEndMinutes(startTime, hour).length === 0}
+                      key={hour}
+                      value={hour}
                     >
-                      {time}
-                    </button>
-                  );
-                })}
+                      {hour}
+                    </option>
+                  ))}
+                </select>
+                <span>时</span>
+                <select
+                  aria-label="结束时间分钟"
+                  onChange={(event) => handleEndMinuteChange(event.target.value)}
+                  value={endClockParts.minute}
+                >
+                  {STUDENT_ROOM_MINUTE_OPTIONS.map((minute) => (
+                    <option
+                      disabled={
+                        !isStudentRoomEndClockBookable(
+                          startTime,
+                          createStudentClock(endClockParts.hour, minute)
+                        )
+                      }
+                      key={minute}
+                      value={minute}
+                    >
+                      {minute}
+                    </option>
+                  ))}
+                </select>
+                <span>分</span>
               </div>
             </fieldset>
             <label>
@@ -8235,6 +8743,8 @@ function StudentRoomsPanel({
   );
 }
 
+// 旧选座页已经由预约弹窗替代，暂时保留作为历史 mock 组件。
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function StudentSeatSelectorPanel({
   assistantSeatSelection,
   bookingDateLabel,
@@ -8390,7 +8900,7 @@ function StudentSeatSelectorPanel({
                     <span>{label}</span>
                     <button
                       className={index === 0 ? 'is-active' : ''}
-                      onClick={() => setSeatNotice('预约时间按整点选择，单次预约最长 4 小时。')}
+                      onClick={() => setSeatNotice('预约时间按 30 分钟粒度选择，单次预约最长 4 小时。')}
                       type="button"
                     >
                       {value}
@@ -8963,7 +9473,7 @@ function StudentBookingConfirmDialog({
         <header className="student-booking-confirm-dialog-head">
           <div>
             <h2>确认预约</h2>
-            <p>核对自习室、座位和整点时间段后提交。</p>
+            <p>核对自习室、座位和半小时时间段后提交。</p>
           </div>
           <button onClick={onClose} type="button">
             关闭
@@ -8987,6 +9497,7 @@ function StudentBookingConfirmDialog({
 function StudentBookingsPanel({
   accessToken,
   assistantBookingAction,
+  onBookingCancelled,
   onCheckIn,
   onRepeatBooking,
   onSessionExpired,
@@ -8995,6 +9506,7 @@ function StudentBookingsPanel({
 }: {
   accessToken?: string;
   assistantBookingAction?: StudentAssistantBookingActionContext;
+  onBookingCancelled?: (booking: StudentBookingRecord, nextSummary?: StudentBookingSummaryView) => void;
   onCheckIn?: () => void;
   onRepeatBooking?: (booking: StudentBookingRecordView) => void;
   onSessionExpired?: () => void;
@@ -9165,13 +9677,15 @@ function StudentBookingsPanel({
                                     completedCount: 0,
                                     records: [cancelled]
                                   }).records;
-                                  setSummary((current) => ({
-                                    ...current,
-                                    activeCount: Math.max(0, current.activeCount - 1),
-                                    records: current.records.map((record) =>
+                                  const nextSummary = {
+                                    ...summary,
+                                    activeCount: Math.max(0, summary.activeCount - 1),
+                                    records: summary.records.map((record) =>
                                       record.id === booking.id ? cancelledView : record
                                     )
-                                  }));
+                                  };
+                                  setSummary(nextSummary);
+                                  onBookingCancelled?.(cancelled, nextSummary);
                                   setActionNotice(
                                     `已取消预约：${cancelled.room} · ${cancelled.seat} · ${cancelled.time}`
                                   );
@@ -9309,12 +9823,15 @@ function StudentCheckInPanel({
   const visibleDigits = Array.from({ length: codeLength }, (_, index) => digits[index] ?? '');
   const activeDigitIndex = visibleDigits.findIndex((digit) => digit === '');
   const enteredCode = visibleDigits.join('');
-  const remainingLabel = formatStudentCheckInRemaining(displayRemainingSeconds);
+  const submitted = submitMessage.includes('已签到');
+  const timerUiState = getStudentCheckInTimerUiState({
+    remainingSeconds: displayRemainingSeconds,
+    submitted
+  });
   const timerDashOffset = calculateStudentCheckInTimerDashOffset(
-    displayRemainingSeconds,
+    submitted ? 0 : displayRemainingSeconds,
     countdownTotalSeconds
   );
-  const submitted = submitMessage.includes('已签到');
   const checkInExpired = Boolean(session) && displayRemainingSeconds <= 0 && !submitted;
   const canSubmit =
     !visibleDigits.includes('') &&
@@ -9387,7 +9904,7 @@ function StudentCheckInPanel({
           </div>
         )}
 
-        <div className="student-checkin-timer" aria-label={`剩余签到时间 ${remainingLabel}`}>
+        <div className="student-checkin-timer" aria-label={timerUiState.ariaLabel}>
           <svg aria-hidden="true" viewBox="0 0 140 140">
             <circle cx="70" cy="70" r="62" />
             <circle
@@ -9401,8 +9918,8 @@ function StudentCheckInPanel({
             />
           </svg>
           <div>
-            <strong>{remainingLabel}</strong>
-            <span>剩余签到时间</span>
+            <strong>{timerUiState.label}</strong>
+            <span>{timerUiState.caption}</span>
           </div>
         </div>
 
@@ -9473,6 +9990,7 @@ function StudentCheckInPanel({
 
 function StudentAssistantPanel({
   accessToken,
+  onBookingCancelled,
   onBookingAction,
   onBookings,
   onCheckIn,
@@ -9484,6 +10002,7 @@ function StudentAssistantPanel({
   resetKey = 0
 }: {
   accessToken?: string;
+  onBookingCancelled?: (booking: StudentBookingRecord) => void;
   onBookingAction?: (
     booking: StudentAssistantBookingCandidate,
     action: Exclude<StudentAssistantAction, 'BOOK'>
@@ -9575,6 +10094,7 @@ function StudentAssistantPanel({
         { onSessionExpired, onSessionRefresh }
       )
         .then((cancelled) => {
+          onBookingCancelled?.(cancelled);
           setMessages((current) => {
             const updatedMessages = current.map((message) => ({
               ...message,

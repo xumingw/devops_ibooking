@@ -5729,39 +5729,19 @@ button {
   grid-column: span 2;
 }
 
-.student-room-time-options {
+.student-room-time-picker {
   min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(64px, 1fr) auto minmax(64px, 1fr) auto;
+  align-items: center;
   gap: 6px;
-  overflow: visible;
 }
 
-.student-room-time-options button {
-  width: 58px;
-  height: 36px;
-  flex: 0 0 58px;
-  border: 1.5px solid #d8e8e5;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #1a2e2a;
+.student-room-time-picker span {
+  color: #6c8780;
   font-size: 12px;
   font-weight: 900;
-  cursor: pointer;
-}
-
-.student-room-time-options button:hover:not(:disabled),
-.student-room-time-options button.is-active {
-  border-color: #2d7a6e;
-  background: #eaf5f2;
-  color: #1d6f63;
-}
-
-.student-room-time-options button:disabled {
-  cursor: not-allowed;
-  border-color: #e3ebe9;
-  background: #f3f7f6;
-  color: #9ca9a6;
+  white-space: nowrap;
 }
 
 .student-room-filter-fields select,

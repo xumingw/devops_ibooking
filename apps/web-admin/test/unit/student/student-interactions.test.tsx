@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { StudentHomePreview } from '../../../src/App';
 import {
+  successfulStudentBookingCancelResponse,
   successfulStudentNotificationsResponse,
   successfulStudentRoomFavoritesResponse,
   successfulStudentBookingCreateResponse,
@@ -106,6 +107,10 @@ describe('student interactive controls', () => {
     expect(getRoomGridText()).not.toContain('经管自习室 301');
     expect(container?.textContent).toContain('已取消收藏经管自习室 301');
 
+    await clickButton('首页概览');
+    expect(getArticleText('常用自习室')).toContain('2');
+    await clickButton('自习室列表');
+
     await clickButton('全部楼栋');
     expect(getFavoriteButton('新闻学院研讨室').className).not.toContain('is-active');
     await clickFavoriteButton('新闻学院研讨室');
@@ -180,8 +185,10 @@ describe('student interactive controls', () => {
     await renderStudentHome('rooms');
 
     await selectOption('日期', '明天');
-    await clickTimeOption('开始时间', '18:00');
-    await clickTimeOption('结束时间', '21:00');
+    await selectTimePart('开始时间', '小时', '18');
+    await selectTimePart('开始时间', '分钟', '30');
+    await selectTimePart('结束时间', '小时', '21');
+    await selectTimePart('结束时间', '分钟', '00');
     await selectOption('楼栋', '逸夫楼');
     await selectOption('楼层', '2楼');
     await selectOption('教室', '理工自习室 201');
@@ -189,13 +196,15 @@ describe('student interactive controls', () => {
     await clickButton('搜索可预约自习室');
 
     expect(getSelect('日期').value).toBe('明天');
-    expect(getTimeButton('开始时间', '18:00').className).toContain('is-active');
-    expect(getTimeButton('结束时间', '21:00').className).toContain('is-active');
+    expect(getTimeSelect('开始时间', '小时').value).toBe('18');
+    expect(getTimeSelect('开始时间', '分钟').value).toBe('30');
+    expect(getTimeSelect('结束时间', '小时').value).toBe('21');
+    expect(getTimeSelect('结束时间', '分钟').value).toBe('00');
     expect(getSelect('楼栋').value).toBe('逸夫楼');
     expect(getSelect('楼层').value).toBe('2楼');
     expect(getSelect('教室').value).toBe('理工自习室 201');
     expect(container?.textContent).toContain(
-      '已按 明天 18:00 – 21:00（3小时）、逸夫楼、2楼、理工自习室 201 搜索可预约自习室'
+      '已按 明天 18:30 – 21:00（2.5小时）、逸夫楼、2楼、理工自习室 201 搜索可预约自习室'
     );
     const roomGridText = container?.querySelector('.student-rooms-grid')?.textContent;
     expect(roomGridText).toContain('理工自习室 201');
@@ -208,33 +217,45 @@ describe('student interactive controls', () => {
     await renderStudentHome('rooms');
 
     expect(getSelect('日期').value).toBe('今天');
-    expect(getTimeButton('开始时间', '20:00').className).toContain('is-active');
-    expect(getTimeButton('开始时间', '18:00').disabled).toBe(true);
-    expect(getTimeButton('开始时间', '19:00').disabled).toBe(true);
-    expect(getTimeButton('开始时间', '20:00').disabled).toBe(false);
-    expect(getTimeButton('开始时间', '21:00').disabled).toBe(false);
+    expect(getTimeSelect('开始时间', '小时').value).toBe('19');
+    expect(getTimeSelect('开始时间', '分钟').value).toBe('30');
+    expect(getTimeSelectOption('开始时间', '小时', '18').disabled).toBe(true);
+    expect(getTimeSelectOption('开始时间', '分钟', '00').disabled).toBe(true);
+    expect(getTimeSelectOption('开始时间', '分钟', '30').disabled).toBe(false);
+    expect(getTimeSelectOption('开始时间', '小时', '20').disabled).toBe(false);
+    expect(getTimeSelectOption('开始时间', '小时', '21').disabled).toBe(false);
 
     await selectOption('日期', '明天');
-    expect(getTimeButton('开始时间', '18:00').disabled).toBe(false);
-    await clickTimeOption('开始时间', '18:00');
-    expect(getTimeButton('开始时间', '18:00').className).toContain('is-active');
+    expect(getTimeSelectOption('开始时间', '小时', '18').disabled).toBe(false);
+    await selectTimePart('开始时间', '小时', '18');
+    await selectTimePart('开始时间', '分钟', '00');
+    expect(getTimeSelect('开始时间', '小时').value).toBe('18');
+    expect(getTimeSelect('开始时间', '分钟').value).toBe('00');
   });
 
-  it('自习室列表时间控件不用原生下拉，避免滚动选择失效', async () => {
+  it('自习室列表时间控件按小时和分钟选择半小时粒度', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-02T03:42:00.000Z'));
     await renderStudentHome('rooms');
 
-    expect(getTimeField('开始时间').querySelector('select')).toBeNull();
-    expect(getTimeField('结束时间').querySelector('select')).toBeNull();
+    expect(getTimeField('开始时间').querySelectorAll('select')).toHaveLength(2);
+    expect(getTimeField('结束时间').querySelectorAll('select')).toHaveLength(2);
+    expect([...getTimeSelect('开始时间', '分钟').options].map((option) => option.value)).toEqual([
+      '00',
+      '30'
+    ]);
 
-    await clickTimeOption('开始时间', '15:00');
-    expect(getTimeButton('开始时间', '15:00').className).toContain('is-active');
-    expect(getTimeButton('结束时间', '20:00').disabled).toBe(true);
+    await selectTimePart('开始时间', '小时', '15');
+    await selectTimePart('开始时间', '分钟', '30');
+    expect(getTimeSelect('开始时间', '小时').value).toBe('15');
+    expect(getTimeSelect('开始时间', '分钟').value).toBe('30');
+    expect(getTimeSelectOption('结束时间', '小时', '20').disabled).toBe(true);
 
-    await clickTimeOption('结束时间', '18:00');
-    expect(getTimeButton('结束时间', '18:00').className).toContain('is-active');
-    expect(container?.textContent).toContain('今天 15:00 – 18:00（3小时）');
+    await selectTimePart('结束时间', '小时', '18');
+    await selectTimePart('结束时间', '分钟', '00');
+    expect(getTimeSelect('结束时间', '小时').value).toBe('18');
+    expect(getTimeSelect('结束时间', '分钟').value).toBe('00');
+    expect(container?.textContent).toContain('今天 15:30 – 18:00（2.5小时）');
   });
 
   it('从自习室列表点预约后直接打开预约弹窗', async () => {
@@ -256,8 +277,10 @@ describe('student interactive controls', () => {
     await renderStudentHome('rooms');
 
     await selectOption('日期', '明天');
-    await clickTimeOption('开始时间', '18:00');
-    await clickTimeOption('结束时间', '21:00');
+    await selectTimePart('开始时间', '小时', '18');
+    await selectTimePart('开始时间', '分钟', '30');
+    await selectTimePart('结束时间', '小时', '21');
+    await selectTimePart('结束时间', '分钟', '00');
     await selectOption('楼栋', '逸夫楼');
     await selectOption('楼层', '2楼');
     await selectOption('教室', '理工自习室 201');
@@ -269,7 +292,7 @@ describe('student interactive controls', () => {
     expect(dialog?.textContent).toContain('理工自习室 201');
     expect(dialog?.textContent).toContain('逸夫楼 · 2楼');
     expect(dialog?.textContent).toContain('明天');
-    expect(dialog?.textContent).toContain('18:00 – 21:00（3小时）');
+    expect(dialog?.textContent).toContain('18:30 – 21:00（2.5小时）');
   });
 
   it('预约弹窗内可以选择座位位置', async () => {
@@ -348,13 +371,254 @@ describe('student interactive controls', () => {
     expect(container?.textContent).toContain('已生成预约记录导出任务');
   });
 
+  it('服务端已有待签到预约会同步占用首页和自习室列表余位', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-02T03:42:00.000Z'));
+    const fetcher = vi.fn<typeof fetch>((input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/v1/bookings/me') && init?.method === 'GET') {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              code: 'SUCCESS',
+              message: 'success',
+              data: {
+                totalCount: 1,
+                activeCount: 1,
+                completedCount: 0,
+                records: [
+                  {
+                    id: 'booking-upcoming',
+                    room: '经管自习室 301',
+                    location: '光华楼 A座 3楼',
+                    seat: 'C3',
+                    time: '今日 14:00-17:00',
+                    status: 'upcoming',
+                    tags: ['插座'],
+                    canCheckIn: true,
+                    canCancel: true,
+                    startAt: '2026-06-02T06:00:00.000Z',
+                    endAt: '2026-06-02T09:00:00.000Z'
+                  }
+                ]
+              }
+            }),
+            { headers: { 'Content-Type': 'application/json' }, status: 200 }
+          )
+        );
+      }
+      if (url.includes('/api/v1/favorites/me/rooms')) {
+        return Promise.resolve(successfulStudentRoomFavoritesResponse());
+      }
+      if (url.includes('/api/v1/notifications/me')) {
+        return Promise.resolve(successfulStudentNotificationsResponse());
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetcher);
+
+    await renderStudentHome(undefined, { accessToken: 'student-token' });
+    await flushEffects();
+
+    expect(container?.textContent).toContain('下一场预约');
+    expect(getArticleText('经管自习室 301')).toContain('11 / 48');
+
+    await clickButton('自习室列表');
+    expect(getArticleText('经管自习室 301')).toContain('11 空余 / 48');
+  });
+
+  it('服务端预约签到后首页不再展示签到和取消入口', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-03T07:28:00.000Z'));
+    const fetcher = vi.fn<typeof fetch>((input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/v1/bookings/me') && init?.method === 'GET') {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              code: 'SUCCESS',
+              message: 'success',
+              data: {
+                totalCount: 1,
+                activeCount: 1,
+                completedCount: 0,
+                records: [
+                  {
+                    id: 'booking-using',
+                    room: '经管自习室 301',
+                    location: '光华楼 A座 3楼',
+                    seat: 'A2',
+                    time: '今日 15:27-16:27',
+                    status: 'using',
+                    tags: ['插座'],
+                    canCheckIn: false,
+                    canCancel: false,
+                    startAt: '2026-06-03T07:27:00.000Z',
+                    endAt: '2026-06-03T08:27:00.000Z'
+                  }
+                ]
+              }
+            }),
+            { headers: { 'Content-Type': 'application/json' }, status: 200 }
+          )
+        );
+      }
+      if (url.includes('/api/v1/favorites/me/rooms')) {
+        return Promise.resolve(successfulStudentRoomFavoritesResponse());
+      }
+      if (url.includes('/api/v1/notifications/me')) {
+        return Promise.resolve(successfulStudentNotificationsResponse());
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetcher);
+
+    await renderStudentHome(undefined, { accessToken: 'student-token' });
+    await flushEffects();
+
+    expect(container?.textContent).toContain('进行中预约');
+    expect(container?.textContent).toContain('今日 15:27 – 16:27');
+    expect(container?.textContent).toContain('距结束还有');
+    expect(container?.textContent).not.toContain('立即签到');
+    expect(container?.textContent).not.toContain('取消预约');
+    expect(container?.textContent).toContain('查看记录');
+    expect(container?.textContent).toContain('预约下一场');
+  });
+
+  it('取消唯一待签到预约后首页不再显示下一场预约并释放余位', async () => {
+    let cancelledOnServer = false;
+    const fetcher = vi.fn<typeof fetch>((input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/v1/bookings/me/booking-upcoming/cancel') && init?.method === 'PATCH') {
+        cancelledOnServer = true;
+        return Promise.resolve(successfulStudentBookingCancelResponse());
+      }
+      if (url.endsWith('/api/v1/bookings/me') && init?.method === 'GET') {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              code: 'SUCCESS',
+              message: 'success',
+              data: {
+                totalCount: 1,
+                activeCount: cancelledOnServer ? 0 : 1,
+                completedCount: 0,
+                records: [
+                  {
+                    id: 'booking-upcoming',
+                    room: '经管自习室 301',
+                    location: '光华楼 A座 3楼',
+                    seat: 'C3',
+                    time: '今日 14:00-17:00',
+                    status: cancelledOnServer ? 'cancelled' : 'upcoming',
+                    tags: ['插座'],
+                    canCheckIn: !cancelledOnServer,
+                    canCancel: !cancelledOnServer,
+                    startAt: '2026-06-02T06:00:00.000Z',
+                    endAt: '2026-06-02T09:00:00.000Z'
+                  }
+                ]
+              }
+            }),
+            { headers: { 'Content-Type': 'application/json' }, status: 200 }
+          )
+        );
+      }
+      if (url.includes('/api/v1/favorites/me/rooms')) {
+        return Promise.resolve(successfulStudentRoomFavoritesResponse());
+      }
+      if (url.includes('/api/v1/notifications/me')) {
+        return Promise.resolve(successfulStudentNotificationsResponse());
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetcher);
+
+    await renderStudentHome('bookings', { accessToken: 'student-token' });
+
+    expect(container?.textContent).toContain('经管自习室 301');
+    await clickButtonInArticle('经管自习室 301', '取消');
+    await flushEffects();
+
+    expect(container?.textContent).toContain('已取消预约');
+
+    await clickButton('首页概览');
+    expect(container?.textContent).toContain('暂无预约');
+    expect(container?.textContent).not.toContain('下一场预约');
+    expect(container?.textContent).not.toContain('立即签到');
+    expect(getArticleText('经管自习室 301')).toContain('12 / 48');
+
+    await clickButton('自习室列表');
+    expect(getArticleText('经管自习室 301')).toContain('12 空余 / 48');
+  });
+
+  it('智能助手取消预约后同步释放自习室余位', async () => {
+    const fetcher = vi.fn<typeof fetch>((input, init) => {
+      const url = String(input);
+      if (url.includes('/api/v1/assistant/me/messages') && init?.method === 'POST') {
+        return Promise.resolve(successfulAssistantBookingResponse());
+      }
+      if (url.endsWith('/api/v1/bookings/me/booking-upcoming/cancel') && init?.method === 'PATCH') {
+        return Promise.resolve(successfulStudentBookingCancelResponse());
+      }
+      if (url.includes('/api/v1/notifications/me')) {
+        return Promise.resolve(successfulStudentNotificationsResponse());
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetcher);
+
+    await renderStudentHome('assistant', { accessToken: 'student-token' });
+
+    await askAssistant('我今天定了哪里');
+    expect(container?.textContent).toContain('找到 1 条待处理预约');
+    expect(container?.textContent).toContain('经管自习室 301 · C3');
+    await clickButtonInSelector('.student-assistant-panel', '取消预约');
+    await flushEffects();
+
+    expect(container?.textContent).toContain('已取消 经管自习室 301');
+
+    await clickButton('自习室列表');
+    expect(getArticleText('经管自习室 301')).toContain('13 空余 / 48');
+  });
+
   it('提交预约成功后关闭弹窗并在自习室列表提示结果', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-05-29T03:00:00.000Z'));
     const fetcher = vi.fn<typeof fetch>((input, init) => {
       if (String(input).endsWith('/api/v1/bookings/me') && init?.method === 'POST') {
         return Promise.resolve(successfulStudentBookingCreateResponse());
       }
       if (String(input).endsWith('/api/v1/bookings/me') && init?.method === 'GET') {
-        return Promise.resolve(successfulStudentBookingsResponse());
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              code: 'SUCCESS',
+              message: 'success',
+              data: {
+                totalCount: 1,
+                activeCount: 1,
+                completedCount: 0,
+                records: [
+                  {
+                    id: 'booking-created',
+                    room: '经管自习室 301',
+                    location: '光华楼 A座 3楼',
+                    seat: 'C3',
+                    time: '6月1日 14:00-17:00',
+                    status: 'upcoming',
+                    tags: ['插座', '安静区'],
+                    canCheckIn: false,
+                    canCancel: true,
+                    startAt: '2026-06-01T06:00:00.000Z',
+                    endAt: '2026-06-01T09:00:00.000Z'
+                  }
+                ]
+              }
+            }),
+            { headers: { 'Content-Type': 'application/json' }, status: 200 }
+          )
+        );
       }
       if (String(input).includes('/api/v1/favorites/me/rooms')) {
         return Promise.resolve(successfulStudentRoomFavoritesResponse());
@@ -366,6 +630,8 @@ describe('student interactive controls', () => {
     });
     vi.stubGlobal('fetch', fetcher);
     await renderStudentHome('rooms', { accessToken: 'student-token' });
+
+    expect(getArticleText('经管自习室 301')).toContain('12 空余 / 48');
 
     await clickButtonInArticle('经管自习室 301', '预约');
     await clickSeatButton('A1');
@@ -392,7 +658,16 @@ describe('student interactive controls', () => {
     expect(container?.querySelector('.student-booking-confirm-dialog')).toBeNull();
     expect(container?.textContent).toContain('自习室列表');
     expect(container?.textContent).toContain('预约成功');
+    expect(getArticleText('经管自习室 301')).toContain('11 空余 / 48');
     expect(window.location.pathname).toBe('/student/rooms');
+
+    await clickButton('首页概览');
+    await flushEffects();
+
+    expect(container?.textContent).toContain('下一场预约');
+    expect(container?.textContent).toContain('6月1日 14:00 – 17:00');
+    expect(getArticleStrongText('今日我的预约')).toBe('0');
+    expect(getArticleText('今日我的预约')).toContain('今日暂无预约');
   });
 
   it('提交预约失败后关闭弹窗并提示失败原因', async () => {
@@ -497,6 +772,35 @@ describe('student interactive controls', () => {
     });
   }
 
+  async function flushEffects() {
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+  }
+
+  async function askAssistant(question: string) {
+    const input = container?.querySelector('input[aria-label="输入助手问题"]') as HTMLInputElement | null;
+    if (!input) throw new Error('assistant input not found');
+    const sendButton = container?.querySelector('button[aria-label="发送问题"]') as HTMLButtonElement | null;
+    if (!sendButton) throw new Error('assistant send button not found');
+
+    await act(async () => {
+      const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+      valueSetter?.call(input, question);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await Promise.resolve();
+    });
+    await act(async () => {
+      sendButton.click();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+  }
+
   async function clickButtonInSelector(selector: string, label: string) {
     const rootElement = container?.querySelector(selector);
     if (!rootElement) throw new Error(`selector not found: ${selector}`);
@@ -520,10 +824,11 @@ describe('student interactive controls', () => {
     });
   }
 
-  async function clickTimeOption(label: string, value: string) {
-    const button = getTimeButton(label, value);
+  async function selectTimePart(label: string, part: '小时' | '分钟', value: string) {
+    const select = getTimeSelect(label, part);
     await act(async () => {
-      button.click();
+      select.value = value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -535,12 +840,18 @@ describe('student interactive controls', () => {
     return field as HTMLElement;
   }
 
-  function getTimeButton(label: string, value: string) {
-    const button = [...getTimeField(label).querySelectorAll('button')].find((candidate) =>
-      normalize(candidate.textContent).includes(normalize(value))
+  function getTimeSelect(label: string, part: '小时' | '分钟') {
+    const select = getTimeField(label).querySelector(`select[aria-label="${label}${part}"]`);
+    if (!select) throw new Error(`time select not found: ${label} ${part}`);
+    return select as HTMLSelectElement;
+  }
+
+  function getTimeSelectOption(label: string, part: '小时' | '分钟', value: string) {
+    const option = [...getTimeSelect(label, part).options].find(
+      (candidate) => candidate.value === value
     );
-    if (!button) throw new Error(`time button not found: ${label} ${value}`);
-    return button as HTMLButtonElement;
+    if (!option) throw new Error(`time option not found: ${label} ${part} ${value}`);
+    return option;
   }
 
   function getSelect(label: string) {
@@ -550,12 +861,6 @@ describe('student interactive controls', () => {
     const select = selectLabel?.querySelector('select');
     if (!select) throw new Error(`select not found: ${label}`);
     return select as HTMLSelectElement;
-  }
-
-  function getSelectOption(label: string, value: string) {
-    const option = [...getSelect(label).options].find((candidate) => candidate.value === value);
-    if (!option) throw new Error(`option not found: ${label} ${value}`);
-    return option;
   }
 
   function getButton(label: string) {
@@ -587,7 +892,50 @@ describe('student interactive controls', () => {
     return container?.querySelector('.student-rooms-grid')?.textContent ?? '';
   }
 
+  function getArticleText(articleText: string) {
+    const article = [...(container?.querySelectorAll('article') ?? [])].find((candidate) =>
+      normalize(candidate.textContent).includes(normalize(articleText))
+    );
+    if (!article) throw new Error(`article not found: ${articleText}`);
+    return article.textContent ?? '';
+  }
+
+  function getArticleStrongText(articleText: string) {
+    const article = [...(container?.querySelectorAll('article') ?? [])].find((candidate) =>
+      normalize(candidate.textContent).includes(normalize(articleText))
+    );
+    if (!article) throw new Error(`article not found: ${articleText}`);
+    return article.querySelector('strong')?.textContent ?? '';
+  }
+
   function normalize(text?: string | null) {
     return (text ?? '').replace(/\s+/g, '');
+  }
+
+  function successfulAssistantBookingResponse() {
+    return new Response(
+      JSON.stringify({
+        code: 'SUCCESS',
+        message: 'success',
+        data: {
+          intent: 'booking_query',
+          text: '找到 1 条待处理预约。',
+          seats: [],
+          bookings: [
+            {
+              bookingId: 'booking-upcoming',
+              room: '经管自习室 301',
+              location: '光华楼 A座 3楼',
+              seat: 'C3',
+              time: '今日 14:00-17:00',
+              status: 'upcoming',
+              actions: ['CANCEL', 'DETAIL']
+            }
+          ],
+          suggestions: ['查看我的预约', '重新找座']
+        }
+      }),
+      { headers: { 'Content-Type': 'application/json' }, status: 200 }
+    );
   }
 });

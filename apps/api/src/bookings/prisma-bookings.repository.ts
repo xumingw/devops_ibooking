@@ -168,7 +168,7 @@ export class PrismaBookingsRepository implements BookingRepository {
         });
 
         await tx.bookingSlot.createMany({
-          data: this.toHourlySlots(startAt, endAt).map((slotStart) => ({
+          data: this.toHalfHourSlots(startAt, endAt).map((slotStart) => ({
             bookingId: created.id,
             userId,
             seatId: input.seatId,
@@ -224,12 +224,12 @@ export class PrismaBookingsRepository implements BookingRepository {
     return now >= checkInWindowStart && now <= checkInWindowEnd && now <= row.endAt.getTime();
   }
 
-  private toHourlySlots(startAt: Date, endAt: Date): Date[] {
+  private toHalfHourSlots(startAt: Date, endAt: Date): Date[] {
     const slots: Date[] = [];
     for (
       let cursor = startAt.getTime();
       cursor < endAt.getTime();
-      cursor += 60 * 60 * 1000
+      cursor += 30 * 60 * 1000
     ) {
       slots.push(new Date(cursor));
     }
@@ -245,7 +245,7 @@ export class PrismaBookingsRepository implements BookingRepository {
       room.schedules.map((schedule) => [this.scheduleDateKey(schedule.date), schedule])
     );
 
-    return this.toHourlySlots(startAt, endAt).every((slotStart) => {
+    return this.toHalfHourSlots(startAt, endAt).every((slotStart) => {
       const schedule = schedulesByDate.get(this.scheduleDateKey(this.toScheduleDate(slotStart)));
       if (schedule?.closed) return false;
 
@@ -262,7 +262,7 @@ export class PrismaBookingsRepository implements BookingRepository {
 
   private toScheduleDates(startAt: Date, endAt: Date): Date[] {
     const datesByKey = new Map<string, Date>();
-    for (const slotStart of this.toHourlySlots(startAt, endAt)) {
+    for (const slotStart of this.toHalfHourSlots(startAt, endAt)) {
       const scheduleDate = this.toScheduleDate(slotStart);
       datesByKey.set(this.scheduleDateKey(scheduleDate), scheduleDate);
     }

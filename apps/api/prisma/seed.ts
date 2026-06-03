@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { PasswordHasher } from '../src/auth/password-hasher';
+import { createStudentRoomSeatFixtures } from './seed-seat-fixtures';
 import { STUDENT_PERMISSION_CODES } from './seed-permissions';
 
 const prisma = new PrismaClient();
@@ -216,8 +217,17 @@ async function main() {
     overnight: false
   });
 
-  await Promise.all([
-    upsertSeat({
+  const studentRoomIds = [
+    'room-gm-301',
+    'room-science-201',
+    'room-humanities-a',
+    'room-news-seminar',
+    'room-science-403',
+    'room-library-zone'
+  ] as const;
+  const seatFixtures = [
+    ...createStudentRoomSeatFixtures(studentRoomIds),
+    {
       id: 'seat-gm-301-c3',
       roomId: 'room-gm-301',
       code: 'C3',
@@ -225,8 +235,8 @@ async function main() {
       y: 3,
       hasPower: true,
       nearWindow: false
-    }),
-    upsertSeat({
+    },
+    {
       id: 'seat-science-201-f12',
       roomId: 'room-science-201',
       code: 'F12',
@@ -234,8 +244,8 @@ async function main() {
       y: 2,
       hasPower: true,
       nearWindow: true
-    }),
-    upsertSeat({
+    },
+    {
       id: 'seat-humanities-a-a5',
       roomId: 'room-humanities-a',
       code: 'A5',
@@ -243,8 +253,13 @@ async function main() {
       y: 1,
       hasPower: false,
       nearWindow: true
-    })
-  ]);
+    }
+  ];
+  const seatFixturesByRoomAndCode = new Map(
+    seatFixtures.map((fixture) => [`${fixture.roomId}:${fixture.code}`, fixture])
+  );
+
+  await Promise.all([...seatFixturesByRoomAndCode.values()].map((fixture) => upsertSeat(fixture)));
 
   await Promise.all([
     upsertFavorite('favorite-stu-gm-301', 'user-stu-cse-01', 'room-gm-301'),

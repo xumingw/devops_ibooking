@@ -126,11 +126,11 @@ describe('PrismaBookingsRepository', () => {
     });
   });
 
-  it('创建预约时写入预约和每小时占位', async () => {
+  it('创建预约时写入预约和每半小时占位', async () => {
     const created = bookingRowFixture({
       id: 'booking-created',
-      startAt: new Date('2026-06-01T06:00:00.000Z'),
-      endAt: new Date('2026-06-01T09:00:00.000Z'),
+      startAt: new Date('2026-06-01T06:30:00.000Z'),
+      endAt: new Date('2026-06-01T08:00:00.000Z'),
     });
     prisma.user.findUnique.mockResolvedValue({ id: 'user-stu-cse-01', departmentId: 'dept-cs' });
     prisma.room.findUnique.mockResolvedValue(created.room);
@@ -142,8 +142,8 @@ describe('PrismaBookingsRepository', () => {
     const record = await repository.createByUserId('user-stu-cse-01', {
       roomId: 'room-gm-301',
       seatId: 'seat-gm-301-c3',
-      startAt: '2026-06-01T06:00:00.000Z',
-      endAt: '2026-06-01T09:00:00.000Z',
+      startAt: '2026-06-01T06:30:00.000Z',
+      endAt: '2026-06-01T08:00:00.000Z',
     });
 
     expect(prisma.booking.create).toHaveBeenCalledWith({
@@ -151,8 +151,8 @@ describe('PrismaBookingsRepository', () => {
         userId: 'user-stu-cse-01',
         roomId: 'room-gm-301',
         seatId: 'seat-gm-301-c3',
-        startAt: new Date('2026-06-01T06:00:00.000Z'),
-        endAt: new Date('2026-06-01T09:00:00.000Z'),
+        startAt: new Date('2026-06-01T06:30:00.000Z'),
+        endAt: new Date('2026-06-01T08:00:00.000Z'),
         status: 'PENDING_CHECKIN',
       },
       include: {
@@ -166,7 +166,7 @@ describe('PrismaBookingsRepository', () => {
           bookingId: 'booking-created',
           seatId: 'seat-gm-301-c3',
           userId: 'user-stu-cse-01',
-          slotStart: new Date('2026-06-01T06:00:00.000Z'),
+          slotStart: new Date('2026-06-01T06:30:00.000Z'),
         },
         {
           bookingId: 'booking-created',
@@ -178,7 +178,7 @@ describe('PrismaBookingsRepository', () => {
           bookingId: 'booking-created',
           seatId: 'seat-gm-301-c3',
           userId: 'user-stu-cse-01',
-          slotStart: new Date('2026-06-01T08:00:00.000Z'),
+          slotStart: new Date('2026-06-01T07:30:00.000Z'),
         },
       ],
     });
