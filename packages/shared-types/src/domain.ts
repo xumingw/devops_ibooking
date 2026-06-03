@@ -156,6 +156,16 @@ export interface StudentNotificationSummary {
   groups: StudentNotificationGroup[];
 }
 
+export interface StudentRoomFavoriteRecord {
+  roomId: string;
+  room: string;
+}
+
+export interface StudentRoomFavoriteSummary {
+  favoriteRoomIds: string[];
+  favorites: StudentRoomFavoriteRecord[];
+}
+
 export type StudentBookingStatus = 'upcoming' | 'using' | 'completed' | 'cancelled' | 'violation';
 
 export interface StudentBookingRecord {

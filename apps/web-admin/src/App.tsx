@@ -256,6 +256,16 @@ type StudentNotificationSummary = {
   groups: StudentNotificationGroup[];
 };
 
+type StudentRoomFavoriteRecord = {
+  roomId: string;
+  room: string;
+};
+
+type StudentRoomFavoriteSummary = {
+  favoriteRoomIds: string[];
+  favorites: StudentRoomFavoriteRecord[];
+};
+
 type StudentNotificationItemView = Omit<StudentNotificationRecord, 'tone'> & {
   icon: DashboardIconName;
   tone: string;
@@ -874,6 +884,68 @@ export const requestStudentNotificationsMarkAllRead = async (
   } | null;
   if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
     throw new Error(payload?.message || '通知已读状态保存失败');
+  }
+
+  return payload.data;
+};
+
+export const requestStudentRoomFavorites = async (
+  accessToken: string,
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl(),
+  authOptions: AuthenticatedRequestOptions = {}
+): Promise<StudentRoomFavoriteSummary> => {
+  const response = await fetchWithSessionRefresh(
+    accessToken,
+    (nextAccessToken) =>
+      fetcher(`${apiBaseUrl}/api/v1/favorites/me/rooms`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${nextAccessToken}` }
+      }),
+    fetcher,
+    apiBaseUrl,
+    authOptions
+  );
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: StudentRoomFavoriteSummary;
+  } | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
+    throw new Error(payload?.message || '收藏列表加载失败');
+  }
+
+  return payload.data;
+};
+
+export const requestStudentRoomFavoriteSet = async (
+  accessToken: string,
+  roomId: string,
+  favorite: boolean,
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl(),
+  authOptions: AuthenticatedRequestOptions = {}
+): Promise<StudentRoomFavoriteSummary> => {
+  const response = await fetchWithSessionRefresh(
+    accessToken,
+    (nextAccessToken) =>
+      fetcher(`${apiBaseUrl}/api/v1/favorites/me/rooms/${roomId}`, {
+        method: favorite ? 'PUT' : 'DELETE',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${nextAccessToken}` }
+      }),
+    fetcher,
+    apiBaseUrl,
+    authOptions
+  );
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: StudentRoomFavoriteSummary;
+  } | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
+    throw new Error(payload?.message || '收藏状态保存失败');
   }
 
   return payload.data;
@@ -3044,6 +3116,7 @@ const STUDENT_HOME_BOOKING = {
 
 const STUDENT_ROOM_LIST = [
   {
+    id: 'room-gm-301',
     name: '经管自习室 301',
     building: '光华楼 A座',
     floor: '3楼',
@@ -3055,6 +3128,7 @@ const STUDENT_ROOM_LIST = [
     status: 'open'
   },
   {
+    id: 'room-science-201',
     name: '理工自习室 201',
     building: '逸夫楼',
     floor: '2楼',
@@ -3066,6 +3140,7 @@ const STUDENT_ROOM_LIST = [
     status: 'open'
   },
   {
+    id: 'room-humanities-a',
     name: '文史馆阅览室 A',
     building: '文史馆',
     floor: '1楼',
@@ -3077,6 +3152,7 @@ const STUDENT_ROOM_LIST = [
     status: 'busy'
   },
   {
+    id: 'room-news-seminar',
     name: '新闻学院研讨室',
     building: '新闻学院楼',
     floor: '4楼',
@@ -3088,6 +3164,7 @@ const STUDENT_ROOM_LIST = [
     status: 'full'
   },
   {
+    id: 'room-science-403',
     name: '理工自习室 403',
     building: '逸夫楼',
     floor: '4楼',
@@ -3099,6 +3176,7 @@ const STUDENT_ROOM_LIST = [
     status: 'open'
   },
   {
+    id: 'room-library-zone',
     name: '图书馆自习区',
     building: '李兆基图书馆',
     floor: '2楼',
@@ -3110,6 +3188,7 @@ const STUDENT_ROOM_LIST = [
     status: 'open'
   }
 ] satisfies Array<{
+  id: string;
   name: string;
   building: string;
   floor: string;
@@ -3129,7 +3208,7 @@ const STUDENT_ROOM_STATUS_META = {
 
 const STUDENT_ROOM_FILTERS = ['全部楼栋', '全校开放', '有空位', '有插座', '靠窗', '我的收藏'] as const;
 type StudentRoomFilter = (typeof STUDENT_ROOM_FILTERS)[number];
-const STUDENT_DEFAULT_FAVORITE_ROOMS = ['经管自习室 301', '理工自习室 201', '文史馆阅览室 A'] as const;
+const STUDENT_DEFAULT_FAVORITE_ROOM_IDS = ['room-gm-301', 'room-science-201', 'room-humanities-a'] as const;
 const STUDENT_ROOM_DATE_OPTIONS = ['今天', '明天', '后天'] as const;
 const STUDENT_ROOM_START_TIMES = [
   '07:00',
@@ -3189,13 +3268,32 @@ const STUDENT_ROOM_ID_BY_NAME: Record<string, string> = {
   '理工自习室 201': 'room-science-201',
   '文史馆阅览室 A': 'room-humanities-a',
   文史馆阅览室: 'room-humanities-a',
-  新闻学院研讨室: 'room-news-4f',
+  新闻学院研讨室: 'room-news-seminar',
   '理工自习室 403': 'room-science-403',
   图书馆自习区: 'room-library-zone'
 };
 
 const resolveStudentRoomId = (roomName: string) =>
   STUDENT_ROOM_ID_BY_NAME[roomName] ?? `room-${roomName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+
+const normalizeStudentRoomFavoriteIds = (summary: StudentRoomFavoriteSummary) => {
+  const knownRoomIds = new Set(STUDENT_ROOM_LIST.map((room) => room.id));
+  const favoriteIds = new Set<string>();
+
+  summary.favoriteRoomIds.forEach((roomId) => {
+    if (knownRoomIds.has(roomId)) favoriteIds.add(roomId);
+  });
+  summary.favorites.forEach((favorite) => {
+    if (knownRoomIds.has(favorite.roomId)) {
+      favoriteIds.add(favorite.roomId);
+      return;
+    }
+    const roomId = resolveStudentRoomId(favorite.room);
+    if (knownRoomIds.has(roomId)) favoriteIds.add(roomId);
+  });
+
+  return Array.from(favoriteIds);
+};
 
 const createStudentSeatId = (roomId: string, seat: string) => {
   if (roomId === 'room-gm-301' && seat === 'C3') return 'seat-gm-301-c3';
@@ -3242,7 +3340,7 @@ const createStudentSeatRoomContextFromRoom = (
   name: room.name,
   location: `${room.building} · ${room.floor}`,
   building: room.building,
-  roomId: resolveStudentRoomId(room.name),
+  roomId: room.id,
   capacity: room.capacity,
   available: room.available,
   hours: room.hours,
@@ -7525,6 +7623,7 @@ export function StudentHomePreview({
 
         {activeMenu === 'rooms' ? (
           <StudentRoomsPanel
+            accessToken={accessToken}
             initialFilter={roomInitialFilter}
             onBookRoom={(room, bookingOptions) =>
               handleStudentRoomBook(
@@ -7533,6 +7632,8 @@ export function StudentHomePreview({
                 bookingOptions
               )
             }
+            onSessionExpired={onSessionExpired}
+            onSessionRefresh={onSessionRefresh}
             onWaitlist={(room) => showStudentActionNotice(`已为你加入${room.name}候补提醒，有空位会通知。`)}
           />
         ) : activeMenu === 'confirm' ? (
@@ -7768,15 +7869,21 @@ export function StudentHomePreview({
 }
 
 function StudentRoomsPanel({
+  accessToken,
   initialFilter = '全部楼栋',
   onBookRoom,
+  onSessionExpired,
+  onSessionRefresh,
   onWaitlist
 }: {
+  accessToken?: string;
   initialFilter?: StudentRoomFilter;
   onBookRoom?: (
     room: (typeof STUDENT_ROOM_LIST)[number],
     bookingOptions: { dateLabel: string; time: string }
   ) => void;
+  onSessionExpired?: () => void;
+  onSessionRefresh?: (session: SessionView) => void;
   onWaitlist?: (room: (typeof STUDENT_ROOM_LIST)[number]) => void;
 }) {
   const [activeFilter, setActiveFilter] = useState<StudentRoomFilter>(initialFilter);
@@ -7792,8 +7899,8 @@ function StudentRoomsPanel({
   const [startTime, setStartTime] = useState(initialTimeState.startTime);
   const [endTime, setEndTime] = useState(initialTimeState.endTime);
   const [activeRoomName, setActiveRoomName] = useState('');
-  const [favoriteRoomNames, setFavoriteRoomNames] = useState<string[]>(() => [
-    ...STUDENT_DEFAULT_FAVORITE_ROOMS
+  const [favoriteRoomIds, setFavoriteRoomIds] = useState<string[]>(() => [
+    ...STUDENT_DEFAULT_FAVORITE_ROOM_IDS
   ]);
   const [searchNotice, setSearchNotice] = useState('');
   const roomTree = useMemo(groupStudentRoomsByBuilding, []);
@@ -7824,10 +7931,33 @@ function StudentRoomsPanel({
     if (activeFilter === '有空位' && room.available <= 0) return false;
     if (activeFilter === '有插座' && !room.tags.includes('插座')) return false;
     if (activeFilter === '靠窗' && !room.tags.includes('靠窗')) return false;
-    if (activeFilter === '我的收藏' && !favoriteRoomNames.includes(room.name)) return false;
+    if (activeFilter === '我的收藏' && !favoriteRoomIds.includes(room.id)) return false;
     return true;
   });
   const bookingTime = formatStudentRoomBookingTime(startTime, endTime);
+
+  useEffect(() => {
+    if (!accessToken) {
+      setFavoriteRoomIds([...STUDENT_DEFAULT_FAVORITE_ROOM_IDS]);
+      return;
+    }
+
+    let ignore = false;
+    requestStudentRoomFavorites(accessToken, fetch, resolveApiBaseUrl(), {
+      onSessionExpired,
+      onSessionRefresh
+    })
+      .then((summary) => {
+        if (!ignore) setFavoriteRoomIds(normalizeStudentRoomFavoriteIds(summary));
+      })
+      .catch((error) => {
+        if (!ignore) setSearchNotice(error instanceof Error ? error.message : '收藏列表加载失败');
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [accessToken, onSessionExpired, onSessionRefresh]);
 
   useEffect(() => {
     if (activeFloor && !floorOptions.includes(activeFloor)) setActiveFloor('');
@@ -7866,14 +7996,26 @@ function StudentRoomsPanel({
     );
   };
 
-  const handleFavoriteToggle = (roomName: string) => {
-    const isFavorite = favoriteRoomNames.includes(roomName);
-    setFavoriteRoomNames((current) =>
-      current.includes(roomName)
-        ? current.filter((favoriteRoomName) => favoriteRoomName !== roomName)
-        : [...current, roomName]
-    );
-    setSearchNotice(isFavorite ? `已取消收藏${roomName}` : `已收藏${roomName}`);
+  const handleFavoriteToggle = (room: (typeof STUDENT_ROOM_LIST)[number]) => {
+    const isFavorite = favoriteRoomIds.includes(room.id);
+    const previousFavoriteRoomIds = favoriteRoomIds;
+    const nextFavoriteRoomIds = isFavorite
+      ? favoriteRoomIds.filter((favoriteRoomId) => favoriteRoomId !== room.id)
+      : [...favoriteRoomIds, room.id];
+    setFavoriteRoomIds(nextFavoriteRoomIds);
+    setSearchNotice(isFavorite ? `已取消收藏${room.name}` : `已收藏${room.name}`);
+
+    if (!accessToken) return;
+
+    requestStudentRoomFavoriteSet(accessToken, room.id, !isFavorite, fetch, resolveApiBaseUrl(), {
+      onSessionExpired,
+      onSessionRefresh
+    })
+      .then((summary) => setFavoriteRoomIds(normalizeStudentRoomFavoriteIds(summary)))
+      .catch((error) => {
+        setFavoriteRoomIds(previousFavoriteRoomIds);
+        setSearchNotice(error instanceof Error ? error.message : '收藏状态保存失败');
+      });
   };
 
   return (
@@ -8009,9 +8151,9 @@ function StudentRoomsPanel({
             {visibleRooms.map((room) => {
               const status = STUDENT_ROOM_STATUS_META[room.status];
               const occupiedPercent = Math.round(((room.capacity - room.available) / room.capacity) * 100);
-              const isFavorite = favoriteRoomNames.includes(room.name);
+              const isFavorite = favoriteRoomIds.includes(room.id);
               return (
-                <article className="dashboard-card student-room-card" key={room.name}>
+                <article className="dashboard-card student-room-card" key={room.id}>
                   <header>
                     <span className="student-room-icon">
                       <DashboardIcon name="building" size={20} />
@@ -8020,7 +8162,7 @@ function StudentRoomsPanel({
                       <button
                         aria-label={`${isFavorite ? '取消收藏' : '收藏'} ${room.name}`}
                         className={`student-room-favorite${isFavorite ? ' is-active' : ''}`}
-                        onClick={() => handleFavoriteToggle(room.name)}
+                        onClick={() => handleFavoriteToggle(room)}
                         title={`${isFavorite ? '取消收藏' : '收藏'}${room.name}`}
                         type="button"
                       >

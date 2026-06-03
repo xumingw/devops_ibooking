@@ -53,6 +53,7 @@ model User {
   violations   Violation[]
   auditLogs     AuditLog[]
   refreshTokens RefreshToken[]
+  favorites     Favorite[]
 
   @@index([departmentId])
   @@map("user")
@@ -150,9 +151,23 @@ model Room {
   bookings     Booking[]
   violations   Violation[]
   checkInCodes CheckInCode[]
+  favorites     Favorite[]
 
   @@index([departmentId])
   @@map("room")
+}
+
+model Favorite {
+  id        String   @id @default(cuid()) @db.VarChar(191)
+  userId    String   @map("user_id") @db.VarChar(191)
+  roomId    String   @map("room_id") @db.VarChar(191)
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id])
+  room      Room     @relation(fields: [roomId], references: [id])
+
+  @@unique([userId, roomId])
+  @@index([roomId])
+  @@map("favorite")
 }
 
 model Seat {

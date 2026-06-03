@@ -272,6 +272,36 @@ export const successfulStudentNotificationsResponse = () =>
     }
   );
 
+export const successfulStudentRoomFavoritesResponse = (
+  favoriteRoomIds: string[] = ['room-gm-301', 'room-science-201', 'room-humanities-a']
+) => {
+  const roomNameById: Record<string, string> = {
+    'room-gm-301': '经管自习室 301',
+    'room-science-201': '理工自习室 201',
+    'room-humanities-a': '文史馆阅览室 A',
+    'room-news-seminar': '新闻学院研讨室',
+    'room-science-403': '理工自习室 403',
+    'room-library-zone': '图书馆自习区'
+  };
+  return new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: {
+        favoriteRoomIds,
+        favorites: favoriteRoomIds.map((roomId) => ({
+          roomId,
+          room: roomNameById[roomId] ?? roomId
+        }))
+      }
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    }
+  );
+};
+
 export const successfulStudentBookingsResponse = () =>
   new Response(
     JSON.stringify({

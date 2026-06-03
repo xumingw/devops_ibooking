@@ -177,6 +177,45 @@ async function main() {
     overnight: true
   });
 
+  await upsertRoom({
+    id: 'room-news-seminar',
+    name: '新闻学院研讨室',
+    building: '新闻学院楼',
+    floor: 4,
+    capacity: 20,
+    scopeType: 'SCHOOL',
+    departmentId: null,
+    openHour: 9,
+    closeHour: 20,
+    overnight: false
+  });
+
+  await upsertRoom({
+    id: 'room-science-403',
+    name: '理工自习室 403',
+    building: '逸夫楼',
+    floor: 4,
+    capacity: 56,
+    scopeType: 'SCHOOL',
+    departmentId: null,
+    openHour: 8,
+    closeHour: 23,
+    overnight: false
+  });
+
+  await upsertRoom({
+    id: 'room-library-zone',
+    name: '图书馆自习区',
+    building: '李兆基图书馆',
+    floor: 2,
+    capacity: 120,
+    scopeType: 'SCHOOL',
+    departmentId: null,
+    openHour: 8,
+    closeHour: 22,
+    overnight: false
+  });
+
   await Promise.all([
     upsertSeat({
       id: 'seat-gm-301-c3',
@@ -205,6 +244,12 @@ async function main() {
       hasPower: false,
       nearWindow: true
     })
+  ]);
+
+  await Promise.all([
+    upsertFavorite('favorite-stu-gm-301', 'user-stu-cse-01', 'room-gm-301'),
+    upsertFavorite('favorite-stu-science-201', 'user-stu-cse-01', 'room-science-201'),
+    upsertFavorite('favorite-stu-humanities-a', 'user-stu-cse-01', 'room-humanities-a')
   ]);
 }
 
@@ -327,6 +372,23 @@ async function upsertSeat(input: {
     create: {
       ...input,
       status: 'ACTIVE'
+    }
+  });
+}
+
+async function upsertFavorite(id: string, userId: string, roomId: string) {
+  await prisma.favorite.upsert({
+    where: {
+      userId_roomId: {
+        userId,
+        roomId
+      }
+    },
+    update: {},
+    create: {
+      id,
+      userId,
+      roomId
     }
   });
 }

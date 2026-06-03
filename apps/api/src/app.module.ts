@@ -17,6 +17,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { CheckInsModule } from './checkins/checkins.module';
 import { AssistantModule } from './assistant/assistant.module';
+import { FavoritesModule } from './favorites/favorites.module';
 
 @Module({
   imports: [
@@ -40,7 +41,8 @@ import { AssistantModule } from './assistant/assistant.module';
     NotificationsModule,
     BookingsModule,
     CheckInsModule,
-    AssistantModule
+    AssistantModule,
+    FavoritesModule
   ],
   controllers: [HealthController],
   providers: [

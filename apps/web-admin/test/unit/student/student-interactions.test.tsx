@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { StudentHomePreview } from '../../../src/App';
 import {
+  successfulStudentNotificationsResponse,
+  successfulStudentRoomFavoritesResponse,
   successfulStudentBookingCreateResponse,
   successfulStudentBookingsResponse
 } from '../helpers/api-responses';
@@ -108,6 +110,67 @@ describe('student interactive controls', () => {
     expect(getFavoriteButton('新闻学院研讨室').className).not.toContain('is-active');
     await clickFavoriteButton('新闻学院研讨室');
     expect(container?.textContent).toContain('已收藏新闻学院研讨室');
+
+    await clickButton('我的收藏');
+    expect(getRoomGridText()).toContain('新闻学院研讨室');
+  });
+
+  it('自习室列表会从服务端读取并保存收藏', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-02T03:42:00.000Z'));
+    const fetcher = vi.fn<typeof fetch>((input, init) => {
+      const url = String(input);
+      if (url.includes('/api/v1/notifications/me')) {
+        return Promise.resolve(successfulStudentNotificationsResponse());
+      }
+      if (url.includes('/api/v1/favorites/me/rooms/room-gm-301')) {
+        expect(init?.method).toBe('DELETE');
+        return Promise.resolve(
+          successfulStudentRoomFavoritesResponse(['room-science-201', 'room-humanities-a'])
+        );
+      }
+      if (url.includes('/api/v1/favorites/me/rooms/room-news-seminar')) {
+        expect(init?.method).toBe('PUT');
+        return Promise.resolve(
+          successfulStudentRoomFavoritesResponse([
+            'room-science-201',
+            'room-humanities-a',
+            'room-news-seminar'
+          ])
+        );
+      }
+      if (url.includes('/api/v1/favorites/me/rooms')) {
+        return Promise.resolve(
+          successfulStudentRoomFavoritesResponse([
+            'room-gm-301',
+            'room-science-201',
+            'room-humanities-a'
+          ])
+        );
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetcher);
+
+    await renderStudentHome('rooms', { accessToken: 'student-token' });
+
+    await clickButton('我的收藏');
+    expect(getRoomGridText()).toContain('经管自习室 301');
+    expect(getRoomGridText()).not.toContain('新闻学院研讨室');
+
+    await clickFavoriteButton('经管自习室 301');
+    expect(fetcher).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/favorites/me/rooms/room-gm-301'),
+      expect.objectContaining({ method: 'DELETE' })
+    );
+    expect(getRoomGridText()).not.toContain('经管自习室 301');
+
+    await clickButton('全部楼栋');
+    await clickFavoriteButton('新闻学院研讨室');
+    expect(fetcher).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/favorites/me/rooms/room-news-seminar'),
+      expect.objectContaining({ method: 'PUT' })
+    );
 
     await clickButton('我的收藏');
     expect(getRoomGridText()).toContain('新闻学院研讨室');
@@ -276,6 +339,12 @@ describe('student interactive controls', () => {
       if (String(input).endsWith('/api/v1/bookings/me') && init?.method === 'GET') {
         return Promise.resolve(successfulStudentBookingsResponse());
       }
+      if (String(input).includes('/api/v1/favorites/me/rooms')) {
+        return Promise.resolve(successfulStudentRoomFavoritesResponse());
+      }
+      if (String(input).includes('/api/v1/notifications/me')) {
+        return Promise.resolve(successfulStudentNotificationsResponse());
+      }
       return Promise.resolve(successfulStudentBookingCreateResponse());
     });
     vi.stubGlobal('fetch', fetcher);
@@ -319,6 +388,12 @@ describe('student interactive controls', () => {
           })
         );
       }
+      if (String(input).includes('/api/v1/favorites/me/rooms')) {
+        return Promise.resolve(successfulStudentRoomFavoritesResponse());
+      }
+      if (String(input).includes('/api/v1/notifications/me')) {
+        return Promise.resolve(successfulStudentNotificationsResponse());
+      }
       return Promise.resolve(successfulStudentBookingsResponse());
     });
     vi.stubGlobal('fetch', fetcher);
@@ -360,12 +435,15 @@ describe('student interactive controls', () => {
     await act(async () => {
       root?.render(<StudentHomePreview initialActive={initialActive} studentName="林晓明" {...props} />);
       await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
     });
   }
 
   async function clickButton(label: string) {
     await act(async () => {
       getButton(label).click();
+      await Promise.resolve();
       await Promise.resolve();
     });
   }
@@ -383,12 +461,14 @@ describe('student interactive controls', () => {
     await act(async () => {
       button.click();
       await Promise.resolve();
+      await Promise.resolve();
     });
   }
 
   async function clickFavoriteButton(roomName: string) {
     await act(async () => {
       getFavoriteButton(roomName).click();
+      await Promise.resolve();
       await Promise.resolve();
     });
   }
