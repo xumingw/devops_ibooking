@@ -129,6 +129,14 @@ describe('seats', () => {
 
     expect(html).toContain('座位平面图编辑器');
     expect(html).toContain('经管自习室 301 · 光华楼 A座 3楼');
+    expect(html).toContain('编辑自习室');
+    expect(html).toContain('选择平面图自习室');
+    expect(html).toContain('理工自习室 201 · 理科楼 2楼');
+    expect(html).toContain('当前自习室');
+    expect(html).toContain('48 座 · 08:00–22:00');
+    expect(html).toContain('已配置座位');
+    expect(html).toContain('登记容量');
+    expect(html).toContain('开放时间');
     expect(html).toContain('保存布局');
     expect(html).toContain('预览');
     expect(html).toContain('选择');
