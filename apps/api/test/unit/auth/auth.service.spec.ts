@@ -148,6 +148,17 @@ describe('AuthService', () => {
     expect(repository.refreshTokens.size).toBe(0);
   });
 
+  it('不存在账号登录时仍执行一次密码校验以降低账号枚举风险', async () => {
+    const verifyPassword = jest.spyOn(hasher, 'verify');
+
+    await expect(
+      service.loginStudent({ studentId: 'stu_missing', password: 'Pass123!' })
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+
+    expect(verifyPassword).toHaveBeenCalledTimes(1);
+    expect(repository.refreshTokens.size).toBe(0);
+  });
+
   it('禁用学生返回 USER_DISABLED 且不创建 refresh token', async () => {
     await expect(
       service.loginStudent({ studentId: 'stu_disabled', password: 'Pass123!' })

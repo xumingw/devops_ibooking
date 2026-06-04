@@ -172,6 +172,7 @@ jobs:
         run: |
           network_name="ibooking-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           mysql_name="${network_name}-mysql"
+          redis_name="${network_name}-redis"
           container_id=""
 
           cleanup() {
@@ -179,6 +180,7 @@ jobs:
               docker rm -f "$container_id" >/dev/null 2>&1 || true
             fi
             docker rm -f "$mysql_name" >/dev/null 2>&1 || true
+            docker rm -f "$redis_name" >/dev/null 2>&1 || true
             docker network rm "$network_name" >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
@@ -190,6 +192,10 @@ jobs:
             -e MYSQL_ROOT_PASSWORD=root \
             -e MYSQL_DATABASE=ibooking \
             mysql:8.4
+          docker run -d \
+            --name "$redis_name" \
+            --network "$network_name" \
+            redis:7.2-alpine
 
           for _ in $(seq 1 90); do
             if docker exec "$mysql_name" mysqladmin ping -h 127.0.0.1 -uroot -proot --silent; then
@@ -202,11 +208,24 @@ jobs:
             docker logs "$mysql_name"
             exit 1
           fi
+          for _ in $(seq 1 30); do
+            if docker exec "$redis_name" redis-cli ping >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
+          if ! docker exec "$redis_name" redis-cli ping >/dev/null; then
+            docker logs "$redis_name"
+            exit 1
+          fi
 
           container_id="$(docker run -d \
             --network "$network_name" \
             -p 3000:3000 \
             -e DATABASE_URL="mysql://root:root@$mysql_name:3306/ibooking" \
+            -e REDIS_URL="redis://$redis_name:6379" \
+            -e JWT_SECRET="ci-smoke-jwt-secret-at-least-32-characters" \
             "$API_IMAGE_REPOSITORY:$IMAGE_TAG")"
 
           for _ in $(seq 1 90); do
@@ -314,19 +333,39 @@ jobs:
           PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
           SSH_USER: ${{ secrets.PROD_SSH_USER }}
           DEPLOY_PATH: ${{ secrets.PROD_DEPLOY_PATH }}
+          PROD_API_PUBLIC_URL: ${{ vars.PROD_API_PUBLIC_URL }}
           PROD_API_PORT: ${{ vars.PROD_API_PORT }}
           PROD_WEB_ADMIN_PORT: ${{ vars.PROD_WEB_ADMIN_PORT }}
+          PROD_CORS_ALLOWED_ORIGINS: ${{ vars.PROD_CORS_ALLOWED_ORIGINS }}
+          PROD_REFRESH_COOKIE_SECURE: ${{ vars.PROD_REFRESH_COOKIE_SECURE }}
         run: |
           SSH_HOST="${PROD_SSH_HOST:-cd-server}"
           API_IMAGE="$API_IMAGE_REPOSITORY:$IMAGE_TAG"
           WEB_ADMIN_IMAGE="$WEB_ADMIN_IMAGE_REPOSITORY:$IMAGE_TAG"
+          API_PUBLIC_URL="${PROD_API_PUBLIC_URL:-}"
           API_PORT="${PROD_API_PORT:-3000}"
           WEB_ADMIN_PORT="${PROD_WEB_ADMIN_PORT:-5174}"
+          CORS_ALLOWED_ORIGINS="${PROD_CORS_ALLOWED_ORIGINS:-}"
+          REFRESH_COOKIE_SECURE="${PROD_REFRESH_COOKIE_SECURE:-}"
+
+          if [ -z "$REFRESH_COOKIE_SECURE" ]; then
+            case "$API_PUBLIC_URL" in
+              https://*) REFRESH_COOKIE_SECURE=true ;;
+              http://*) REFRESH_COOKIE_SECURE=false ;;
+              *)
+                echo "PROD_API_PUBLIC_URL must start with http:// or https:// to derive REFRESH_COOKIE_SECURE."
+                exit 1
+                ;;
+            esac
+          fi
 
           ssh -i ~/.ssh/id_ed25519 "$SSH_USER@$SSH_HOST" \
-            "DEPLOY_PATH='$DEPLOY_PATH' API_IMAGE='$API_IMAGE' WEB_ADMIN_IMAGE='$WEB_ADMIN_IMAGE' API_PORT='$API_PORT' WEB_ADMIN_PORT='$WEB_ADMIN_PORT' bash -s" <<'REMOTE'
+            "DEPLOY_PATH='$DEPLOY_PATH' API_IMAGE='$API_IMAGE' WEB_ADMIN_IMAGE='$WEB_ADMIN_IMAGE' API_PORT='$API_PORT' WEB_ADMIN_PORT='$WEB_ADMIN_PORT' CORS_ALLOWED_ORIGINS='$CORS_ALLOWED_ORIGINS' REFRESH_COOKIE_SECURE='$REFRESH_COOKIE_SECURE' bash -s" <<'REMOTE'
           set -eu
           cd "$DEPLOY_PATH"
+          if [ -z "${CORS_ALLOWED_ORIGINS:-}" ]; then
+            unset CORS_ALLOWED_ORIGINS
+          fi
           git pull --ff-only origin main
           test -f .env || {
             echo "$DEPLOY_PATH/.env is required for production deployment"
@@ -337,11 +376,15 @@ jobs:
           WEB_ADMIN_IMAGE=$WEB_ADMIN_IMAGE
           API_PORT=$API_PORT
           WEB_ADMIN_PORT=$WEB_ADMIN_PORT
+          REFRESH_COOKIE_SECURE=$REFRESH_COOKIE_SECURE
           EOF
+          if [ -n "${CORS_ALLOWED_ORIGINS:-}" ]; then
+            printf '%s\n' "CORS_ALLOWED_ORIGINS=$CORS_ALLOWED_ORIGINS" >> infra/.deploy-images.env
+          fi
           compose_project_name="devops_ibooking"
           compose_env_args="--env-file .env --env-file infra/.deploy-images.env"
           docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml pull
-          docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml up -d mysql
+          docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml up -d mysql redis
           docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml run --rm -T api ./node_modules/.bin/prisma migrate deploy < /dev/null
           docker compose -p "$compose_project_name" $compose_env_args -f infra/docker-compose.prod.yml up -d --force-recreate --remove-orphans
 

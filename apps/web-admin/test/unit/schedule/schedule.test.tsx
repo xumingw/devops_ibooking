@@ -12,7 +12,7 @@ describe('schedule', () => {
     expect(html).toContain('开放时间管理');
     expect(html).toContain('全校默认时段');
     expect(html).toContain('07:00–22:00');
-    expect(html).toContain('整点时段');
+    expect(html).toContain('半小时时段');
     expect(html).toContain('跨天开放');
     expect(html).toContain('特殊日期优先');
     expect(html).toContain('节假日特殊规则');

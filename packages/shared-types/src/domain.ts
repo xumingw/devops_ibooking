@@ -129,3 +129,113 @@ export interface StudentViolationSummary {
   severeThreshold: number;
   records: StudentViolationRecord[];
 }
+
+export type StudentNotificationGroupLabel = '今天' | '昨天' | '更早';
+export type StudentNotificationIconType = 'bell' | 'clock' | 'check' | 'alert';
+export type StudentNotificationTone = 'teal' | 'gold' | 'green' | 'red';
+
+export interface StudentNotificationRecord {
+  id: string;
+  group: StudentNotificationGroupLabel;
+  iconType: StudentNotificationIconType;
+  tone: StudentNotificationTone;
+  title: string;
+  description: string;
+  timeLabel: string;
+  read: boolean;
+  occurredAt: string;
+}
+
+export interface StudentNotificationGroup {
+  date: StudentNotificationGroupLabel;
+  items: StudentNotificationRecord[];
+}
+
+export interface StudentNotificationSummary {
+  unreadCount: number;
+  groups: StudentNotificationGroup[];
+}
+
+export interface StudentRoomFavoriteRecord {
+  roomId: string;
+  room: string;
+}
+
+export interface StudentRoomFavoriteSummary {
+  favoriteRoomIds: string[];
+  favorites: StudentRoomFavoriteRecord[];
+}
+
+export type StudentBookingStatus = 'upcoming' | 'using' | 'completed' | 'cancelled' | 'violation';
+
+export interface StudentBookingRecord {
+  id: string;
+  room: string;
+  location: string;
+  seat: string;
+  time: string;
+  status: StudentBookingStatus;
+  tags: string[];
+  canCheckIn: boolean;
+  canCancel: boolean;
+  startAt: string;
+  endAt: string;
+}
+
+export interface StudentBookingSummary {
+  totalCount: number;
+  activeCount: number;
+  completedCount: number;
+  records: StudentBookingRecord[];
+}
+
+export interface StudentCheckInSession {
+  bookingId: string;
+  roomId: string;
+  room: string;
+  seat: string;
+  time: string;
+  remainingSeconds: number;
+  codeLength: number;
+}
+
+export interface StudentCheckInResult {
+  bookingId: string;
+  room: string;
+  seat: string;
+  time: string;
+  checkedInAt: string;
+  status: 'CHECKED_IN';
+}
+
+export type StudentAssistantIntent = 'availability' | 'seat_search' | 'my_bookings' | 'fallback';
+
+export type StudentAssistantAction = 'BOOK' | 'CHECK_IN' | 'CANCEL' | 'DETAIL';
+
+export interface StudentAssistantSeatCandidate {
+  roomId: string;
+  seatId: string;
+  room: string;
+  location: string;
+  seat: string;
+  time: string;
+  tags: string[];
+}
+
+export interface StudentAssistantBookingCandidate {
+  bookingId: string;
+  room: string;
+  location: string;
+  seat: string;
+  time: string;
+  status: StudentBookingStatus;
+  actions: StudentAssistantAction[];
+}
+
+export interface StudentAssistantReply {
+  intent: StudentAssistantIntent;
+  text: string;
+  seats: StudentAssistantSeatCandidate[];
+  bookings: StudentAssistantBookingCandidate[];
+  suggestions: string[];
+}

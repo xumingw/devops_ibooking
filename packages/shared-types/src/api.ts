@@ -32,7 +32,7 @@ export interface PageResult<T> {
 }
 
 export interface HealthResponse {
-  status: 'UP';
+  status: 'UP' | 'DOWN';
   db: 'UP' | 'DOWN';
   redis: 'UP' | 'DOWN';
   timestamp: string;

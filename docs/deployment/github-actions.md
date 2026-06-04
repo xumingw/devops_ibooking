@@ -73,6 +73,8 @@ Ruleset 建议：
 | `PROD_API_PUBLIC_URL` | 无默认值 | 生产 Web 构建注入的 API 公网地址，例如 `http://xmwhzl.love:13000` |
 | `PROD_API_PORT` | `3000` | 可选；服务器上的 API 端口映射，支持纯端口或 `127.0.0.1:13000` 这种仅本机监听的绑定 |
 | `PROD_WEB_ADMIN_PORT` | `5174` | 可选；服务器上的 Web 端口映射，支持纯端口或 `127.0.0.1:15175` 这种仅本机监听的绑定 |
+| `PROD_CORS_ALLOWED_ORIGINS` | 服务器 `.env` 中的 `CORS_ALLOWED_ORIGINS` 或本地开发默认值 | 可选；生产 API 允许携带凭证跨域访问的前端 Origin 白名单，多个值用英文逗号分隔，例如 `http://xmwhzl.love:5174,https://ibooking.example.edu.cn` |
+| `PROD_REFRESH_COOKIE_SECURE` | 按 `PROD_API_PUBLIC_URL` 自动推导 | 可选；强制控制 refresh cookie 是否带 `Secure`。公网 API 是 `https://` 时应为 `true`，课程服务器仅用 `http://` 端口访问时必须为 `false`，否则浏览器不会保存 refresh cookie |
 
 两个完整仓库名必须使用同一个 Registry host，便于 workflow 用同一组凭证登录并推送 / 拉取。
 

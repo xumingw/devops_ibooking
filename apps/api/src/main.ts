@@ -3,12 +3,10 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { setupOpenApi } from './common/openapi';
+import { createCorsOptions } from './cors';
 
 export function configureApp(app: INestApplication): void {
-  app.enableCors({
-    origin: true,
-    credentials: true
-  });
+  app.enableCors(createCorsOptions());
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

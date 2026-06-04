@@ -9,6 +9,13 @@ import { TokenService } from './token.service';
 import { AuthGuard } from './auth.guard';
 import { PermissionsGuard } from './permissions.guard';
 
+const EXAMPLE_JWT_SECRETS = new Set([
+  'change-me',
+  'dev-only-change-me',
+  'replace-with-at-least-32-random-characters'
+]);
+const MIN_PRODUCTION_JWT_SECRET_LENGTH = 32;
+
 @Module({
   controllers: [AuthController],
   providers: [
@@ -27,7 +34,7 @@ import { PermissionsGuard } from './permissions.guard';
       inject: [ConfigService],
       useFactory: (config: ConfigService) =>
         new TokenService(
-          config.get<string>('JWT_SECRET') ?? 'dev-only-change-me',
+          resolveJwtSecret(config),
           parseDurationSeconds(config.get<string>('JWT_EXPIRES_IN') ?? '15m')
         )
     },
@@ -44,6 +51,25 @@ import { PermissionsGuard } from './permissions.guard';
   exports: [AuthService, AuthGuard, PermissionsGuard]
 })
 export class AuthModule {}
+
+export function resolveJwtSecret(config: Pick<ConfigService, 'get'>): string {
+  const nodeEnv = config.get<string>('NODE_ENV') ?? process.env.NODE_ENV;
+  const jwtSecret = config.get<string>('JWT_SECRET')?.trim();
+
+  if (nodeEnv === 'production') {
+    if (!jwtSecret) {
+      throw new Error('JWT_SECRET is required in production');
+    }
+    if (EXAMPLE_JWT_SECRETS.has(jwtSecret)) {
+      throw new Error('JWT_SECRET must not use example values in production');
+    }
+    if (jwtSecret.length < MIN_PRODUCTION_JWT_SECRET_LENGTH) {
+      throw new Error('JWT_SECRET must be at least 32 characters in production');
+    }
+  }
+
+  return jwtSecret || 'dev-only-change-me';
+}
 
 export function parseDurationSeconds(value: string): number {
   const match = /^(\d+)([smhd])?$/.exec(value.trim());

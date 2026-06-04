@@ -71,6 +71,62 @@ describe('roles', () => {
     expect(html).not.toContain('管理模块');
   });
 
+  it('非超级管理员后台菜单按权限 menuKey 过滤', () => {
+    const html = renderToStaticMarkup(
+      <AdminDashboard
+        adminName="李思源"
+        adminPermissions={[
+          { id: 'perm-room-read', code: 'room.read', name: '查看自习室', menuKey: 'rooms' },
+          { id: 'perm-seat-write', code: 'seat.write', name: '维护座位', menuKey: 'seats' },
+          {
+            id: 'perm-checkin-code-manage',
+            code: 'checkin_code.manage',
+            name: '管理动态码',
+            menuKey: 'qrcode'
+          }
+        ]}
+        adminRoles={[{ code: 'ROLE_ROOM_ADMIN', name: '自习室管理员' }]}
+        initialActive="users"
+      />
+    );
+
+    expect(html).toContain('管理仪表盘');
+    expect(html).toContain('自习室管理');
+    expect(html).toContain('座位管理');
+    expect(html).toContain('动态码管理');
+    expect(html).not.toContain('用户管理');
+    expect(html).not.toContain('角色权限');
+    expect(html).not.toContain('数据报表');
+    expect(html).not.toContain('预约记录管理');
+  });
+
+  it('审计员只能看到只读运营与审计报表菜单', () => {
+    const html = renderToStaticMarkup(
+      <AdminDashboard
+        adminName="周明"
+        adminPermissions={[
+          { id: 'perm-room-read', code: 'room.read', name: '查看自习室', menuKey: 'rooms' },
+          { id: 'perm-booking-read', code: 'booking.read', name: '查看预约', menuKey: 'bookings' },
+          { id: 'perm-violation-read', code: 'violation.read', name: '查看违约', menuKey: 'violations' },
+          { id: 'perm-audit-read', code: 'audit.read', name: '查看审计日志', menuKey: 'audit' },
+          { id: 'perm-report-read', code: 'report.read', name: '查看报表', menuKey: 'reports' }
+        ]}
+        adminRoles={[{ code: 'ROLE_AUDIT', name: '数据审计员' }]}
+        initialActive="roles"
+      />
+    );
+
+    expect(html).toContain('管理仪表盘');
+    expect(html).toContain('自习室管理');
+    expect(html).toContain('预约记录');
+    expect(html).toContain('违约记录');
+    expect(html).toContain('审计日志');
+    expect(html).toContain('数据报表');
+    expect(html).not.toContain('座位管理');
+    expect(html).not.toContain('动态码管理');
+    expect(html).not.toContain('角色权限');
+  });
+
   it('超级管理员按角色编码展示全部权限范围', () => {
     const row = mapAdminRoleToRow({
       id: 'role-full-admin',

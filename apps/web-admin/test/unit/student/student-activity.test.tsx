@@ -10,7 +10,7 @@ describe('student activity pages', () => {
     );
 
     expect(html).toContain('我的预约');
-    expect(html).toContain('本学期共 18 次预约 · 16 次完成');
+    expect(html).toContain('本学期共 5 次预约 · 2 次完成');
     expect(html).toContain('筛选状态');
     expect(html).toContain('导出记录');
     expect(html).toContain('全部');
@@ -58,7 +58,7 @@ describe('student activity pages', () => {
     );
 
     expect(html).toContain('智能助手');
-    expect(html).toContain('自然语言找座 · 预约管理 · 规则问答');
+    expect(html).toContain('自然语言找座 · 预约管理 · 政策咨询');
     expect(html).toContain('今天下午有空位吗？我想要有插座的座位');
     expect(html).toContain('根据您的偏好，今天下午（14:00 后）共找到 3 个合适选项');
     expect(html).toContain('经管自习室 301 · C3');

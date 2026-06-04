@@ -211,3 +211,271 @@ export const successfulStudentViolationsResponse = () =>
       status: 200
     }
   );
+
+export const successfulStudentNotificationsResponse = () =>
+  new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: {
+        unreadCount: 2,
+        groups: [
+          {
+            date: '今天',
+            items: [
+              {
+                id: 'notice-booking-start',
+                group: '今天',
+                iconType: 'bell',
+                tone: 'teal',
+                title: '预约提醒',
+                description: '您今日 14:00 在经管自习室 301 的预约将在 15 分钟后开始',
+                timeLabel: '13:45',
+                read: false,
+                occurredAt: '2026-05-29T05:45:00.000Z'
+              },
+              {
+                id: 'notice-checkin-late',
+                group: '今天',
+                iconType: 'clock',
+                tone: 'gold',
+                title: '未签到提醒',
+                description: '预约已开始 10 分钟，请尽快完成签到',
+                timeLabel: '14:10',
+                read: false,
+                occurredAt: '2026-05-29T06:10:00.000Z'
+              }
+            ]
+          },
+          {
+            date: '昨天',
+            items: [
+              {
+                id: 'notice-checkin-done',
+                group: '昨天',
+                iconType: 'check',
+                tone: 'green',
+                title: '签到成功',
+                description: '您已完成经管自习室 301 · C3 签到',
+                timeLabel: '昨天 13:52',
+                read: true,
+                occurredAt: '2026-05-28T05:52:00.000Z'
+              }
+            ]
+          }
+        ]
+      }
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    }
+  );
+
+export const successfulStudentRoomFavoritesResponse = (
+  favoriteRoomIds: string[] = ['room-gm-301', 'room-science-201', 'room-humanities-a']
+) => {
+  const roomNameById: Record<string, string> = {
+    'room-gm-301': '经管自习室 301',
+    'room-science-201': '理工自习室 201',
+    'room-humanities-a': '文史馆阅览室 A',
+    'room-news-seminar': '新闻学院研讨室',
+    'room-science-403': '理工自习室 403',
+    'room-library-zone': '图书馆自习区'
+  };
+  return new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: {
+        favoriteRoomIds,
+        favorites: favoriteRoomIds.map((roomId) => ({
+          roomId,
+          room: roomNameById[roomId] ?? roomId
+        }))
+      }
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    }
+  );
+};
+
+export const successfulStudentBookingsResponse = () =>
+  new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: {
+        totalCount: 3,
+        activeCount: 2,
+        completedCount: 1,
+        records: [
+          {
+            id: 'booking-upcoming',
+            room: '经管自习室 301',
+            location: '光华楼 A座 3楼',
+            seat: 'C3',
+            time: '今日 14:00-17:00',
+            status: 'upcoming',
+            tags: ['插座'],
+            canCheckIn: true,
+            canCancel: true,
+            startAt: '2026-05-29T06:00:00.000Z',
+            endAt: '2026-05-29T09:00:00.000Z'
+          },
+          {
+            id: 'booking-using',
+            room: '理工自习室 201',
+            location: '理科楼 2楼',
+            seat: 'F12',
+            time: '今日 09:00-12:00',
+            status: 'using',
+            tags: ['24小时'],
+            canCheckIn: false,
+            canCancel: false,
+            startAt: '2026-05-29T01:00:00.000Z',
+            endAt: '2026-05-29T04:00:00.000Z'
+          },
+          {
+            id: 'booking-completed',
+            room: '文史馆阅览室 A',
+            location: '文史馆 1楼',
+            seat: 'A5',
+            time: '4月20日 14:00-16:00',
+            status: 'completed',
+            tags: ['靠窗'],
+            canCheckIn: false,
+            canCancel: false,
+            startAt: '2026-04-20T06:00:00.000Z',
+            endAt: '2026-04-20T08:00:00.000Z'
+          }
+        ]
+      }
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    }
+  );
+
+export const successfulStudentBookingCancelResponse = () =>
+  new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: {
+        id: 'booking-upcoming',
+        room: '经管自习室 301',
+        location: '光华楼 A座 3楼',
+        seat: 'C3',
+        time: '今日 14:00-17:00',
+        status: 'cancelled',
+        tags: ['插座'],
+        canCheckIn: false,
+        canCancel: false,
+        startAt: '2026-05-29T06:00:00.000Z',
+        endAt: '2026-05-29T09:00:00.000Z'
+      }
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    }
+  );
+
+export const successfulStudentBookingCreateResponse = () =>
+  new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: {
+        id: 'booking-created',
+        room: '经管自习室 301',
+        location: '光华楼 A座 3楼',
+        seat: 'C3',
+        time: '6月1日 14:00-17:00',
+        status: 'upcoming',
+        tags: ['插座', '安静区'],
+        canCheckIn: false,
+        canCancel: true,
+        startAt: '2026-06-01T06:00:00.000Z',
+        endAt: '2026-06-01T09:00:00.000Z'
+      }
+    }),
+    {
+      status: 201,
+      headers: { 'Content-Type': 'application/json' }
+    }
+  );
+
+export const successfulStudentCheckInSessionResponse = () =>
+  new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: {
+        bookingId: 'booking-current',
+        roomId: 'room-gm-301',
+        room: '经管自习室 301',
+        seat: 'C3',
+        time: '今日 14:00-17:00',
+        remainingSeconds: 562,
+        codeLength: 6
+      }
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    }
+  );
+
+export const successfulStudentCheckInSubmitResponse = () =>
+  new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: {
+        bookingId: 'booking-current',
+        room: '经管自习室 301',
+        seat: 'C3',
+        time: '今日 14:00-17:00',
+        checkedInAt: '2026-05-30T06:02:00.000Z',
+        status: 'CHECKED_IN'
+      }
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    }
+  );
+
+export const successfulStudentAssistantResponse = () =>
+  new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: {
+        intent: 'availability',
+        text: '今天晚上找到 1 个可用座位。',
+        seats: [
+          {
+            roomId: 'room-gm-301',
+            seatId: 'seat-gm-301-c3',
+            room: '经管自习室 301',
+            location: '光华楼 A座 3楼',
+            seat: 'C3',
+            time: '今天晚上 18:00-22:00',
+            tags: ['插座', '靠窗']
+          }
+        ],
+        bookings: [],
+        suggestions: ['换个时段', '去选座页筛选', '我今天定了哪里']
+      }
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    }
+  );

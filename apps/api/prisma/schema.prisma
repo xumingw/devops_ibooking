@@ -49,9 +49,11 @@ model User {
   department   Department?  @relation(fields: [departmentId], references: [id])
   userRoles    UserRole[]
   bookings     Booking[]
+  bookingSlots BookingSlot[]
   violations   Violation[]
   auditLogs     AuditLog[]
   refreshTokens RefreshToken[]
+  favorites     Favorite[]
 
   @@index([departmentId])
   @@map("user")
@@ -149,9 +151,23 @@ model Room {
   bookings     Booking[]
   violations   Violation[]
   checkInCodes CheckInCode[]
+  favorites     Favorite[]
 
   @@index([departmentId])
   @@map("room")
+}
+
+model Favorite {
+  id        String   @id @default(cuid()) @db.VarChar(191)
+  userId    String   @map("user_id") @db.VarChar(191)
+  roomId    String   @map("room_id") @db.VarChar(191)
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id])
+  room      Room     @relation(fields: [roomId], references: [id])
+
+  @@unique([userId, roomId])
+  @@index([roomId])
+  @@map("favorite")
 }
 
 model Seat {
@@ -217,14 +233,18 @@ model Booking {
 model BookingSlot {
   id        String   @id @default(cuid()) @db.VarChar(191)
   bookingId String   @map("booking_id") @db.VarChar(191)
+  userId    String   @map("user_id") @db.VarChar(191)
   seatId    String   @map("seat_id") @db.VarChar(191)
   slotStart DateTime @map("slot_start")
   createdAt DateTime @default(now()) @map("created_at")
   booking   Booking  @relation(fields: [bookingId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
   seat      Seat     @relation(fields: [seatId], references: [id])
 
   @@unique([seatId, slotStart])
+  @@unique([userId, slotStart])
   @@index([bookingId])
+  @@index([userId])
   @@map("booking_slot")
 }
 
@@ -265,10 +285,12 @@ model ReminderLog {
   type      String   @db.VarChar(64)
   channel   String   @db.VarChar(32)
   sentAt    DateTime @map("sent_at")
+  readAt    DateTime? @map("read_at")
   createdAt DateTime @default(now()) @map("created_at")
   booking   Booking  @relation(fields: [bookingId], references: [id])
 
   @@index([bookingId, type])
+  @@index([readAt])
   @@map("reminder_log")
 }
 
