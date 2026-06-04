@@ -94,6 +94,12 @@ describe('production entry', () => {
     expect(compose).toContain('CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}');
   });
 
+  it('PR Docker smoke 为生产 API 容器注入临时 JWT_SECRET', () => {
+    const workflow = readFileSync(resolve(repoRoot, '.github/workflows/ci.yml'), 'utf8');
+
+    expect(workflow).toContain('-e JWT_SECRET="ci-smoke-jwt-secret-at-least-32-characters"');
+  });
+
   it('独立部署脚本用数字 API_PORT 检查本机健康接口', () => {
     const result = runDeployScript({ apiPort: '3000' });
 

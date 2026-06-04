@@ -225,6 +225,7 @@ jobs:
             -p 3000:3000 \
             -e DATABASE_URL="mysql://root:root@$mysql_name:3306/ibooking" \
             -e REDIS_URL="redis://$redis_name:6379" \
+            -e JWT_SECRET="ci-smoke-jwt-secret-at-least-32-characters" \
             "$API_IMAGE_REPOSITORY:$IMAGE_TAG")"
 
           for _ in $(seq 1 90); do
