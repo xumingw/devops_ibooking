@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { AdminDashboard } from '../../../src/App';
+import { AdminDashboard, formatAdminMonthLabel } from '../../../src/App';
 
 describe('reports', () => {
   it('渲染数据报表页面', () => {
@@ -10,7 +10,7 @@ describe('reports', () => {
     );
 
     expect(html).toContain('数据报表');
-    expect(html).toContain('2026年4月 · 月度分析');
+    expect(html).toContain(`${formatAdminMonthLabel()} · 月度分析`);
     expect(html).toContain('导出 CSV');
     expect(html).toContain('导出 Excel');
     expect(html).toContain('本月预约总量');

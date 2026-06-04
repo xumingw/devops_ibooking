@@ -119,6 +119,7 @@ describe('auth', () => {
     expect(session).toEqual({
       kind: 'admin',
       name: '系统管理员',
+      permissions: [],
       roles: [{ name: '超级管理员', code: 'ROLE_FULL_ADMIN' }],
       accessToken: 'access-token'
     });
@@ -142,6 +143,7 @@ describe('auth', () => {
     expect(session).toEqual({
       kind: 'student',
       name: '林晓明',
+      permissions: [],
       roles: [{ name: '学生', code: 'ROLE_STUDENT' }],
       accessToken: 'student-access-token'
     });

@@ -18,6 +18,7 @@ export type SessionView = {
   kind: EntryKind;
   name: string;
   roles: RoleView[];
+  permissions: AdminRolePermission[];
   accessToken: string;
 };
 
@@ -32,6 +33,7 @@ type LoginPayload = {
       departmentName?: string | null;
     };
     roles?: RoleView[];
+    permissions?: AdminRolePermission[];
   };
 };
 
@@ -506,6 +508,7 @@ const toSessionView = (authSession: AuthSessionPayload): SessionView => {
     kind,
     name: authSession.user.name,
     roles: authSession.roles ?? [],
+    permissions: authSession.permissions ?? [],
     accessToken: authSession.accessToken
   };
 };
@@ -1508,6 +1511,7 @@ export function App() {
       <AdminDashboard
         accessToken={session.accessToken}
         adminName={session.name}
+        adminPermissions={session.permissions}
         adminRoles={session.roles}
         onLogout={handleLogout}
         onSessionExpired={handleSessionExpired}
@@ -1669,6 +1673,7 @@ type DashboardProps = {
   accessToken?: string;
   adminName: string;
   adminRoles?: RoleView[];
+  adminPermissions?: AdminRolePermission[];
   initialActive?: AdminMenuId;
   onLogout?: () => void;
   onSessionExpired?: () => void;
@@ -2129,6 +2134,35 @@ const SCHEDULE_SPECIAL_RULES = [
   }
 ] as const;
 
+const padAdminDateSegment = (value: number) => String(value).padStart(2, '0');
+
+export const formatAdminDateLabel = (date: Date = new Date()) =>
+  `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+
+export const formatAdminMonthLabel = (date: Date = new Date()) =>
+  `${date.getFullYear()}年${date.getMonth() + 1}月`;
+
+const formatAdminShortDate = (date: Date) =>
+  `${padAdminDateSegment(date.getMonth() + 1)}-${padAdminDateSegment(date.getDate())}`;
+
+const formatAdminBookingDateKey = (date: Date) =>
+  `${date.getFullYear()}${padAdminDateSegment(date.getMonth() + 1)}${padAdminDateSegment(
+    date.getDate()
+  )}`;
+
+const getAdminRelativeDate = (offsetDays: number) => {
+  const date = new Date(ADMIN_DEMO_DATE);
+  date.setDate(date.getDate() + offsetDays);
+  return date;
+};
+
+const ADMIN_DEMO_DATE = new Date();
+const ADMIN_DEMO_DATE_LABEL = formatAdminDateLabel(ADMIN_DEMO_DATE);
+const ADMIN_DEMO_MONTH_LABEL = formatAdminMonthLabel(ADMIN_DEMO_DATE);
+const ADMIN_DEMO_SHORT_DATE = formatAdminShortDate(ADMIN_DEMO_DATE);
+const ADMIN_DEMO_YESTERDAY_SHORT_DATE = formatAdminShortDate(getAdminRelativeDate(-1));
+const ADMIN_DEMO_BOOKING_PREFIX = `BK${formatAdminBookingDateKey(ADMIN_DEMO_DATE)}`;
+
 const ADMIN_BOOKING_RECORDS = [
   {
     id: 'BK-1893',
@@ -2136,7 +2170,7 @@ const ADMIN_BOOKING_RECORDS = [
     user: '林晓明',
     room: '经管301',
     seat: 'C3',
-    date: '04-24',
+    date: ADMIN_DEMO_SHORT_DATE,
     time: '14:00–17:00',
     checkin: '14:02',
     status: 'active'
@@ -2147,7 +2181,7 @@ const ADMIN_BOOKING_RECORDS = [
     user: '张子涵',
     room: '理工201',
     seat: 'F8',
-    date: '04-24',
+    date: ADMIN_DEMO_SHORT_DATE,
     time: '13:00–16:00',
     checkin: '13:08',
     status: 'active'
@@ -2158,7 +2192,7 @@ const ADMIN_BOOKING_RECORDS = [
     user: '王芳',
     room: '图书馆',
     seat: 'B22',
-    date: '04-24',
+    date: ADMIN_DEMO_SHORT_DATE,
     time: '10:00–12:00',
     checkin: '10:05',
     status: 'done'
@@ -2169,7 +2203,7 @@ const ADMIN_BOOKING_RECORDS = [
     user: '陈浩然',
     room: '文史馆A',
     seat: 'D5',
-    date: '04-24',
+    date: ADMIN_DEMO_SHORT_DATE,
     time: '09:00–11:00',
     checkin: '—',
     status: 'violation'
@@ -2180,7 +2214,7 @@ const ADMIN_BOOKING_RECORDS = [
     user: '赵雪',
     room: '理工403',
     seat: 'A11',
-    date: '04-23',
+    date: ADMIN_DEMO_YESTERDAY_SHORT_DATE,
     time: '19:00–22:00',
     checkin: '19:04',
     status: 'done'
@@ -2191,7 +2225,7 @@ const ADMIN_BOOKING_RECORDS = [
     user: '刘明达',
     room: '经管301',
     seat: 'G2',
-    date: '04-23',
+    date: ADMIN_DEMO_YESTERDAY_SHORT_DATE,
     time: '14:00–17:00',
     checkin: '14:18',
     status: 'pending'
@@ -2254,7 +2288,7 @@ const ADMIN_VIOLATION_RECORDS = [
     seat: 'D5',
     reason: '开始后 15 分钟未签到',
     action: '自动取消',
-    occurred: '04-24 09:15',
+    occurred: `${ADMIN_DEMO_SHORT_DATE} 09:15`,
     status: 'recorded'
   },
   {
@@ -2266,7 +2300,7 @@ const ADMIN_VIOLATION_RECORDS = [
     seat: 'C3',
     reason: '开始后 15 分钟未签到',
     action: '自动取消',
-    occurred: '04-24 10:15',
+    occurred: `${ADMIN_DEMO_SHORT_DATE} 10:15`,
     status: 'recorded'
   },
   {
@@ -2278,7 +2312,7 @@ const ADMIN_VIOLATION_RECORDS = [
     seat: 'F8',
     reason: '重复取消',
     action: '人工复核',
-    occurred: '04-24 09:42',
+    occurred: `${ADMIN_DEMO_SHORT_DATE} 09:42`,
     status: 'review'
   },
   {
@@ -2531,7 +2565,7 @@ const ADMIN_ROLE_FALLBACKS: AdminRole[] = [
     permissions: ['dashboard', 'rooms', 'seats', 'bookings', 'reports'].map((menuKey) =>
       rolePermission(menuKey as AdminMenuId, 'read')
     ),
-    updatedAt: '04-23'
+    updatedAt: ADMIN_DEMO_YESTERDAY_SHORT_DATE
   },
   {
     id: 'role-temp-audit',
@@ -3017,7 +3051,7 @@ const ADMIN_REPORT_RULES = [
   ['空状态', '周末暂无数据时以空柱和短横展示']
 ] as const;
 
-const ADMIN_REPORT_FILTERS = ['2026年4月', '全校范围', '按月统计'] as const;
+const ADMIN_REPORT_FILTERS = [ADMIN_DEMO_MONTH_LABEL, '全校范围', '按月统计'] as const;
 
 const STUDENT_MENU_GROUPS: Array<{ label: string; items: StudentMenuItem[] }> = [
   {
@@ -4525,7 +4559,7 @@ const STUDENT_WEEK_RECORDS = [
 const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
   dashboard: {
     title: '管理仪表盘',
-    sub: '2026年4月24日 · 实时数据',
+    sub: `${ADMIN_DEMO_DATE_LABEL} · 实时数据`,
     description: '汇总今日预约、签到、违约与空间利用率，帮助管理员快速判断运行状态。',
     actions: [
       { label: '刷新', icon: 'refresh' },
@@ -4585,12 +4619,9 @@ const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
   },
   editor: {
     title: '座位平面图编辑器',
-    sub: '经管自习室 301 · 光华楼 A座 3楼',
+    sub: '按自习室维护座位布局',
     description: '调整座位坐标、通道、门窗和插座图层，发布后同步到学生端选座图。',
-    actions: [
-      { label: '预览', icon: 'eye' },
-      { label: '保存布局', icon: 'check' }
-    ],
+    actions: [],
     metrics: [
       { label: '已发布图层', value: '42', tone: F.success },
       { label: '待发布草稿', value: '3', tone: '#C8820A' },
@@ -4646,10 +4677,10 @@ const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
     tableNote: '今日实时同步',
     tableHead: ['预约编号', '用户', '自习室', '座位', '状态'],
     rows: [
-      ['BK20240424-1893', '林晓明', '经管301', 'C3', '使用中'],
-      ['BK20240424-1892', '张子涵', '理工201', 'F8', '待签到'],
-      ['BK20240424-1891', '王芳', '图书馆区', 'B22', '已完成'],
-      ['BK20240424-1890', '陈浩然', '文史馆A', 'D5', '违约']
+      [`${ADMIN_DEMO_BOOKING_PREFIX}-1893`, '林晓明', '经管301', 'C3', '使用中'],
+      [`${ADMIN_DEMO_BOOKING_PREFIX}-1892`, '张子涵', '理工201', 'F8', '待签到'],
+      [`${ADMIN_DEMO_BOOKING_PREFIX}-1891`, '王芳', '图书馆区', 'B22', '已完成'],
+      [`${ADMIN_DEMO_BOOKING_PREFIX}-1890`, '陈浩然', '文史馆A', 'D5', '违约']
     ]
   },
   violations: {
@@ -4792,7 +4823,7 @@ const ADMIN_MENU_META: Record<AdminMenuId, AdminMenuMeta> = {
   },
   reports: {
     title: '数据报表',
-    sub: '2026年4月 · 月度分析',
+    sub: `${ADMIN_DEMO_MONTH_LABEL} · 月度分析`,
     description: '查看座位利用率、违约趋势、热门时段和院系统计。',
     actions: [
       { label: '导出 CSV', icon: 'download' },
@@ -4851,10 +4882,38 @@ const ROOM_STATUS = [
 ] as const;
 
 const RECENT_BOOKINGS = [
-  { id: 'BK20240424-1893', user: '林晓明', room: '经管301', seat: 'C3', time: '14:00–17:00', status: 'active' },
-  { id: 'BK20240424-1892', user: '张子涵', room: '理工201', seat: 'F8', time: '13:00–16:00', status: 'pending' },
-  { id: 'BK20240424-1891', user: '王芳', room: '图书馆区', seat: 'B22', time: '10:00–12:00', status: 'done' },
-  { id: 'BK20240424-1890', user: '陈浩然', room: '文史馆A', seat: 'D5', time: '09:00–11:00', status: 'violation' }
+  {
+    id: `${ADMIN_DEMO_BOOKING_PREFIX}-1893`,
+    user: '林晓明',
+    room: '经管301',
+    seat: 'C3',
+    time: '14:00–17:00',
+    status: 'active'
+  },
+  {
+    id: `${ADMIN_DEMO_BOOKING_PREFIX}-1892`,
+    user: '张子涵',
+    room: '理工201',
+    seat: 'F8',
+    time: '13:00–16:00',
+    status: 'pending'
+  },
+  {
+    id: `${ADMIN_DEMO_BOOKING_PREFIX}-1891`,
+    user: '王芳',
+    room: '图书馆区',
+    seat: 'B22',
+    time: '10:00–12:00',
+    status: 'done'
+  },
+  {
+    id: `${ADMIN_DEMO_BOOKING_PREFIX}-1890`,
+    user: '陈浩然',
+    room: '文史馆A',
+    seat: 'D5',
+    time: '09:00–11:00',
+    status: 'violation'
+  }
 ] as const;
 
 const BOOKING_STATUS_META = {
@@ -4867,6 +4926,29 @@ const BOOKING_STATUS_META = {
 const isAdminMenuId = (value: string | undefined): value is AdminMenuId =>
   ADMIN_MENU_IDS.includes(value as AdminMenuId);
 
+const getDefaultAdminMenu = (menuIds: readonly AdminMenuId[]) =>
+  menuIds.includes('dashboard') ? 'dashboard' : menuIds[0] ?? 'dashboard';
+
+export const resolveAuthorizedAdminMenuIds = (
+  roles: RoleView[] = [],
+  permissions?: AdminRolePermission[]
+): AdminMenuId[] => {
+  const hasExplicitAccessPolicy = roles.length > 0 || permissions !== undefined;
+  if (!hasExplicitAccessPolicy || roles.some((role) => role.code === 'ROLE_FULL_ADMIN')) {
+    return [...ADMIN_MENU_IDS];
+  }
+
+  const menuIds = new Set<AdminMenuId>(['dashboard']);
+  (permissions ?? []).forEach((permission) => {
+    const menuKey = permission.menuKey ?? undefined;
+    if (isAdminMenuId(menuKey)) {
+      menuIds.add(menuKey);
+    }
+  });
+
+  return ADMIN_MENU_IDS.filter((menuId) => menuIds.has(menuId));
+};
+
 const isStudentMenuId = (value: string | undefined): value is StudentMenuId =>
   STUDENT_MENU_IDS.includes(value as StudentMenuId);
 
@@ -4876,13 +4958,15 @@ const isStudentPageId = (value: string | undefined): value is StudentPageId =>
 const normalizeStudentPageId = (page: StudentPageId): StudentMenuId =>
   page === 'select' || page === 'confirm' ? 'rooms' : page;
 
-const resolveInitialAdminMenu = (): AdminMenuId => {
+const resolveInitialAdminMenu = (allowedMenuIds: readonly AdminMenuId[] = ADMIN_MENU_IDS): AdminMenuId => {
   if (typeof window === 'undefined') {
-    return 'dashboard';
+    return getDefaultAdminMenu(allowedMenuIds);
   }
 
   const [, section] = window.location.pathname.match(/^\/dashboard\/([^/]+)/) ?? [];
-  return isAdminMenuId(section) ? section : 'dashboard';
+  return isAdminMenuId(section) && allowedMenuIds.includes(section)
+    ? section
+    : getDefaultAdminMenu(allowedMenuIds);
 };
 
 const resolveInitialStudentMenu = (): StudentPageId => {
@@ -4914,23 +4998,58 @@ export const resolvePostLoginPath = (
 export function AdminDashboard({
   accessToken,
   adminName,
+  adminPermissions,
   adminRoles = [],
   initialActive,
   onLogout,
   onSessionExpired,
   onSessionRefresh
 }: DashboardProps) {
+  const authorizedMenuIds = useMemo(
+    () => resolveAuthorizedAdminMenuIds(adminRoles, adminPermissions),
+    [adminPermissions, adminRoles]
+  );
+  const authorizedMenuKey = authorizedMenuIds.join('|');
+  const authorizedMenuSet = useMemo(() => new Set(authorizedMenuIds), [authorizedMenuKey]);
+  const visibleNavGroups = useMemo(
+    () =>
+      DASHBOARD_NAV_GROUPS.map((group) => ({
+        ...group,
+        items: group.items.filter((item) => authorizedMenuSet.has(item.id))
+      })).filter((group) => group.items.length > 0),
+    [authorizedMenuSet]
+  );
   const [activeMenu, setActiveMenu] = useState<AdminMenuId>(
-    () => initialActive ?? resolveInitialAdminMenu()
+    () => {
+      const requestedMenu = initialActive ?? resolveInitialAdminMenu(authorizedMenuIds);
+      return authorizedMenuSet.has(requestedMenu)
+        ? requestedMenu
+        : getDefaultAdminMenu(authorizedMenuIds);
+    }
   );
   const [roomCreateSignal, setRoomCreateSignal] = useState(0);
   const [roomRefreshSignal, setRoomRefreshSignal] = useState(0);
   const [seatCreateSignal, setSeatCreateSignal] = useState(0);
+  useEffect(() => {
+    if (!authorizedMenuSet.has(activeMenu)) {
+      setActiveMenu(getDefaultAdminMenu(authorizedMenuIds));
+    }
+  }, [activeMenu, authorizedMenuIds, authorizedMenuSet]);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.location.pathname.startsWith('/dashboard')) {
+      return;
+    }
+    const nextPath = activeMenu === 'dashboard' ? '/dashboard' : `/dashboard/${activeMenu}`;
+    if (window.location.pathname !== nextPath) {
+      replaceAppPath(nextPath);
+    }
+  }, [activeMenu]);
   const activeMeta = ADMIN_MENU_META[activeMenu];
   const adminAvatar = resolveAvatarInitial(adminName);
   const adminRoleLabel = resolveAdminRoleLabel(adminRoles);
 
   const handleMenuChange = (nextMenu: AdminMenuId) => {
+    if (!authorizedMenuSet.has(nextMenu)) return;
     setActiveMenu(nextMenu);
     pushAppPath(nextMenu === 'dashboard' ? '/dashboard' : `/dashboard/${nextMenu}`);
   };
@@ -4958,7 +5077,7 @@ export function AdminDashboard({
           </div>
         </div>
         <nav className="dashboard-nav" aria-label="管理菜单">
-          {DASHBOARD_NAV_GROUPS.map((group) => (
+          {visibleNavGroups.map((group) => (
             <div className="dashboard-nav-group" key={group.label}>
               <div className="dashboard-nav-label">{group.label}</div>
               {group.items.map((item) => (
@@ -5031,7 +5150,11 @@ export function AdminDashboard({
             onSessionRefresh={onSessionRefresh}
           />
         ) : activeMenu === 'editor' ? (
-          <FloorEditorPanel />
+          <FloorEditorPanel
+            accessToken={accessToken}
+            onSessionExpired={onSessionExpired}
+            onSessionRefresh={onSessionRefresh}
+          />
         ) : activeMenu === 'schedule' ? (
           <ScheduleManagementPanel />
         ) : activeMenu === 'bookings' ? (
@@ -5912,14 +6035,85 @@ function SeatManagementPanel({
   );
 }
 
-function FloorEditorPanel() {
+function FloorEditorPanel({
+  accessToken,
+  onSessionExpired,
+  onSessionRefresh
+}: {
+  accessToken?: string;
+  onSessionExpired?: () => void;
+  onSessionRefresh?: (session: SessionView) => void;
+}) {
+  const [rooms, setRooms] = useState<AdminRoom[]>(ADMIN_ROOM_FALLBACKS);
+  const [seats, setSeats] = useState<AdminSeat[]>(ADMIN_SEAT_FALLBACKS);
+  const [selectedRoomId, setSelectedRoomId] = useState('room-gm-301');
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    if (!accessToken) {
+      setRooms(ADMIN_ROOM_FALLBACKS);
+      setSeats(ADMIN_SEAT_FALLBACKS);
+      setLoadError('');
+      return () => {
+        alive = false;
+      };
+    }
+
+    Promise.all([
+      requestRooms(accessToken, fetch, resolveApiBaseUrl(), { onSessionExpired, onSessionRefresh }),
+      requestSeats(accessToken, fetch, resolveApiBaseUrl(), { onSessionExpired, onSessionRefresh })
+    ])
+      .then(([nextRooms, nextSeats]) => {
+        if (!alive) return;
+        setRooms(nextRooms);
+        setSeats(nextSeats);
+        setLoadError('');
+        setSelectedRoomId((currentRoomId) =>
+          nextRooms.some((room) => room.id === currentRoomId)
+            ? currentRoomId
+            : nextRooms[0]?.id ?? 'room-gm-301'
+        );
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setRooms(ADMIN_ROOM_FALLBACKS);
+        setSeats(ADMIN_SEAT_FALLBACKS);
+        setLoadError(error instanceof Error ? error.message : '平面图资源加载失败');
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [accessToken, onSessionExpired, onSessionRefresh]);
+
+  const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? rooms[0] ?? ADMIN_ROOM_FALLBACKS[0];
+  const selectedRoomSeats = seats.filter((seat) => seat.roomId === selectedRoom.id);
+  const selectedRoomLabel = `${selectedRoom.name} · ${selectedRoom.building} ${selectedRoom.floor}楼`;
+  const selectedRoomHours = formatRoomHours(selectedRoom);
+
   return (
     <section className="floor-editor-panel" aria-label="座位平面图编辑器">
       <div className="floor-editor-head">
-        <div>
-          <span>光华楼空间草稿</span>
+        <div className="floor-editor-title">
+          <span>{selectedRoom.building}空间草稿</span>
           <h2>座位平面图编辑器</h2>
-          <p>经管自习室 301 · 光华楼 A座 3楼</p>
+          <p>{selectedRoomLabel}</p>
+          <label className="floor-room-picker">
+            <span>编辑自习室</span>
+            <select
+              aria-label="选择平面图自习室"
+              value={selectedRoom.id}
+              onChange={(event) => setSelectedRoomId(event.target.value)}
+            >
+              {rooms.map((room) => (
+                <option key={room.id} value={room.id}>
+                  {room.name} · {room.building} {room.floor}楼
+                </option>
+              ))}
+            </select>
+          </label>
+          {loadError && <div className="floor-load-error">{loadError}，已使用本地草稿。</div>}
         </div>
         <div className="floor-editor-head-actions">
           <button type="button">
@@ -5956,6 +6150,12 @@ function FloorEditorPanel() {
 
         <div className="floor-canvas" aria-label="座位平面图画布">
           <div className="floor-canvas-card">
+            <div className="floor-canvas-room-label">
+              <strong>{selectedRoom.name}</strong>
+              <span>
+                {selectedRoom.capacity} 座 · {selectedRoomHours}
+              </span>
+            </div>
             <div className="floor-entry-label">入 口</div>
             <div className="floor-seat-map">
               {FLOOR_EDITOR_ROWS.map((row, rowIndex) => {
@@ -5997,15 +6197,25 @@ function FloorEditorPanel() {
 
         <aside className="floor-properties" aria-label="属性面板">
           <h3>属性面板</h3>
+          <div className="floor-room-summary">
+            <span>当前自习室</span>
+            <strong>{selectedRoom.name}</strong>
+            <small>
+              {selectedRoom.building} · {selectedRoom.floor}楼 ·{' '}
+              {selectedRoom.scopeType === 'DEPARTMENT'
+                ? getRoomDepartmentLabel(selectedRoom)
+                : '全校开放'}
+            </small>
+          </div>
           <div className="floor-selected-card">
             <span>已选座位</span>
             <strong>C4</strong>
           </div>
           {[
-            ['行', 'C（第3行）'],
-            ['列', '4（第4列）'],
-            ['朝向', '背窗'],
-            ['状态', '正常']
+            ['已配置座位', `${selectedRoomSeats.length || selectedRoom.capacity} 个`],
+            ['登记容量', `${selectedRoom.capacity} 座`],
+            ['开放时间', selectedRoomHours],
+            ['选中座位', 'C4 · 正常']
           ].map(([label, value]) => (
             <div className="floor-prop-row" key={label}>
               <span>{label}</span>

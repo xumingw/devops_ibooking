@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import { AdminDashboard } from '../../../src/App';
+import { AdminDashboard, formatAdminDateLabel } from '../../../src/App';
 
 describe('dashboard', () => {
   it('渲染登录成功后的管理仪表盘', () => {
@@ -9,7 +9,7 @@ describe('dashboard', () => {
 
     expect(html).toContain('管理仪表盘');
     expect(html).toContain('系统管理员');
-    expect(html).toContain('2026年4月24日 · 实时数据');
+    expect(html).toContain(`${formatAdminDateLabel()} · 实时数据`);
     expect(html).toContain('今日预约总数');
     expect(html).toContain('本周座位利用率热力图');
     expect(html).toContain('自习室实时状态');
