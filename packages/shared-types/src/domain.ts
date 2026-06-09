@@ -166,6 +166,37 @@ export interface StudentRoomFavoriteSummary {
   favorites: StudentRoomFavoriteRecord[];
 }
 
+export type StudentWeekdayLabel = '一' | '二' | '三' | '四' | '五' | '六' | '日';
+
+export interface StudentHomeWeekRecord {
+  day: StudentWeekdayLabel;
+  hours: number;
+}
+
+export interface StudentHomeSummary {
+  totalSeats: number;
+  availableSeats: number;
+  availableSeatsDeltaPercent: number;
+  todayBookingCount: number;
+  dailyBookingLimit: number;
+  favoriteRooms: StudentRoomFavoriteRecord[];
+  weekStudyHours: number;
+  lastWeekStudyHours: number;
+  weekRecords: StudentHomeWeekRecord[];
+}
+
+export interface StudentRoomAvailabilityRecord {
+  roomId: string;
+  totalSeats: number;
+  availableSeats: number;
+}
+
+export interface StudentRoomAvailabilitySummary {
+  totalSeats: number;
+  availableSeats: number;
+  rooms: StudentRoomAvailabilityRecord[];
+}
+
 export type StudentBookingStatus = 'upcoming' | 'using' | 'completed' | 'cancelled' | 'violation';
 
 export interface StudentBookingRecord {
@@ -180,6 +211,8 @@ export interface StudentBookingRecord {
   canCancel: boolean;
   startAt: string;
   endAt: string;
+  createdAt?: string;
+  checkInDeadlineAt?: string;
 }
 
 export interface StudentBookingSummary {

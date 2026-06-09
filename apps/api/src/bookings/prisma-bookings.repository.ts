@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { BookingStatus, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { ErrorCode, StudentBookingRecord, StudentBookingStatus } from '@ibooking/shared-types';
 import { PrismaService } from '../database/prisma.service';
 import { BookingRepository, CreateStudentBookingInput } from './bookings.service';
@@ -17,8 +17,16 @@ type BookingRoomWithSchedules = Prisma.RoomGetPayload<{
   };
 }>;
 
+type ViolationRestriction = {
+  days: number;
+  endsAt: Date;
+};
+
 @Injectable()
 export class PrismaBookingsRepository implements BookingRepository {
+  private readonly bookingSlotMs = 30 * 60 * 1000;
+  private readonly checkInLateWindowMs = 15 * 60 * 1000;
+
   constructor(private readonly prisma: PrismaService) {}
 
   async listByUserId(userId: string): Promise<StudentBookingRecord[]> {
@@ -28,7 +36,7 @@ export class PrismaBookingsRepository implements BookingRepository {
         room: true,
         seat: true
       },
-      orderBy: { startAt: 'desc' },
+      orderBy: { createdAt: 'desc' },
       take: 50
     });
 
@@ -37,13 +45,15 @@ export class PrismaBookingsRepository implements BookingRepository {
 
   async cancelByUserId(userId: string, bookingId: string): Promise<StudentBookingRecord> {
     const now = new Date();
+    const checkInCutoffBaseAt = new Date(now.getTime() - this.checkInLateWindowMs);
     const row = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.booking.updateMany({
         where: {
           id: bookingId,
           userId,
           status: 'PENDING_CHECKIN',
-          startAt: { gt: now }
+          endAt: { gt: now },
+          OR: [{ startAt: { gt: checkInCutoffBaseAt } }, { createdAt: { gt: checkInCutoffBaseAt } }]
         },
         data: { status: 'CANCELLED_BY_USER' }
       });
@@ -129,6 +139,18 @@ export class PrismaBookingsRepository implements BookingRepository {
             message: '该自习室仅限所属院系预约'
           });
         }
+        const violations = await tx.violation.findMany({
+          where: { userId },
+          orderBy: { occurredAt: 'desc' },
+          select: { occurredAt: true }
+        });
+        const activeRestriction = this.getActiveViolationRestriction(violations, new Date());
+        if (activeRestriction) {
+          throw new BadRequestException({
+            code: ErrorCode.VALIDATION_FAILED,
+            message: `当前违约记录已触发 ${activeRestriction.days} 天预约限制，限制至 ${this.formatRestrictionEnd(activeRestriction.endsAt)}`
+          });
+        }
         if (!this.isRoomOpenForRange(room, startAt, endAt)) {
           throw new BadRequestException({
             code: ErrorCode.VALIDATION_FAILED,
@@ -151,6 +173,21 @@ export class PrismaBookingsRepository implements BookingRepository {
             message: '该时段已有预约'
           });
         }
+        const seatOverlapping = await tx.booking.findFirst({
+          where: {
+            seatId: input.seatId,
+            status: { in: ['PENDING_CHECKIN', 'CHECKED_IN'] },
+            startAt: { lt: endAt },
+            endAt: { gt: startAt }
+          },
+          select: { id: true }
+        });
+        if (seatOverlapping) {
+          throw new BadRequestException({
+            code: ErrorCode.VALIDATION_FAILED,
+            message: '该座位时段已被预约'
+          });
+        }
 
         const created = await tx.booking.create({
           data: {
@@ -168,7 +205,7 @@ export class PrismaBookingsRepository implements BookingRepository {
         });
 
         await tx.bookingSlot.createMany({
-          data: this.toHalfHourSlots(startAt, endAt).map((slotStart) => ({
+          data: this.toBookingSlots(startAt, endAt).map((slotStart) => ({
             bookingId: created.id,
             userId,
             seatId: input.seatId,
@@ -192,7 +229,8 @@ export class PrismaBookingsRepository implements BookingRepository {
   }
 
   private toRecord(row: BookingWithRoomSeat): StudentBookingRecord {
-    const status = this.mapStatus(row.status);
+    const status = this.mapStatus(row);
+    const checkInDeadlineAt = this.checkInDeadlineAt(row);
     return {
       id: row.id,
       room: row.room.name,
@@ -202,13 +240,23 @@ export class PrismaBookingsRepository implements BookingRepository {
       status,
       tags: this.formatTags(row),
       canCheckIn: this.canCheckIn(row, status),
-      canCancel: status === 'upcoming' && row.startAt.getTime() > Date.now(),
+      canCancel: this.canCancel(row, status),
       startAt: row.startAt.toISOString(),
-      endAt: row.endAt.toISOString()
+      endAt: row.endAt.toISOString(),
+      createdAt: row.createdAt.toISOString(),
+      checkInDeadlineAt: checkInDeadlineAt.toISOString()
     };
   }
 
-  private mapStatus(status: BookingStatus): StudentBookingStatus {
+  private mapStatus(
+    row: Pick<BookingWithRoomSeat, 'status' | 'startAt' | 'endAt' | 'createdAt'>
+  ): StudentBookingStatus {
+    const now = Date.now();
+    const status = row.status;
+    if (status === 'CHECKED_IN' && row.endAt.getTime() <= now) return 'completed';
+    if (status === 'PENDING_CHECKIN' && this.checkInDeadlineAt(row).getTime() <= now) {
+      return 'violation';
+    }
     if (status === 'CHECKED_IN') return 'using';
     if (status === 'COMPLETED') return 'completed';
     if (status === 'CANCELLED_AUTO_NO_CHECKIN') return 'violation';
@@ -220,16 +268,27 @@ export class PrismaBookingsRepository implements BookingRepository {
     if (status !== 'upcoming') return false;
     const now = Date.now();
     const checkInWindowStart = row.startAt.getTime() - 15 * 60 * 1000;
-    const checkInWindowEnd = row.startAt.getTime() + 15 * 60 * 1000;
-    return now >= checkInWindowStart && now <= checkInWindowEnd && now <= row.endAt.getTime();
+    const checkInWindowEnd = this.checkInDeadlineAt(row).getTime();
+    return now >= checkInWindowStart && now < checkInWindowEnd && now <= row.endAt.getTime();
   }
 
-  private toHalfHourSlots(startAt: Date, endAt: Date): Date[] {
+  private canCancel(row: BookingWithRoomSeat, status: StudentBookingStatus): boolean {
+    if (status !== 'upcoming') return false;
+    const now = Date.now();
+    return now < this.checkInDeadlineAt(row).getTime() && now < row.endAt.getTime();
+  }
+
+  private checkInDeadlineAt(row: Pick<BookingWithRoomSeat, 'startAt' | 'createdAt'>): Date {
+    const baseAt = row.createdAt.getTime() > row.startAt.getTime() ? row.createdAt : row.startAt;
+    return new Date(baseAt.getTime() + this.checkInLateWindowMs);
+  }
+
+  private toBookingSlots(startAt: Date, endAt: Date): Date[] {
     const slots: Date[] = [];
     for (
       let cursor = startAt.getTime();
       cursor < endAt.getTime();
-      cursor += 30 * 60 * 1000
+      cursor += this.bookingSlotMs
     ) {
       slots.push(new Date(cursor));
     }
@@ -245,7 +304,7 @@ export class PrismaBookingsRepository implements BookingRepository {
       room.schedules.map((schedule) => [this.scheduleDateKey(schedule.date), schedule])
     );
 
-    return this.toHalfHourSlots(startAt, endAt).every((slotStart) => {
+    return this.toBookingSlots(startAt, endAt).every((slotStart) => {
       const schedule = schedulesByDate.get(this.scheduleDateKey(this.toScheduleDate(slotStart)));
       if (schedule?.closed) return false;
 
@@ -262,7 +321,7 @@ export class PrismaBookingsRepository implements BookingRepository {
 
   private toScheduleDates(startAt: Date, endAt: Date): Date[] {
     const datesByKey = new Map<string, Date>();
-    for (const slotStart of this.toHalfHourSlots(startAt, endAt)) {
+    for (const slotStart of this.toBookingSlots(startAt, endAt)) {
       const scheduleDate = this.toScheduleDate(slotStart);
       datesByKey.set(this.scheduleDateKey(scheduleDate), scheduleDate);
     }
@@ -292,6 +351,29 @@ export class PrismaBookingsRepository implements BookingRepository {
 
   private isUniqueConflict(error: unknown): boolean {
     return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+  }
+
+  private getActiveViolationRestriction(
+    violations: Array<{ occurredAt: Date }>,
+    now: Date
+  ): ViolationRestriction | null {
+    if (violations.length < 3) return null;
+    const days = violations.length >= 5 ? 30 : 7;
+    const latestOccurredAt = violations[0]?.occurredAt;
+    if (!latestOccurredAt) return null;
+    const endsAt = new Date(latestOccurredAt.getTime() + days * 24 * 60 * 60 * 1000);
+    return endsAt.getTime() > now.getTime() ? { days, endsAt } : null;
+  }
+
+  private formatRestrictionEnd(date: Date): string {
+    return new Intl.DateTimeFormat('zh-CN', {
+      month: 'numeric',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'Asia/Shanghai'
+    }).format(date);
   }
 
   private formatTags(row: BookingWithRoomSeat): string[] {

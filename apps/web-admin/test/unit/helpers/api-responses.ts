@@ -302,6 +302,64 @@ export const successfulStudentRoomFavoritesResponse = (
   );
 };
 
+export const successfulStudentHomeSummaryResponse = () =>
+  new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: {
+        totalSeats: 207,
+        availableSeats: 198,
+        availableSeatsDeltaPercent: 6,
+        todayBookingCount: 2,
+        dailyBookingLimit: 3,
+        favoriteRooms: [
+          { roomId: 'room-gm-301', room: '经管自习室 301' },
+          { roomId: 'room-science-201', room: '理工自习室 201' }
+        ],
+        weekStudyHours: 7.5,
+        lastWeekStudyHours: 5,
+        weekRecords: [
+          { day: '一', hours: 1.5 },
+          { day: '二', hours: 2 },
+          { day: '三', hours: 0 },
+          { day: '四', hours: 4 },
+          { day: '五', hours: 0 },
+          { day: '六', hours: 0 },
+          { day: '日', hours: 0 }
+        ]
+      }
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    }
+  );
+
+export const successfulStudentRoomAvailabilityResponse = () =>
+  new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: {
+        totalSeats: 224,
+        availableSeats: 221,
+        rooms: [
+          { roomId: 'room-gm-301', totalSeats: 37, availableSeats: 34 },
+          { roomId: 'room-science-201', totalSeats: 38, availableSeats: 38 },
+          { roomId: 'room-humanities-a', totalSeats: 38, availableSeats: 38 },
+          { roomId: 'room-news-seminar', totalSeats: 37, availableSeats: 37 },
+          { roomId: 'room-science-403', totalSeats: 37, availableSeats: 37 },
+          { roomId: 'room-library-zone', totalSeats: 37, availableSeats: 37 }
+        ]
+      }
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    }
+  );
+
 export const successfulStudentBookingsResponse = () =>
   new Response(
     JSON.stringify({

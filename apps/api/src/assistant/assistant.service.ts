@@ -34,8 +34,24 @@ export type ListAssistantBookingsInput = {
   dateLabel: '今天' | '明天';
 };
 
+export type FindRoomHoursInput = {
+  departmentId: string | null;
+  keyword: string;
+  targetDate: Date;
+};
+
+export type AssistantRoomHoursCandidate = {
+  room: string;
+  location: string;
+  openHour: number;
+  closeHour: number;
+  overnight: boolean;
+  closed: boolean;
+};
+
 export interface AssistantRepository {
   findAvailableSeats(input: FindAvailableSeatsInput): Promise<StudentAssistantSeatCandidate[]>;
+  findRoomHours(input: FindRoomHoursInput): Promise<AssistantRoomHoursCandidate[]>;
   listBookingsByUserId(
     input: ListAssistantBookingsInput
   ): Promise<StudentAssistantBookingCandidate[]>;
@@ -66,6 +82,14 @@ export type AssistantReplyInput = {
   message: string;
 };
 
+type ShanghaiDateParts = {
+  year: number;
+  month: number;
+  day: number;
+};
+
+const SHANGHAI_OFFSET_MS = 8 * 60 * 60 * 1000;
+
 @Injectable()
 export class AssistantService {
   constructor(
@@ -74,6 +98,11 @@ export class AssistantService {
   ) {}
 
   async reply(input: AssistantReplyInput): Promise<StudentAssistantReply> {
+    const roomHoursQuery = this.resolveRoomHoursQuery(input.message);
+    if (roomHoursQuery) {
+      return this.replyWithRoomHours(input.departmentId, roomHoursQuery);
+    }
+
     const decision = await this.resolveDecision(input.message);
 
     if (decision.intent === 'my_bookings') {
@@ -156,6 +185,54 @@ export class AssistantService {
     return { timeLabel: `${dateLabel}全天`, startHour: 8, endHour: 22 };
   }
 
+  private resolveRoomHoursQuery(message: string): { keyword: string; dateLabel: '今天' | '明天' } | null {
+    const normalized = message.trim();
+    const asksHours =
+      /开放时间|营业时间|什么时候.*(关门|关|闭馆|关闭|开门|开放)|几点.*(关门|关|闭馆|关闭|开门|开放)|关门|闭馆/.test(
+        normalized
+      );
+    if (!asksHours) return null;
+
+    const keyword = normalized
+      .replace(/[?？。！!]/g, '')
+      .replace(/今天|明天|请问|帮我查|帮我看|什么时候|几点|开放时间|营业时间|关门|关|闭馆|关闭|开门|开放|吗|呢|的/g, '')
+      .trim();
+
+    return {
+      keyword: keyword || '自习室',
+      dateLabel: /明天/.test(normalized) ? '明天' : '今天'
+    };
+  }
+
+  private async replyWithRoomHours(
+    departmentId: string | null,
+    query: { keyword: string; dateLabel: '今天' | '明天' }
+  ): Promise<StudentAssistantReply> {
+    const rooms = await this.repository.findRoomHours({
+      departmentId,
+      keyword: query.keyword,
+      targetDate: this.createTargetDate(query.dateLabel)
+    });
+    const text =
+      rooms.length > 0
+        ? rooms
+            .map((room) =>
+              room.closed
+                ? `${room.room}（${room.location}）${query.dateLabel}闭馆。`
+                : `${room.room}（${room.location}）${this.formatRoomHours(room)}，${this.formatHour(room.closeHour)} 关闭。`
+            )
+            .join('\n')
+        : `没有找到“${query.keyword}”对应的开放时间，可以换成具体自习室名称再问。`;
+
+    return {
+      intent: 'fallback',
+      text,
+      seats: [],
+      bookings: [],
+      suggestions: ['查今天空座', '换个自习室', '查看我的预约']
+    };
+  }
+
   private async replyWithSeats(
     input: AssistantReplyInput,
     decision: AssistantModelDecision
@@ -219,18 +296,22 @@ export class AssistantService {
   }
 
   private createTargetDate(dateLabel: '今天' | '明天'): Date {
-    const value = new Date();
-    if (dateLabel === '明天') value.setDate(value.getDate() + 1);
-    value.setHours(0, 0, 0, 0);
-    return value;
+    return this.createShanghaiDateTime(this.getShanghaiDateParts(new Date(), dateLabel === '明天' ? 1 : 0), 0);
   }
 
   private createTimeRange(decision: AssistantModelDecision): AssistantTimeRange {
-    const targetDate = this.createTargetDate(decision.dateLabel);
-    const startAt = new Date(targetDate);
-    startAt.setHours(this.normalizeHour(decision.startHour, 8), 0, 0, 0);
-    const endAt = new Date(targetDate);
-    endAt.setHours(this.normalizeHour(decision.endHour, 22), 0, 0, 0);
+    const targetDateParts = this.getShanghaiDateParts(
+      new Date(),
+      decision.dateLabel === '明天' ? 1 : 0
+    );
+    const startAt = this.createShanghaiDateTime(
+      targetDateParts,
+      this.normalizeHour(decision.startHour, 8)
+    );
+    const endAt = this.createShanghaiDateTime(
+      targetDateParts,
+      this.normalizeHour(decision.endHour, 22)
+    );
     this.normalizeFutureStart(startAt);
     this.normalizeEndWithinBookingLimit(startAt, endAt);
     return { startAt, endAt };
@@ -239,11 +320,7 @@ export class AssistantService {
   private normalizeFutureStart(startAt: Date): void {
     const now = new Date();
     if (startAt.getTime() > now.getTime()) return;
-    startAt.setTime(now.getTime());
-    startAt.setMinutes(0, 0, 0);
-    if (now.getMinutes() > 0 || now.getSeconds() > 0 || now.getMilliseconds() > 0) {
-      startAt.setHours(startAt.getHours() + 1);
-    }
+    startAt.setTime(this.ceilShanghaiNowToNextHour(now).getTime());
   }
 
   private normalizeEndWithinBookingLimit(startAt: Date, endAt: Date): void {
@@ -272,10 +349,73 @@ export class AssistantService {
     dateLabel: '今天' | '明天',
     timeRange: AssistantTimeRange
   ): string {
-    return `${dateLabel} ${this.formatClock(timeRange.startAt)}-${this.formatClock(timeRange.endAt)}`;
+    return `${this.formatRelativeShanghaiDateLabel(timeRange.startAt, dateLabel)} ${this.formatClock(timeRange.startAt)}-${this.formatClock(timeRange.endAt)}`;
   }
 
   private formatClock(date: Date): string {
-    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    const clock = this.getShanghaiClockParts(date);
+    return `${String(clock.hour).padStart(2, '0')}:${String(clock.minute).padStart(2, '0')}`;
+  }
+
+  private formatRoomHours(room: Pick<AssistantRoomHoursCandidate, 'openHour' | 'closeHour' | 'overnight'>): string {
+    const closePrefix = room.overnight ? '次日 ' : '';
+    return `${this.formatHour(room.openHour)}-${closePrefix}${this.formatHour(room.closeHour)}`;
+  }
+
+  private formatHour(hour: number): string {
+    return `${String(hour).padStart(2, '0')}:00`;
+  }
+
+  private ceilShanghaiNowToNextHour(now: Date): Date {
+    const parts = this.getShanghaiDateParts(now, 0);
+    const clock = this.getShanghaiClockParts(now);
+    const shouldRoundUp = clock.minute > 0 || now.getSeconds() > 0 || now.getMilliseconds() > 0;
+    return this.createShanghaiDateTime(parts, clock.hour + (shouldRoundUp ? 1 : 0));
+  }
+
+  private formatRelativeShanghaiDateLabel(
+    date: Date,
+    fallback: '今天' | '明天',
+    now = new Date()
+  ): string {
+    const targetKey = this.getShanghaiDateKey(date);
+    const todayKey = this.formatShanghaiDateKey(this.getShanghaiDateParts(now, 0));
+    const tomorrowKey = this.formatShanghaiDateKey(this.getShanghaiDateParts(now, 1));
+    const dayAfterTomorrowKey = this.formatShanghaiDateKey(this.getShanghaiDateParts(now, 2));
+    if (targetKey === todayKey) return '今天';
+    if (targetKey === tomorrowKey) return '明天';
+    if (targetKey === dayAfterTomorrowKey) return '后天';
+    const parts = this.getShanghaiDateParts(date, 0);
+    return fallback || `${parts.month}月${parts.day}日`;
+  }
+
+  private getShanghaiDateKey(date: Date): string {
+    return this.formatShanghaiDateKey(this.getShanghaiDateParts(date, 0));
+  }
+
+  private formatShanghaiDateKey(parts: ShanghaiDateParts): string {
+    return `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
+  }
+
+  private getShanghaiDateParts(date: Date, dayOffset: number): ShanghaiDateParts {
+    const shanghaiDate = new Date(date.getTime() + SHANGHAI_OFFSET_MS);
+    shanghaiDate.setUTCDate(shanghaiDate.getUTCDate() + dayOffset);
+    return {
+      year: shanghaiDate.getUTCFullYear(),
+      month: shanghaiDate.getUTCMonth() + 1,
+      day: shanghaiDate.getUTCDate()
+    };
+  }
+
+  private getShanghaiClockParts(date: Date): { hour: number; minute: number } {
+    const shanghaiDate = new Date(date.getTime() + SHANGHAI_OFFSET_MS);
+    return {
+      hour: shanghaiDate.getUTCHours(),
+      minute: shanghaiDate.getUTCMinutes()
+    };
+  }
+
+  private createShanghaiDateTime(parts: ShanghaiDateParts, hour: number, minute = 0): Date {
+    return new Date(Date.UTC(parts.year, parts.month - 1, parts.day, hour - 8, minute, 0, 0));
   }
 }

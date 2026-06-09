@@ -59,7 +59,7 @@ describe('PrismaCheckInsRepository', () => {
   });
 
   it('只查询当前学生 15 分钟签到窗口内的待签到预约', async () => {
-    prisma.booking.findFirst.mockResolvedValue(bookingRowFixture());
+    prisma.booking.findMany.mockResolvedValue([bookingRowFixture()]);
 
     const session = await repository.findCurrentByUserId('user-stu-cse-01');
 
@@ -71,20 +71,39 @@ describe('PrismaCheckInsRepository', () => {
       remainingSeconds: 600,
       codeLength: 6,
     });
-    expect(prisma.booking.findFirst).toHaveBeenCalledWith(
+    expect(prisma.booking.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           userId: 'user-stu-cse-01',
           status: 'PENDING_CHECKIN',
-          startAt: {
-            gt: new Date('2026-05-30T05:45:00.000Z'),
-            lte: new Date('2026-05-30T06:15:00.000Z'),
-          },
+          startAt: { lte: new Date('2026-05-30T06:15:00.000Z') },
           endAt: { gt: NOW },
+          OR: [
+            { startAt: { gt: new Date('2026-05-30T05:45:00.000Z') } },
+            { createdAt: { gt: new Date('2026-05-30T05:45:00.000Z') } },
+          ],
         },
         orderBy: { startAt: 'asc' },
       }),
     );
+  });
+
+  it('当前 slot 预约按订单创建时间保留 15 分钟签到窗口', async () => {
+    prisma.booking.findMany.mockResolvedValue([
+      bookingRowFixture({
+        id: 'booking-current-slot',
+        startAt: new Date('2026-05-30T05:30:00.000Z'),
+        endAt: new Date('2026-05-30T08:00:00.000Z'),
+        createdAt: new Date('2026-05-30T05:55:00.000Z'),
+      }),
+    ]);
+
+    const session = await repository.findCurrentByUserId('user-stu-cse-01');
+
+    expect(session).toMatchObject({
+      bookingId: 'booking-current-slot',
+      remainingSeconds: 600,
+    });
   });
 
   it('只接受当前教室有效期内的动态码', async () => {
@@ -124,11 +143,12 @@ describe('PrismaCheckInsRepository', () => {
         id: 'booking-current',
         userId: 'user-stu-cse-01',
         status: 'PENDING_CHECKIN',
-        startAt: {
-          gt: new Date('2026-05-30T05:45:00.000Z'),
-          lte: new Date('2026-05-30T06:15:00.000Z'),
-        },
+        startAt: { lte: new Date('2026-05-30T06:15:00.000Z') },
         endAt: { gt: NOW },
+        OR: [
+          { startAt: { gt: new Date('2026-05-30T05:45:00.000Z') } },
+          { createdAt: { gt: new Date('2026-05-30T05:45:00.000Z') } },
+        ],
       },
       data: { status: 'CHECKED_IN' },
     });
@@ -164,7 +184,11 @@ describe('PrismaCheckInsRepository', () => {
     expect(prisma.booking.findMany).toHaveBeenCalledWith({
       where: {
         status: 'PENDING_CHECKIN',
-        startAt: { lte: new Date('2026-05-30T05:45:00.000Z') },
+        startAt: { lte: NOW },
+        OR: [
+          { startAt: { lte: new Date('2026-05-30T05:45:00.000Z') } },
+          { createdAt: { lte: new Date('2026-05-30T05:45:00.000Z') } },
+        ],
       },
       include: {
         room: true,
@@ -202,10 +226,26 @@ describe('PrismaCheckInsRepository', () => {
       },
     });
   });
+
+  it('当前 slot 订单创建未满 15 分钟不会自动违约', async () => {
+    prisma.booking.findMany.mockResolvedValue([
+      bookingRowFixture({
+        id: 'booking-current-slot',
+        startAt: new Date('2026-05-30T05:30:00.000Z'),
+        endAt: new Date('2026-05-30T08:00:00.000Z'),
+        createdAt: new Date('2026-05-30T05:55:00.000Z'),
+      }),
+    ]);
+
+    await expect(repository.expireNoShowBookings(NOW)).resolves.toBe(0);
+
+    expect(prisma.booking.updateMany).not.toHaveBeenCalled();
+    expect(prisma.violation.create).not.toHaveBeenCalled();
+  });
 });
 
 function bookingRowFixture(
-  input: { id?: string; startAt?: Date; endAt?: Date } = {},
+  input: { id?: string; startAt?: Date; endAt?: Date; createdAt?: Date } = {},
 ) {
   return {
     id: input.id ?? 'booking-current',
@@ -215,7 +255,7 @@ function bookingRowFixture(
     startAt: input.startAt ?? new Date('2026-05-30T05:55:00.000Z'),
     endAt: input.endAt ?? new Date('2026-05-30T08:00:00.000Z'),
     status: 'PENDING_CHECKIN',
-    createdAt: new Date('2026-05-30T05:00:00.000Z'),
+    createdAt: input.createdAt ?? new Date('2026-05-30T05:00:00.000Z'),
     updatedAt: new Date('2026-05-30T05:00:00.000Z'),
     room: {
       id: 'room-gm-301',
