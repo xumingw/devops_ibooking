@@ -2111,6 +2111,16 @@ button {
   gap: 5px;
 }
 
+.floor-empty-state {
+  border: 1px dashed #b8d9d3;
+  border-radius: 8px;
+  padding: 18px;
+  color: #6f918b;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+
 .floor-row-wrap {
   display: flex;
   flex-direction: column;

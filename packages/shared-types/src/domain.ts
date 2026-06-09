@@ -272,3 +272,204 @@ export interface StudentAssistantReply {
   bookings: StudentAssistantBookingCandidate[];
   suggestions: string[];
 }
+
+export type AdminMetricIcon =
+  | 'calendar'
+  | 'check-circle'
+  | 'chart'
+  | 'alert'
+  | 'building'
+  | 'users'
+  | 'shield'
+  | 'settings'
+  | 'download'
+  | 'qr'
+  | 'eye'
+  | 'refresh'
+  | 'grid';
+
+export interface AdminMetric {
+  label: string;
+  value: string;
+  note: string;
+  icon: AdminMetricIcon;
+  tone: string;
+  trend?: string;
+}
+
+export interface AdminDashboardRecentBooking {
+  id: string;
+  user: string;
+  room: string;
+  seat: string;
+  time: string;
+  status: 'active' | 'pending' | 'done' | 'violation' | 'cancelled';
+}
+
+export interface AdminDashboardRoomStatus {
+  name: string;
+  pct: number;
+  status: 'low' | 'mid' | 'high' | 'full' | 'closed';
+}
+
+export interface AdminDashboardSnapshot {
+  kpis: AdminMetric[];
+  heatmapDays: string[];
+  heatmapHours: string[];
+  heatmapData: number[][];
+  roomStatuses: AdminDashboardRoomStatus[];
+  recentBookings: AdminDashboardRecentBooking[];
+}
+
+export interface AdminScheduleRule {
+  room: string;
+  scope: string;
+  time: string;
+  type: string;
+  status: string;
+  note: string;
+}
+
+export interface AdminScheduleSpecialRule {
+  title: string;
+  date: string;
+  target: string;
+  time: string;
+  desc: string;
+}
+
+export interface AdminScheduleOption {
+  label: string;
+  desc: string;
+  enabled: boolean;
+}
+
+export interface AdminSchedulePriority {
+  order: string;
+  title: string;
+  desc: string;
+}
+
+export interface AdminScheduleSnapshot {
+  summary: AdminMetric[];
+  rules: AdminScheduleRule[];
+  specialRules: AdminScheduleSpecialRule[];
+  roomOptions: string[];
+  options: AdminScheduleOption[];
+  priorities: AdminSchedulePriority[];
+}
+
+export interface AdminBookingRecord {
+  id: string;
+  uid: string;
+  user: string;
+  room: string;
+  seat: string;
+  date: string;
+  time: string;
+  checkin: string;
+  status: 'active' | 'pending' | 'done' | 'violation' | 'cancelled';
+}
+
+export interface AdminBookingRecordsSnapshot {
+  records: AdminBookingRecord[];
+  operationRules: Array<[string, string]>;
+}
+
+export interface AdminViolationRecord {
+  id: string;
+  bookingId: string;
+  student: string;
+  uid: string;
+  room: string;
+  seat: string;
+  reason: string;
+  action: string;
+  occurred: string;
+  status: 'confirmed' | 'restricted' | 'appeal';
+}
+
+export interface AdminViolationSnapshot {
+  summary: AdminMetric[];
+  records: AdminViolationRecord[];
+  rules: Array<[string, string]>;
+}
+
+export interface AdminDynamicCodeRecord {
+  room: string;
+  building: string;
+  webCode: string;
+  qrStatus: string;
+  refresh: string;
+  updatedAt: string;
+  status: 'active' | 'expiring' | 'expired';
+}
+
+export interface AdminDynamicCodeSnapshot {
+  summary: AdminMetric[];
+  records: AdminDynamicCodeRecord[];
+  preview: AdminDynamicCodeRecord | null;
+  rules: Array<[string, string]>;
+}
+
+export interface AdminSystemParamRecord {
+  name: string;
+  value: string;
+  defaultValue: string;
+  scope: string;
+  type: string;
+  status: 'active' | 'pending';
+  note: string;
+}
+
+export interface AdminSystemParamSnapshot {
+  summary: AdminMetric[];
+  records: AdminSystemParamRecord[];
+  timeline: Array<[string, string, string]>;
+  scopes: Array<[string, string]>;
+  rules: Array<[string, string]>;
+}
+
+export interface AdminAuditRecord {
+  time: string;
+  operator: string;
+  module: string;
+  action: string;
+  target: string;
+  ip: string;
+  result: 'success' | 'pending' | 'failed';
+  detail: string;
+}
+
+export interface AdminAuditSnapshot {
+  summary: AdminMetric[];
+  records: AdminAuditRecord[];
+  risks: Array<[string, string, string]>;
+  rules: Array<[string, string]>;
+}
+
+export interface AdminReportTopRoom {
+  name: string;
+  count: number;
+  pct: number;
+}
+
+export interface AdminReportSnapshot {
+  summary: AdminMetric[];
+  weeklyBookings: Array<[string, number]>;
+  topRooms: AdminReportTopRoom[];
+  topSeats: Array<[string, string, string, string]>;
+  lowPeriods: Array<[string, string, string]>;
+  rules: Array<[string, string]>;
+}
+
+export interface AdminOverviewSnapshot {
+  dashboard: AdminDashboardSnapshot;
+  schedule: AdminScheduleSnapshot;
+  bookings: AdminBookingRecordsSnapshot;
+  violations: AdminViolationSnapshot;
+  dynamicCodes: AdminDynamicCodeSnapshot;
+  params: AdminSystemParamSnapshot;
+  audit: AdminAuditSnapshot;
+  reports: AdminReportSnapshot;
+}

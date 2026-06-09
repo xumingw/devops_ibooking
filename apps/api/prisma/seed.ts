@@ -3,16 +3,29 @@ import { PasswordHasher } from '../src/auth/password-hasher';
 import { createStudentRoomSeatFixtures } from './seed-seat-fixtures';
 import { STUDENT_PERMISSION_CODES } from './seed-permissions';
 import { createStudentStudyHistoryBookings } from './seed-study-history';
+import { seedAdminRecords } from './seed-admin-records';
 
 const prisma = new PrismaClient();
 const hasher = new PasswordHasher();
 
 async function main() {
-  const cs = await prisma.department.upsert({
-    where: { code: 'CS' },
-    update: { name: '计算机学院' },
-    create: { id: 'dept-cs', code: 'CS', name: '计算机学院' }
-  });
+  const [cs, economics, journalism] = await Promise.all([
+    prisma.department.upsert({
+      where: { code: 'CS' },
+      update: { name: '计算机学院' },
+      create: { id: 'dept-cs', code: 'CS', name: '计算机学院' }
+    }),
+    prisma.department.upsert({
+      where: { code: 'ECON' },
+      update: { name: '经济学院' },
+      create: { id: 'dept-economics', code: 'ECON', name: '经济学院' }
+    }),
+    prisma.department.upsert({
+      where: { code: 'JOUR' },
+      update: { name: '新闻学院' },
+      create: { id: 'dept-journalism', code: 'JOUR', name: '新闻学院' }
+    })
+  ]);
 
   const roles = await Promise.all([
     upsertRole('role-student', 'ROLE_STUDENT', '学生'),
@@ -80,6 +93,39 @@ async function main() {
     password: 'Pass123!',
     departmentId: cs.id,
     status: 'DISABLED',
+    roleIds: [studentRole.id]
+  });
+
+  await upsertUser({
+    id: 'user-stu-cse-02',
+    studentNo: 'stu_cse_02',
+    name: '张子涵',
+    email: 'stu_cse_02@fudan.edu.cn',
+    password: 'Pass123!',
+    departmentId: cs.id,
+    status: 'ACTIVE',
+    roleIds: [studentRole.id]
+  });
+
+  await upsertUser({
+    id: 'user-stu-economics-01',
+    studentNo: 'stu_econ_01',
+    name: '陈浩然',
+    email: 'stu_econ_01@fudan.edu.cn',
+    password: 'Pass123!',
+    departmentId: economics.id,
+    status: 'ACTIVE',
+    roleIds: [studentRole.id]
+  });
+
+  await upsertUser({
+    id: 'user-stu-journalism-01',
+    studentNo: 'stu_news_01',
+    name: '王芳',
+    email: 'stu_news_01@fudan.edu.cn',
+    password: 'Pass123!',
+    departmentId: journalism.id,
+    status: 'ACTIVE',
     roleIds: [studentRole.id]
   });
 
@@ -269,6 +315,15 @@ async function main() {
   ]);
 
   await seedStudentStudyHistory('user-stu-cse-01');
+  await seedAdminRecords(prisma, {
+    adminUserId: 'user-admin-full',
+    studentUserIds: [
+      'user-stu-cse-01',
+      'user-stu-cse-02',
+      'user-stu-economics-01',
+      'user-stu-journalism-01'
+    ]
+  });
 }
 
 async function upsertRole(id: string, code: string, name: string) {

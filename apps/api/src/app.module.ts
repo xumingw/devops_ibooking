@@ -19,6 +19,7 @@ import { CheckInsModule } from './checkins/checkins.module';
 import { AssistantModule } from './assistant/assistant.module';
 import { FavoritesModule } from './favorites/favorites.module';
 import { StudentHomeModule } from './student-home/student-home.module';
+import { AdminOverviewModule } from './admin-overview/admin-overview.module';
 
 @Module({
   imports: [
@@ -44,7 +45,8 @@ import { StudentHomeModule } from './student-home/student-home.module';
     CheckInsModule,
     AssistantModule,
     FavoritesModule,
-    StudentHomeModule
+    StudentHomeModule,
+    AdminOverviewModule
   ],
   controllers: [HealthController],
   providers: [

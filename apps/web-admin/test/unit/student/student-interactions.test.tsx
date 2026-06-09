@@ -1050,6 +1050,8 @@ describe('student interactive controls', () => {
   });
 
   it('自习室列表状态根据服务端真实余位推导', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-02T03:42:00.000Z'));
     const fetcher = vi.fn<typeof fetch>((input) => {
       const url = String(input);
       if (url.includes('/api/v1/students/me/rooms/availability')) {
