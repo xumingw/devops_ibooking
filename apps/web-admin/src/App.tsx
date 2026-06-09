@@ -1,5 +1,6 @@
 import type { CSSProperties, FormEvent, ReactNode } from 'react';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { QRCode } from 'antd';
 import { F } from '@ibooking/design-tokens';
 import type {
   AdminAuditSnapshot,
@@ -2277,6 +2278,18 @@ const ADMIN_DYNAMIC_CODE_STATUS_META = {
 } as const;
 
 const ADMIN_DYNAMIC_CODE_FILTERS = ['全部楼栋', '全部状态', '刷新策略'] as const;
+
+const formatDynamicCodeQrValue = (
+  record: AdminDynamicCodeSnapshot['preview'] | undefined | null
+) => {
+  if (!record) return 'fudan-ibooking://checkin';
+  const params = new URLSearchParams({
+    room: record.room,
+    building: record.building,
+    code: record.webCode
+  });
+  return `fudan-ibooking://checkin?${params.toString()}`;
+};
 
 const ADMIN_USER_STATUS_META = {
   active: { label: '正常', variant: 'green' },
@@ -6435,6 +6448,7 @@ function DynamicCodePanel({
   if (!overview) {
     return <AdminDataState error={error} loading={loading} label="动态码管理" />;
   }
+  const previewQrValue = formatDynamicCodeQrValue(overview.preview);
 
   return (
     <section className="dynamic-code-panel" aria-label="动态码管理">
@@ -6540,10 +6554,18 @@ function DynamicCodePanel({
             </div>
           </header>
           <div className="dynamic-code-preview">
-            <div className="dynamic-code-qr" aria-hidden="true">
-              {Array.from({ length: 25 }).map((_, index) => (
-                <i key={index} data-on={index % 3 !== 1 || index === 12 ? 'true' : 'false'} />
-              ))}
+            <div className="dynamic-code-qr-frame" data-qr-value={previewQrValue}>
+              <QRCode
+                aria-label={`${overview.preview?.room ?? '自习室'} 小程序二维码`}
+                bgColor="#ffffff"
+                bordered={false}
+                className="dynamic-code-qr"
+                color="#1f6f63"
+                errorLevel="M"
+                size={118}
+                type="svg"
+                value={previewQrValue}
+              />
             </div>
             <strong>{overview.preview?.webCode ?? '—'}</strong>
             <span>网页动态码 · 小程序二维码</span>

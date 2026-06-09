@@ -23,6 +23,9 @@ describe('checkin code', () => {
     expect(html).toContain('网页动态码');
     expect(html).toContain('小程序二维码');
     expect(html).toContain('739214');
+    expect(html).toContain('aria-label="经管自习室 301 小程序二维码"');
+    expect(html).toContain('fudan-ibooking://checkin');
+    expect(html).toContain('code=739214');
     expect(html).toContain('截图复用拦截');
     expect(html).toContain('重新生成');
     expect(html).toContain('查看日志');

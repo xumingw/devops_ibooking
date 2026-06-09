@@ -3517,25 +3517,19 @@ button {
   text-align: center;
 }
 
-.dynamic-code-qr {
-  width: 118px;
-  height: 118px;
+.dynamic-code-qr-frame {
+  width: 142px;
+  height: 142px;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 5px;
+  place-items: center;
   border: 1px solid #d8e8e5;
   border-radius: 8px;
-  padding: 12px;
   background: #ffffff;
 }
 
-.dynamic-code-qr i {
-  border-radius: 3px;
-  background: #ecf4f2;
-}
-
-.dynamic-code-qr i[data-on="true"] {
-  background: #2d7a6e;
+.dynamic-code-qr,
+.dynamic-code-qr svg {
+  display: block;
 }
 
 .dynamic-code-preview strong {
