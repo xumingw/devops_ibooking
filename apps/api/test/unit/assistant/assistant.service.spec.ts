@@ -82,8 +82,8 @@ describe('AssistantService', () => {
       })
     );
     const [{ timeRange }] = repository.findAvailableSeats.mock.calls[0];
-    expect(timeRange.startAt.getHours()).toBe(18);
-    expect(timeRange.endAt.getHours()).toBe(22);
+    expect(timeRange.startAt.toISOString()).toBe('2026-05-30T10:00:00.000Z');
+    expect(timeRange.endAt.toISOString()).toBe('2026-05-30T14:00:00.000Z');
   });
 
   it('识别靠窗和插座条件并把筛选条件传给座位查询', async () => {
