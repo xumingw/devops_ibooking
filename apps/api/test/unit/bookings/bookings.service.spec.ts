@@ -95,19 +95,19 @@ describe('BookingsService', () => {
     );
   });
 
-  it('创建当前学生预约时校验半小时粒度和 4 小时上限后写入仓库', async () => {
+  it('创建当前学生预约时允许当前半小时 slot 起点并校验 4 小时上限后写入仓库', async () => {
     const input: CreateStudentBookingInput = {
       roomId: 'room-gm-301',
       seatId: 'seat-gm-301-c3',
-      startAt: '2026-06-01T06:30:00.000Z',
-      endAt: '2026-06-01T09:00:00.000Z'
+      startAt: '2026-05-30T06:00:00.000Z',
+      endAt: '2026-05-30T10:00:00.000Z'
     };
     const created = bookingFixture({
       id: 'booking-created',
       room: '经管自习室 301',
       location: '光华楼 A座 3楼',
       seat: 'C3',
-      time: '6月1日 14:30-17:00',
+      time: '今日 14:00-18:00',
       status: 'upcoming',
       tags: ['插座'],
       canCheckIn: false,
@@ -122,13 +122,13 @@ describe('BookingsService', () => {
     expect(repository.createByUserId).toHaveBeenCalledWith('user-stu-cse-01', input);
   });
 
-  it('拒绝非半小时粒度或超过 4 小时的学生预约', async () => {
+  it('拒绝过去时间、非半小时粒度或超过 4 小时的学生预约', async () => {
     await expect(
       service.createStudentBooking('user-stu-cse-01', {
         roomId: 'room-gm-301',
         seatId: 'seat-gm-301-c3',
-        startAt: '2020-06-01T06:00:00.000Z',
-        endAt: '2020-06-01T09:00:00.000Z'
+        startAt: '2026-05-30T05:30:00.000Z',
+        endAt: '2026-05-30T09:30:00.000Z'
       })
     ).rejects.toThrow('不能预约已过去的时段');
 
@@ -136,17 +136,17 @@ describe('BookingsService', () => {
       service.createStudentBooking('user-stu-cse-01', {
         roomId: 'room-gm-301',
         seatId: 'seat-gm-301-c3',
-        startAt: '2026-06-01T06:15:00.000Z',
-        endAt: '2026-06-01T09:00:00.000Z'
+        startAt: '2026-05-30T06:15:00.000Z',
+        endAt: '2026-05-30T08:15:00.000Z'
       })
-    ).rejects.toThrow('预约必须按 30 分钟粒度开始和结束');
+    ).rejects.toThrow('预约时间必须按 30 分钟粒度选择');
 
     await expect(
       service.createStudentBooking('user-stu-cse-01', {
         roomId: 'room-gm-301',
         seatId: 'seat-gm-301-c3',
-        startAt: '2026-06-01T06:00:00.000Z',
-        endAt: '2026-06-01T11:00:00.000Z'
+        startAt: '2026-05-30T06:00:00.000Z',
+        endAt: '2026-05-30T11:00:00.000Z'
       })
     ).rejects.toThrow('单次预约最长 4 小时');
 

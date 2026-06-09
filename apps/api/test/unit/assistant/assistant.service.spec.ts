@@ -22,6 +22,7 @@ describe('AssistantService', () => {
     jest.useFakeTimers().setSystemTime(NOW);
     repository = {
       findAvailableSeats: jest.fn(),
+      findRoomHours: jest.fn(),
       listBookingsByUserId: jest.fn()
     };
     modelClient = {
@@ -221,6 +222,65 @@ describe('AssistantService', () => {
         timeLabel: '今天 18:00-22:00'
       })
     );
+  });
+
+  it('按上海时间修正今天全天推荐，避免返回当前时间以前的时段', async () => {
+    jest.setSystemTime(new Date('2026-06-04T15:21:00.000Z'));
+    modelClient.interpret.mockResolvedValue({
+      intent: 'availability',
+      dateLabel: '今天',
+      timeLabel: '今天全天',
+      startHour: 8,
+      endHour: 22,
+      filters: { hasPower: false, nearWindow: false, quietZone: false },
+      fallbackText: ''
+    });
+    repository.findAvailableSeats.mockResolvedValue([]);
+
+    const reply = await service.reply({
+      userId: 'user-stu-cse-01',
+      departmentId: 'dept-cs',
+      message: '今天还有空位吗？'
+    });
+
+    expect(reply.text).toContain('明天 00:00-04:00');
+    const [{ timeRange, timeLabel }] = repository.findAvailableSeats.mock.calls[0];
+    expect(timeLabel).toBe('明天 00:00-04:00');
+    expect(timeRange.startAt).toEqual(new Date('2026-06-04T16:00:00.000Z'));
+    expect(timeRange.endAt).toEqual(new Date('2026-06-04T20:00:00.000Z'));
+  });
+
+  it('回答自习室关门时间问题时查询房间开放时间', async () => {
+    modelClient.interpret.mockRejectedValue(
+      new ServiceUnavailableException({ message: '智能助手模型未配置' })
+    );
+    repository.findRoomHours.mockResolvedValue([
+      {
+        room: '图书馆自习区',
+        location: '李兆基图书馆 2楼',
+        openHour: 8,
+        closeHour: 22,
+        overnight: false,
+        closed: false
+      }
+    ]);
+
+    const reply = await service.reply({
+      userId: 'user-stu-cse-01',
+      departmentId: 'dept-cs',
+      message: '图书馆什么时候关？'
+    });
+
+    expect(reply.intent).toBe('fallback');
+    expect(reply.text).toContain('图书馆自习区');
+    expect(reply.text).toContain('22:00 关闭');
+    expect(repository.findRoomHours).toHaveBeenCalledWith(
+      expect.objectContaining({
+        departmentId: 'dept-cs',
+        keyword: '图书馆'
+      })
+    );
+    expect(repository.findAvailableSeats).not.toHaveBeenCalled();
   });
 });
 

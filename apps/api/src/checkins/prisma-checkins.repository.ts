@@ -26,7 +26,8 @@ export class PrismaCheckInsRepository implements CheckInRepository {
       const rows = await tx.booking.findMany({
         where: {
           status: 'PENDING_CHECKIN',
-          startAt: { lte: cutoffAt },
+          startAt: { lte: now },
+          OR: [{ startAt: { lte: cutoffAt } }, { createdAt: { lte: cutoffAt } }],
         },
         include: {
           room: true,
@@ -38,6 +39,8 @@ export class PrismaCheckInsRepository implements CheckInRepository {
 
       let expiredCount = 0;
       for (const row of rows) {
+        if (!this.isCheckInExpired(row, now)) continue;
+
         const updated = await tx.booking.updateMany({
           where: {
             id: row.id,
@@ -75,18 +78,19 @@ export class PrismaCheckInsRepository implements CheckInRepository {
 
   async findCurrentByUserId(userId: string): Promise<StudentCheckInSession | null> {
     const now = new Date();
-    const earliestStartAt = new Date(now.getTime() - this.lateWindowMs);
+    const earliestDeadlineBaseAt = new Date(now.getTime() - this.lateWindowMs);
     const latestStartAt = new Date(now.getTime() + this.earlyWindowMs);
 
-    const row = await this.prisma.booking.findFirst({
+    const rows = await this.prisma.booking.findMany({
       where: {
         userId,
         status: 'PENDING_CHECKIN',
-        startAt: {
-          gt: earliestStartAt,
-          lte: latestStartAt,
-        },
+        startAt: { lte: latestStartAt },
         endAt: { gt: now },
+        OR: [
+          { startAt: { gt: earliestDeadlineBaseAt } },
+          { createdAt: { gt: earliestDeadlineBaseAt } },
+        ],
       },
       include: {
         room: true,
@@ -94,6 +98,7 @@ export class PrismaCheckInsRepository implements CheckInRepository {
       },
       orderBy: { startAt: 'asc' },
     });
+    const row = rows.find((candidate) => this.canCheckIn(candidate, now)) ?? null;
 
     return row ? this.toSession(row, now) : null;
   }
@@ -118,7 +123,7 @@ export class PrismaCheckInsRepository implements CheckInRepository {
     userId: string;
   }): Promise<StudentCheckInResult> {
     const checkedInAt = new Date();
-    const earliestStartAt = new Date(checkedInAt.getTime() - this.lateWindowMs);
+    const earliestDeadlineBaseAt = new Date(checkedInAt.getTime() - this.lateWindowMs);
     const latestStartAt = new Date(checkedInAt.getTime() + this.earlyWindowMs);
     const row = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.booking.updateMany({
@@ -126,11 +131,12 @@ export class PrismaCheckInsRepository implements CheckInRepository {
           id: input.bookingId,
           userId: input.userId,
           status: 'PENDING_CHECKIN',
-          startAt: {
-            gt: earliestStartAt,
-            lte: latestStartAt,
-          },
+          startAt: { lte: latestStartAt },
           endAt: { gt: checkedInAt },
+          OR: [
+            { startAt: { gt: earliestDeadlineBaseAt } },
+            { createdAt: { gt: earliestDeadlineBaseAt } },
+          ],
         },
         data: { status: 'CHECKED_IN' },
       });
@@ -170,14 +176,31 @@ export class PrismaCheckInsRepository implements CheckInRepository {
       room: row.room.name,
       seat: row.seat.code,
       time: this.formatTimeRange(row.startAt, row.endAt),
-      remainingSeconds: this.remainingCheckInSeconds(row.startAt, now),
+      remainingSeconds: this.remainingCheckInSeconds(row, now),
       codeLength: 6,
     };
   }
 
-  private remainingCheckInSeconds(startAt: Date, now: Date): number {
-    const cutoffAt = startAt.getTime() + this.lateWindowMs;
+  private remainingCheckInSeconds(row: Pick<BookingWithRoomSeat, 'startAt' | 'createdAt'>, now: Date): number {
+    const cutoffAt = this.checkInDeadlineAt(row).getTime();
     return Math.max(0, Math.floor((cutoffAt - now.getTime()) / 1000));
+  }
+
+  private canCheckIn(row: Pick<BookingWithRoomSeat, 'startAt' | 'endAt' | 'createdAt'>, now: Date): boolean {
+    return (
+      now.getTime() >= row.startAt.getTime() - this.earlyWindowMs &&
+      now.getTime() < this.checkInDeadlineAt(row).getTime() &&
+      now.getTime() <= row.endAt.getTime()
+    );
+  }
+
+  private isCheckInExpired(row: Pick<BookingWithRoomSeat, 'startAt' | 'createdAt'>, now: Date): boolean {
+    return this.checkInDeadlineAt(row).getTime() <= now.getTime();
+  }
+
+  private checkInDeadlineAt(row: Pick<BookingWithRoomSeat, 'startAt' | 'createdAt'>): Date {
+    const baseAt = row.createdAt.getTime() > row.startAt.getTime() ? row.createdAt : row.startAt;
+    return new Date(baseAt.getTime() + this.lateWindowMs);
   }
 
   private formatTimeRange(startAt: Date, endAt: Date): string {

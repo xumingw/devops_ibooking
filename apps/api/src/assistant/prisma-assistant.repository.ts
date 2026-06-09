@@ -8,7 +8,9 @@ import {
 } from '@ibooking/shared-types';
 import { PrismaService } from '../database/prisma.service';
 import {
+  AssistantRoomHoursCandidate,
   AssistantRepository,
+  FindRoomHoursInput,
   FindAvailableSeatsInput,
   ListAssistantBookingsInput
 } from './assistant.service';
@@ -48,8 +50,16 @@ type AssistantBookingRow = Prisma.BookingGetPayload<{
   };
 }>;
 
+type AssistantRoomHoursRow = Prisma.RoomGetPayload<{
+  include: {
+    schedules: true;
+  };
+}>;
+
 @Injectable()
 export class PrismaAssistantRepository implements AssistantRepository {
+  private readonly checkInLateWindowMs = 15 * 60 * 1000;
+
   constructor(private readonly prisma: PrismaService) {}
 
   async findAvailableSeats(input: FindAvailableSeatsInput): Promise<StudentAssistantSeatCandidate[]> {
@@ -99,6 +109,40 @@ export class PrismaAssistantRepository implements AssistantRepository {
       .filter((row) => this.isRoomOpenForRange(row.room, input.timeRange))
       .slice(0, SEAT_RECOMMENDATION_LIMIT)
       .map((row) => this.toSeatCandidate(row, input.timeLabel));
+  }
+
+  async findRoomHours(input: FindRoomHoursInput): Promise<AssistantRoomHoursCandidate[]> {
+    const keyword = input.keyword.trim();
+    const rows: AssistantRoomHoursRow[] = await this.prisma.room.findMany({
+      where: {
+        status: 'ACTIVE',
+        OR: this.accessibleRoomScope(input.departmentId),
+        ...(keyword
+          ? {
+              AND: [
+                {
+                  OR: [
+                    { name: { contains: keyword } },
+                    { building: { contains: keyword } }
+                  ]
+                }
+              ]
+            }
+          : {})
+      },
+      include: {
+        schedules: {
+          where: {
+            date: this.toScheduleDate(input.targetDate)
+          },
+          take: 1
+        }
+      },
+      orderBy: [{ building: 'asc' }, { floor: 'asc' }, { name: 'asc' }],
+      take: 5
+    });
+
+    return rows.map((row) => this.toRoomHoursCandidate(row));
   }
 
   async listBookingsByUserId(
@@ -186,9 +230,28 @@ export class PrismaAssistantRepository implements AssistantRepository {
   }
 
   private toScheduleDate(value: Date): Date {
-    const date = new Date(value);
-    date.setHours(0, 0, 0, 0);
-    return date;
+    const shanghaiDate = new Date(value.getTime() + 8 * 60 * 60 * 1000);
+    return new Date(
+      Date.UTC(
+        shanghaiDate.getUTCFullYear(),
+        shanghaiDate.getUTCMonth(),
+        shanghaiDate.getUTCDate()
+      )
+    );
+  }
+
+  private toRoomHoursCandidate(row: AssistantRoomHoursRow): AssistantRoomHoursCandidate {
+    const schedule = row.schedules[0];
+    const openHour = schedule?.openHour ?? row.openHour;
+    const closeHour = schedule?.closeHour ?? row.closeHour;
+    return {
+      room: row.name,
+      location: `${row.building} ${row.floor}楼`,
+      openHour,
+      closeHour,
+      overnight: row.overnight || closeHour <= openHour,
+      closed: Boolean(schedule?.closed)
+    };
   }
 
   private toSeatCandidate(row: AssistantSeatRow, timeLabel: string): StudentAssistantSeatCandidate {
@@ -211,7 +274,7 @@ export class PrismaAssistantRepository implements AssistantRepository {
     row: AssistantBookingRow,
     dateLabel: string
   ): StudentAssistantBookingCandidate {
-    const status = this.mapBookingStatus(row.status);
+    const status = this.mapBookingStatus(row);
     return {
       bookingId: row.id,
       room: row.room.name,
@@ -223,7 +286,15 @@ export class PrismaAssistantRepository implements AssistantRepository {
     };
   }
 
-  private mapBookingStatus(status: BookingStatus): StudentBookingStatus {
+  private mapBookingStatus(
+    row: Pick<AssistantBookingRow, 'status' | 'startAt' | 'endAt' | 'createdAt'>
+  ): StudentBookingStatus {
+    const now = Date.now();
+    const status = row.status;
+    if (status === 'CHECKED_IN' && row.endAt.getTime() <= now) return 'completed';
+    if (status === 'PENDING_CHECKIN' && this.checkInDeadlineAt(row).getTime() <= now) {
+      return 'violation';
+    }
     if (status === 'CHECKED_IN') return 'using';
     if (status === 'COMPLETED') return 'completed';
     if (status === 'CANCELLED_AUTO_NO_CHECKIN') return 'violation';
@@ -232,24 +303,34 @@ export class PrismaAssistantRepository implements AssistantRepository {
   }
 
   private actionsForBooking(
-    row: Pick<AssistantBookingRow, 'startAt' | 'endAt'>,
+    row: Pick<AssistantBookingRow, 'startAt' | 'endAt' | 'createdAt'>,
     status: StudentBookingStatus
   ): StudentAssistantAction[] {
     if (status === 'upcoming') {
       const actions: StudentAssistantAction[] = [];
       if (this.canCheckIn(row)) actions.push('CHECK_IN');
-      if (row.startAt.getTime() > Date.now()) actions.push('CANCEL');
+      if (this.canCancel(row)) actions.push('CANCEL');
       actions.push('DETAIL');
       return actions;
     }
     return ['DETAIL'];
   }
 
-  private canCheckIn(row: Pick<AssistantBookingRow, 'startAt' | 'endAt'>): boolean {
+  private canCheckIn(row: Pick<AssistantBookingRow, 'startAt' | 'endAt' | 'createdAt'>): boolean {
     const now = Date.now();
     const checkInWindowStart = row.startAt.getTime() - 15 * 60 * 1000;
-    const checkInWindowEnd = row.startAt.getTime() + 15 * 60 * 1000;
-    return now >= checkInWindowStart && now <= checkInWindowEnd && now <= row.endAt.getTime();
+    const checkInWindowEnd = this.checkInDeadlineAt(row).getTime();
+    return now >= checkInWindowStart && now < checkInWindowEnd && now <= row.endAt.getTime();
+  }
+
+  private canCancel(row: Pick<AssistantBookingRow, 'startAt' | 'endAt' | 'createdAt'>): boolean {
+    const now = Date.now();
+    return now < this.checkInDeadlineAt(row).getTime() && now < row.endAt.getTime();
+  }
+
+  private checkInDeadlineAt(row: Pick<AssistantBookingRow, 'startAt' | 'createdAt'>): Date {
+    const baseAt = row.createdAt.getTime() > row.startAt.getTime() ? row.createdAt : row.startAt;
+    return new Date(baseAt.getTime() + this.checkInLateWindowMs);
   }
 
   private formatSeatTags(input: {

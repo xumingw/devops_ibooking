@@ -5845,15 +5845,112 @@ button {
 .student-room-time-picker {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(64px, 1fr) auto minmax(64px, 1fr) auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: center;
-  gap: 6px;
+  gap: 12px;
 }
 
-.student-room-time-picker span {
+.student-time-select {
+  min-width: 0;
+  position: relative;
+}
+
+.student-time-native-select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.student-time-trigger {
+  width: 100%;
+  height: 36px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  border: 1.5px solid #d8e8e5;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #ffffff;
+  color: #1a2e2a;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: left;
+}
+
+.student-time-trigger:hover,
+.student-time-trigger[aria-expanded="true"] {
+  border-color: #2d7a6e;
+}
+
+.student-time-trigger strong {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.student-time-unit {
   color: #6c8780;
   font-size: 12px;
   font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.student-time-menu {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  display: grid;
+  gap: 2px;
+  border: 1.5px solid #cfe2de;
+  border-radius: 8px;
+  padding: 4px;
+  background: #ffffff;
+  box-shadow: 0 14px 28px rgba(26, 46, 42, 0.14);
+}
+
+.student-time-menu button {
+  width: 100%;
+  height: 30px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 10px;
+  background: transparent;
+  color: #1a2e2a;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: left;
+}
+
+.student-time-menu button:hover:not(:disabled),
+.student-time-menu button.is-active {
+  background: #eef8f5;
+  color: #206f63;
+}
+
+.student-time-menu button:disabled {
+  color: #a4b2af;
+  cursor: not-allowed;
+}
+
+.student-time-select > span {
+  position: absolute;
+  top: 50%;
+  right: 34px;
+  transform: translateY(-50%);
+  color: #6c8780;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  pointer-events: none;
   white-space: nowrap;
 }
 
@@ -5869,6 +5966,10 @@ button {
   font-size: 13px;
   font-weight: 700;
   outline: none;
+}
+
+.student-time-select select:not(.student-time-native-select) {
+  padding-right: 58px;
 }
 
 .student-room-filter-fields select:focus,
@@ -6779,8 +6880,17 @@ button {
 }
 
 .student-seat-legend i[data-status="taken"] {
-  border-color: #d1d5db;
-  background: #f3f4f6;
+  border-color: #aeb7c3;
+  border-style: dashed;
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(174, 183, 195, 0.18) 0,
+      rgba(174, 183, 195, 0.18) 4px,
+      rgba(174, 183, 195, 0.42) 4px,
+      rgba(174, 183, 195, 0.42) 8px
+    ),
+    #f6f8fa;
 }
 
 .student-seat-legend i[data-status="selected"] {
@@ -6791,6 +6901,20 @@ button {
 .student-seat-legend i[data-status="window"] {
   border-color: #7dd3fc;
   background: #eff6ff;
+}
+
+.student-seat-legend i[data-status="disabled"] {
+  border-color: #cbd3dd;
+  border-style: dashed;
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(203, 211, 221, 0.28) 0,
+      rgba(203, 211, 221, 0.28) 4px,
+      rgba(203, 211, 221, 0.6) 4px,
+      rgba(203, 211, 221, 0.6) 8px
+    ),
+    #f8fafc;
 }
 
 .student-seat-map-card {
@@ -6918,10 +7042,24 @@ button {
 }
 
 .student-seat-cell[data-status="taken"] {
-  border-color: #d1d5db;
-  background: #f3f4f6;
-  color: #9ca3af;
+  border-color: #aeb7c3;
+  border-style: dashed;
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(174, 183, 195, 0.18) 0,
+      rgba(174, 183, 195, 0.18) 6px,
+      rgba(174, 183, 195, 0.42) 6px,
+      rgba(174, 183, 195, 0.42) 12px
+    ),
+    #f6f8fa;
+  color: #8d98a7;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.8);
   cursor: not-allowed;
+}
+
+.student-seat-cell[data-status="taken"] small {
+  color: #c4942f;
 }
 
 .student-seat-cell[data-status="selected"] {
@@ -6932,16 +7070,35 @@ button {
 }
 
 .student-seat-cell[data-status="disabled"] {
-  border-color: #e5e7eb;
-  background: repeating-linear-gradient(135deg, #f8fafc 0, #f8fafc 4px, #edf2f7 4px, #edf2f7 8px);
-  color: #cbd5e1;
+  border-color: #cbd3dd;
+  border-style: dashed;
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(203, 211, 221, 0.28) 0,
+      rgba(203, 211, 221, 0.28) 6px,
+      rgba(203, 211, 221, 0.6) 6px,
+      rgba(203, 211, 221, 0.6) 12px
+    ),
+    #f8fafc;
+  color: #b2bcc8;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.86);
   cursor: not-allowed;
 }
 
 .student-seat-cell[data-filtered="true"] {
-  border-color: #e5e7eb;
-  background: #f8fafc;
-  color: #cbd5e1;
+  border-color: #cbd3dd;
+  border-style: dashed;
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(141, 152, 167, 0.16) 0,
+      rgba(141, 152, 167, 0.16) 6px,
+      rgba(141, 152, 167, 0.32) 6px,
+      rgba(141, 152, 167, 0.32) 12px
+    ),
+    #f8fafc;
+  color: #a7b2c0;
   box-shadow: none;
   cursor: not-allowed;
 }
@@ -7194,68 +7351,6 @@ button {
   color: #b84040;
 }
 
-.student-booking-stepper {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  margin: 0 0 10px;
-  padding: 0;
-  list-style: none;
-}
-
-.student-booking-stepper li {
-  position: relative;
-  display: grid;
-  justify-items: center;
-  gap: 6px;
-}
-
-.student-booking-stepper li:not(:last-child)::after {
-  content: "";
-  height: 2px;
-  position: absolute;
-  top: 15px;
-  left: calc(50% + 21px);
-  right: calc(-50% + 21px);
-  background: #d8e8e5;
-}
-
-.student-booking-stepper li.is-done:not(:last-child)::after {
-  background: #2d7a6e;
-}
-
-.student-booking-stepper span {
-  width: 30px;
-  height: 30px;
-  z-index: 1;
-  display: grid;
-  place-items: center;
-  border: 2px solid #d8e8e5;
-  border-radius: 999px;
-  background: #ecf4f2;
-  color: #8aaaa4;
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.student-booking-stepper li.is-done span {
-  border-color: #2d7a6e;
-  background: #2d7a6e;
-  color: #ffffff;
-}
-
-.student-booking-stepper strong {
-  color: #8aaaa4;
-  font-size: 11px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.student-booking-stepper li:nth-child(3) strong {
-  color: #2d7a6e;
-  font-weight: 900;
-}
-
 .student-booking-confirm-card,
 .student-booking-position-card,
 .student-booking-reminder-card {
@@ -7310,7 +7405,7 @@ button {
   margin: 0;
 }
 
-.student-booking-detail-grid div {
+.student-booking-detail-grid > div {
   border-bottom: 1px solid #ecf4f2;
   padding: 10px 0;
 }
@@ -7325,6 +7420,78 @@ button {
   margin: 0;
   color: #1a2e2a;
   font-size: 13px;
+  font-weight: 800;
+}
+
+.student-booking-detail-control {
+  min-width: 0;
+}
+
+.student-booking-detail-control dd {
+  display: grid;
+  gap: 8px;
+}
+
+.student-booking-detail-control.is-time {
+  grid-column: 1 / -1;
+}
+
+.student-booking-time-editor {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(240px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.student-booking-time-editor legend {
+  display: block;
+  min-height: 16px;
+  margin-bottom: 6px;
+  color: #4a6b64;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 16px;
+}
+
+.student-booking-detail-select,
+.student-booking-time-editor select {
+  width: 100%;
+  height: 38px;
+  border: 1.5px solid #d8e8e5;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #ffffff;
+  color: #1a2e2a;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.student-booking-time-editor .student-room-time-field {
+  min-width: 0;
+  grid-column: auto;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.student-booking-time-editor .student-room-time-picker {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.student-booking-time-editor .student-time-select span {
+  right: 36px;
+}
+
+.student-booking-time-editor .student-time-select select {
+  padding-right: 58px;
+}
+
+.student-booking-time-current {
+  display: block;
+  margin-top: 8px;
+  color: #4a6b64;
+  font-size: 11px;
   font-weight: 800;
 }
 
@@ -7897,18 +8064,6 @@ button {
   flex-direction: column;
   overflow: hidden;
   padding: 0;
-}
-
-.student-assistant-mode-note {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border-bottom: 1px solid #d8e8e5;
-  padding: 10px 16px;
-  background: #f3fbf9;
-  color: #1d6c5f;
-  font-size: 12px;
-  font-weight: 800;
 }
 
 .student-assistant-messages {
@@ -8975,6 +9130,10 @@ button {
 
   .student-booking-card-main {
     flex-direction: column;
+  }
+
+  .student-booking-time-editor {
+    grid-template-columns: 1fr;
   }
 
   .student-booking-card-actions {

@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { PasswordHasher } from '../src/auth/password-hasher';
 import { createStudentRoomSeatFixtures } from './seed-seat-fixtures';
 import { STUDENT_PERMISSION_CODES } from './seed-permissions';
+import { createStudentStudyHistoryBookings } from './seed-study-history';
 
 const prisma = new PrismaClient();
 const hasher = new PasswordHasher();
@@ -147,7 +148,7 @@ async function main() {
     capacity: 36,
     scopeType: 'SCHOOL',
     departmentId: null,
-    openHour: 7,
+    openHour: 0,
     closeHour: 24,
     overnight: false
   });
@@ -266,6 +267,8 @@ async function main() {
     upsertFavorite('favorite-stu-science-201', 'user-stu-cse-01', 'room-science-201'),
     upsertFavorite('favorite-stu-humanities-a', 'user-stu-cse-01', 'room-humanities-a')
   ]);
+
+  await seedStudentStudyHistory('user-stu-cse-01');
 }
 
 async function upsertRole(id: string, code: string, name: string) {
@@ -404,6 +407,42 @@ async function upsertFavorite(id: string, userId: string, roomId: string) {
       id,
       userId,
       roomId
+    }
+  });
+}
+
+async function seedStudentStudyHistory(userId: string) {
+  await prisma.booking.deleteMany({
+    where: {
+      id: {
+        in: ['seed-study-this-week-primary', 'seed-study-this-week-secondary', 'seed-study-last-week']
+      }
+    }
+  });
+  await Promise.all(createStudentStudyHistoryBookings({ userId }).map(upsertStudyBooking));
+}
+
+async function upsertStudyBooking(input: {
+  id: string;
+  userId: string;
+  roomId: string;
+  seatId: string;
+  startAt: Date;
+  endAt: Date;
+}) {
+  await prisma.booking.upsert({
+    where: { id: input.id },
+    update: {
+      userId: input.userId,
+      roomId: input.roomId,
+      seatId: input.seatId,
+      startAt: input.startAt,
+      endAt: input.endAt,
+      status: 'COMPLETED'
+    },
+    create: {
+      ...input,
+      status: 'COMPLETED'
     }
   });
 }

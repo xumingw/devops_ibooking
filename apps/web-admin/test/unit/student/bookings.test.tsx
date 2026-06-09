@@ -92,7 +92,7 @@ describe('student bookings api', () => {
 	  expect(booking.status).toBe('upcoming');
 	});
 
-  it('学生确认预约请求支持半小时开始和结束时间', () => {
+  it('学生确认预约请求支持任意分钟开始和结束时间', () => {
     const request = buildStudentBookingRequest(
       undefined,
       new Date('2026-05-31T03:00:00.000Z'),
@@ -103,7 +103,7 @@ describe('student bookings api', () => {
         location: '逸夫楼 · 2楼',
         seat: 'C3',
         dateLabel: '明天',
-        time: '18:30 – 21:00（2.5小时）',
+        time: '18:17 – 20:43（2小时26分钟）',
         tags: ['插座']
       }
     );
@@ -111,20 +111,18 @@ describe('student bookings api', () => {
     expect(request).toEqual({
       roomId: 'room-science-201',
       seatId: 'seat-room-science-201-c3',
-      startAt: '2026-06-01T10:30:00.000Z',
-      endAt: '2026-06-01T13:00:00.000Z'
+      startAt: '2026-06-01T10:17:00.000Z',
+      endAt: '2026-06-01T12:43:00.000Z'
     });
   });
 
-	it('学生确认预约成功后会锁定提交按钮并推进完成步骤', () => {
+	it('学生确认预约成功后会锁定提交按钮', () => {
 	  expect(
 	    getStudentBookingConfirmUiState({
 	      submitted: false,
 	      submitting: false
 	    })
 	  ).toEqual({
-	    checkedStepCount: 2,
-	    doneStepCount: 3,
 	    primaryDisabled: false,
 	    primaryLabel: '确认提交预约'
 	  });
@@ -135,8 +133,6 @@ describe('student bookings api', () => {
 	      submitting: false
 	    })
 	  ).toEqual({
-	    checkedStepCount: 4,
-	    doneStepCount: 4,
 	    primaryDisabled: true,
 	    primaryLabel: '预约已提交'
 	  });

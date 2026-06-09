@@ -10,6 +10,8 @@ import {
   successfulStudentNotificationsResponse,
   successfulStudentRoomFavoritesResponse,
   successfulStudentBookingCreateResponse,
+  successfulStudentHomeSummaryResponse,
+  successfulStudentRoomAvailabilityResponse,
   successfulStudentBookingsResponse
 } from '../helpers/api-responses';
 
@@ -181,6 +183,28 @@ describe('student interactive controls', () => {
     expect(getRoomGridText()).toContain('新闻学院研讨室');
   });
 
+  it('自习室列表兼容缺省 favorites 明细的收藏响应', async () => {
+    const fetcher = vi.fn<typeof fetch>((input, init) => {
+      const url = String(input);
+      if (url.includes('/api/v1/notifications/me')) {
+        return Promise.resolve(successfulStudentNotificationsResponse());
+      }
+      if (url.includes('/api/v1/favorites/me/rooms') && init?.method === 'GET') {
+        return Promise.resolve(successfulStudentRoomFavoritesIdsOnlyResponse(['room-gm-301']));
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetcher);
+
+    await renderStudentHome('rooms', { accessToken: 'student-token' });
+    await flushEffects();
+
+    expect(container?.textContent).not.toContain('Cannot read properties');
+    await clickButton('我的收藏');
+    expect(getRoomGridText()).toContain('经管自习室 301');
+    expect(getRoomGridText()).not.toContain('理工自习室 201');
+  });
+
   it('自习室列表按预约时间、楼栋、楼层和教室搜索', async () => {
     await renderStudentHome('rooms');
 
@@ -204,14 +228,14 @@ describe('student interactive controls', () => {
     expect(getSelect('楼层').value).toBe('2楼');
     expect(getSelect('教室').value).toBe('理工自习室 201');
     expect(container?.textContent).toContain(
-      '已按 明天 18:30 – 21:00（2.5小时）、逸夫楼、2楼、理工自习室 201 搜索可预约自习室'
+      '已按 明天 18:30 – 21:00（2小时30分钟）、逸夫楼、2楼、理工自习室 201 搜索可预约自习室'
     );
     const roomGridText = container?.querySelector('.student-rooms-grid')?.textContent;
     expect(roomGridText).toContain('理工自习室 201');
     expect(roomGridText).not.toContain('经管自习室 301');
   });
 
-  it('今天预约不能选择已经过去的开始时间', async () => {
+  it('今天预约最早从当前半小时 slot 起点开始', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-02T11:30:00.000Z'));
     await renderStudentHome('rooms');
@@ -220,7 +244,9 @@ describe('student interactive controls', () => {
     expect(getTimeSelect('开始时间', '小时').value).toBe('19');
     expect(getTimeSelect('开始时间', '分钟').value).toBe('30');
     expect(getTimeSelectOption('开始时间', '小时', '18').disabled).toBe(true);
-    expect(getTimeSelectOption('开始时间', '分钟', '00').disabled).toBe(true);
+    expect([...getTimeSelect('开始时间', '分钟').options].map((option) => option.value)).toEqual([
+      '30'
+    ]);
     expect(getTimeSelectOption('开始时间', '分钟', '30').disabled).toBe(false);
     expect(getTimeSelectOption('开始时间', '小时', '20').disabled).toBe(false);
     expect(getTimeSelectOption('开始时间', '小时', '21').disabled).toBe(false);
@@ -233,17 +259,23 @@ describe('student interactive controls', () => {
     expect(getTimeSelect('开始时间', '分钟').value).toBe('00');
   });
 
-  it('自习室列表时间控件按小时和分钟选择半小时粒度', async () => {
+  it('自习室列表时间控件按半小时选择并支持 00-23 跨午夜结束', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-06-02T03:42:00.000Z'));
     await renderStudentHome('rooms');
 
     expect(getTimeField('开始时间').querySelectorAll('select')).toHaveLength(2);
     expect(getTimeField('结束时间').querySelectorAll('select')).toHaveLength(2);
+    expect([...getTimeSelect('开始时间', '小时').options].map((option) => option.value)).toEqual(
+      Array.from({ length: 24 }, (_, hour) => String(hour).padStart(2, '0'))
+    );
     expect([...getTimeSelect('开始时间', '分钟').options].map((option) => option.value)).toEqual([
       '00',
       '30'
     ]);
+    expect([...getTimeSelect('结束时间', '小时').options].map((option) => option.value)).not.toContain(
+      '24'
+    );
 
     await selectTimePart('开始时间', '小时', '15');
     await selectTimePart('开始时间', '分钟', '30');
@@ -252,10 +284,56 @@ describe('student interactive controls', () => {
     expect(getTimeSelectOption('结束时间', '小时', '20').disabled).toBe(true);
 
     await selectTimePart('结束时间', '小时', '18');
-    await selectTimePart('结束时间', '分钟', '00');
+    await selectTimePart('结束时间', '分钟', '30');
     expect(getTimeSelect('结束时间', '小时').value).toBe('18');
+    expect(getTimeSelect('结束时间', '分钟').value).toBe('30');
+    expect(container?.textContent).toContain('今天 15:30 – 18:30（3小时）');
+
+    await selectTimePart('开始时间', '小时', '20');
+    await selectTimePart('开始时间', '分钟', '00');
+    await selectTimePart('结束时间', '小时', '00');
+    expect(getTimeSelect('结束时间', '小时').value).toBe('00');
+    expect([...getTimeSelect('结束时间', '分钟').options].map((option) => option.value)).toEqual([
+      '00'
+    ]);
     expect(getTimeSelect('结束时间', '分钟').value).toBe('00');
-    expect(container?.textContent).toContain('今天 15:30 – 18:00（2.5小时）');
+    expect(container?.textContent).toContain('今天 20:00 – 00:00（4小时）');
+  });
+
+  it('跨天搜索只展示覆盖完整时间段的自习室', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-02T03:42:00.000Z'));
+    await renderStudentHome('rooms');
+
+    await selectTimePart('开始时间', '小时', '20');
+    await selectTimePart('开始时间', '分钟', '00');
+    await selectTimePart('结束时间', '小时', '00');
+    await clickButton('搜索可预约自习室');
+
+    const roomGridText = getRoomGridText();
+    expect(container?.textContent).toContain('已按 今天 20:00 – 00:00（4小时）');
+    expect(roomGridText).toContain('理工自习室 201');
+    expect(roomGridText).not.toContain('经管自习室 301');
+    expect(roomGridText).not.toContain('图书馆自习区');
+  });
+
+  it('跨午夜搜索会匹配 24 小时自习室', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-02T03:42:00.000Z'));
+    await renderStudentHome('rooms');
+
+    await selectTimePart('开始时间', '小时', '23');
+    await selectTimePart('开始时间', '分钟', '30');
+    await selectTimePart('结束时间', '小时', '01');
+    await selectTimePart('结束时间', '分钟', '30');
+    await clickButton('搜索可预约自习室');
+
+    const roomGridText = getRoomGridText();
+    expect(container?.textContent).toContain('已按 今天 23:30 – 01:30（2小时）');
+    expect(roomGridText).toContain('理工自习室 201');
+    expect(roomGridText).not.toContain('经管自习室 301');
+    expect(roomGridText).not.toContain('理工自习室 403');
+    expect(container?.textContent).toContain('匹配 1 间');
   });
 
   it('从自习室列表点预约后直接打开预约弹窗', async () => {
@@ -279,8 +357,8 @@ describe('student interactive controls', () => {
     await selectOption('日期', '明天');
     await selectTimePart('开始时间', '小时', '18');
     await selectTimePart('开始时间', '分钟', '30');
-    await selectTimePart('结束时间', '小时', '21');
-    await selectTimePart('结束时间', '分钟', '00');
+    await selectTimePart('结束时间', '小时', '20');
+    await selectTimePart('结束时间', '分钟', '30');
     await selectOption('楼栋', '逸夫楼');
     await selectOption('楼层', '2楼');
     await selectOption('教室', '理工自习室 201');
@@ -292,7 +370,7 @@ describe('student interactive controls', () => {
     expect(dialog?.textContent).toContain('理工自习室 201');
     expect(dialog?.textContent).toContain('逸夫楼 · 2楼');
     expect(dialog?.textContent).toContain('明天');
-    expect(dialog?.textContent).toContain('18:30 – 21:00（2.5小时）');
+    expect(dialog?.textContent).toContain('18:30 – 20:30（2小时）');
   });
 
   it('预约弹窗内可以选择座位位置', async () => {
@@ -354,7 +432,61 @@ describe('student interactive controls', () => {
   });
 
   it('我的预约筛选和记录操作按钮会给出反馈', async () => {
-    await renderStudentHome('bookings');
+    const fetcher = vi.fn<typeof fetch>((input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/v1/bookings/me') && init?.method === 'GET') {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              code: 'SUCCESS',
+              message: 'success',
+              data: {
+                totalCount: 2,
+                activeCount: 0,
+                completedCount: 1,
+                records: [
+                  {
+                    id: 'booking-completed',
+                    room: '文史馆阅览室 A',
+                    location: '文史馆 1楼',
+                    seat: 'A5',
+                    time: '4月20日 14:00-16:00',
+                    status: 'completed',
+                    tags: ['靠窗'],
+                    canCheckIn: false,
+                    canCancel: false,
+                    startAt: '2026-04-20T06:00:00.000Z',
+                    endAt: '2026-04-20T08:00:00.000Z'
+                  },
+                  {
+                    id: 'booking-violation',
+                    room: '经管自习室 301',
+                    location: '光华楼 A座 3楼',
+                    seat: 'D8',
+                    time: '4月18日 10:00-12:00',
+                    status: 'violation',
+                    tags: [],
+                    canCheckIn: false,
+                    canCancel: false,
+                    startAt: '2026-04-18T02:00:00.000Z',
+                    endAt: '2026-04-18T04:00:00.000Z'
+                  }
+                ]
+              }
+            }),
+            { headers: { 'Content-Type': 'application/json' }, status: 200 }
+          )
+        );
+      }
+      if (url.includes('/api/v1/notifications/me')) {
+        return Promise.resolve(successfulStudentNotificationsResponse());
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetcher);
+
+    await renderStudentHome('bookings', { accessToken: 'student-token' });
+    await flushEffects();
 
     await clickButton('已完成');
     expect(getButton('已完成').className).toContain('is-active');
@@ -363,12 +495,34 @@ describe('student interactive controls', () => {
     await clickButton('再次预约');
     expect(container?.textContent).toContain('自习室列表');
 
-    await renderStudentHome('bookings');
+    await renderStudentHome('bookings', { accessToken: 'student-token' });
+    await flushEffects();
     await clickButton('查看原因');
     expect(container?.textContent).toContain('违约原因');
 
     await clickButton('导出记录');
     expect(container?.textContent).toContain('已生成预约记录导出任务');
+  });
+
+  it('登录态进入我的预约时加载期间不显示 mock 预约记录', async () => {
+    const fetcher = vi.fn<typeof fetch>((input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/v1/bookings/me') && init?.method === 'GET') {
+        return new Promise<Response>(() => undefined);
+      }
+      if (url.includes('/api/v1/notifications/me')) {
+        return Promise.resolve(successfulStudentNotificationsResponse());
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetcher);
+
+    await renderStudentHome('bookings', { accessToken: 'student-token' });
+
+    expect(container?.textContent).toContain('正在加载我的预约');
+    expect(container?.querySelector('.student-booking-card')).toBeNull();
+    expect(container?.textContent).not.toContain('今日 14:00–17:00');
+    expect(container?.textContent).not.toContain('4月22日 09:00–12:00');
   });
 
   it('服务端已有待签到预约会同步占用首页和自习室列表余位', async () => {
@@ -454,7 +608,9 @@ describe('student interactive controls', () => {
                     canCheckIn: false,
                     canCancel: false,
                     startAt: '2026-06-03T07:27:00.000Z',
-                    endAt: '2026-06-03T08:27:00.000Z'
+                    endAt: '2026-06-03T08:27:00.000Z',
+                    createdAt: '2026-06-03T07:28:00.000Z',
+                    checkInDeadlineAt: '2026-06-03T07:43:00.000Z'
                   }
                 ]
               }
@@ -483,6 +639,66 @@ describe('student interactive controls', () => {
     expect(container?.textContent).not.toContain('取消预约');
     expect(container?.textContent).toContain('查看记录');
     expect(container?.textContent).toContain('预约下一场');
+  });
+
+  it('当前 slot 未签到预约在首页展示待签到入口', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-03T07:28:00.000Z'));
+    const fetcher = vi.fn<typeof fetch>((input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/v1/bookings/me') && init?.method === 'GET') {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              code: 'SUCCESS',
+              message: 'success',
+              data: {
+                totalCount: 1,
+                activeCount: 1,
+                completedCount: 0,
+                records: [
+                  {
+                    id: 'booking-current-pending',
+                    room: '理工自习室 201',
+                    location: '理科楼 2楼',
+                    seat: 'C3',
+                    time: '今日 15:27-16:27',
+                    status: 'upcoming',
+                    tags: ['插座'],
+                    canCheckIn: true,
+                    canCancel: false,
+                    startAt: '2026-06-03T07:27:00.000Z',
+                    endAt: '2026-06-03T08:27:00.000Z',
+                    createdAt: '2026-06-03T07:28:00.000Z',
+                    checkInDeadlineAt: '2026-06-03T07:43:00.000Z'
+                  }
+                ]
+              }
+            }),
+            { headers: { 'Content-Type': 'application/json' }, status: 200 }
+          )
+        );
+      }
+      if (url.includes('/api/v1/favorites/me/rooms')) {
+        return Promise.resolve(successfulStudentRoomFavoritesResponse());
+      }
+      if (url.includes('/api/v1/notifications/me')) {
+        return Promise.resolve(successfulStudentNotificationsResponse());
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetcher);
+
+    await renderStudentHome(undefined, { accessToken: 'student-token' });
+    await flushEffects();
+
+    expect(container?.textContent).toContain('待签到预约');
+    expect(container?.textContent).toContain('距签到截止还有');
+    expect(container?.textContent).toContain('15分');
+    expect(container?.textContent).toContain('立即签到');
+    expect(container?.textContent).toContain('取消预约');
+    expect(container?.textContent).not.toContain('进行中预约');
+    expect(container?.textContent).not.toContain('预约下一场');
   });
 
   it('取消唯一待签到预约后首页不再显示下一场预约并释放余位', async () => {
@@ -580,6 +796,39 @@ describe('student interactive controls', () => {
 
     await clickButton('自习室列表');
     expect(getArticleText('经管自习室 301')).toContain('13 空余 / 48');
+  });
+
+  it('智能助手可预约座位结果会直接打开预约弹窗', async () => {
+    const fetcher = vi.fn<typeof fetch>((input, init) => {
+      const url = String(input);
+      if (url.includes('/api/v1/assistant/me/messages') && init?.method === 'POST') {
+        return Promise.resolve(successfulAssistantSeatResponse());
+      }
+      if (url.includes('/api/v1/notifications/me')) {
+        return Promise.resolve(successfulStudentNotificationsResponse());
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetcher);
+
+    await renderStudentHome('assistant', { accessToken: 'student-token' });
+
+    await askAssistant('明天下午有空座吗');
+    expect(container?.textContent).toContain('找到 1 个可预约座位');
+    await clickButtonInResultCard('明天 18:17–20:43', '立即预约');
+
+    const dialog = container?.querySelector('.student-booking-confirm-dialog');
+    expect(window.location.pathname).toBe('/student/rooms');
+    expect(dialog).not.toBeNull();
+    expect(dialog?.textContent).toContain('经管自习室 301');
+    expect(dialog?.textContent).toContain('位置选择');
+    expect(dialog?.querySelector('.student-booking-seat-map')).not.toBeNull();
+    expect(getSeatButton('C3').getAttribute('data-status')).toBe('selected');
+    expect((getSeatButton('A5') as HTMLButtonElement).disabled).toBe(true);
+    expect(getSeatButton('A5').getAttribute('data-status')).toBe('taken');
+    expect((getSeatButton('G1') as HTMLButtonElement).disabled).toBe(true);
+    expect(getSeatButton('G1').getAttribute('data-status')).toBe('disabled');
+    expect(container?.querySelector('.student-seat-selector-panel')).toBeNull();
   });
 
   it('提交预约成功后关闭弹窗并在自习室列表提示结果', async () => {
@@ -715,6 +964,143 @@ describe('student interactive controls', () => {
     expect(container?.querySelector('.student-seat-selector-panel')).toBeNull();
   });
 
+  it('学生首页关键指标来自服务端真实汇总数据', async () => {
+    const fetcher = vi.fn<typeof fetch>((input) => {
+      const url = String(input);
+      if (url.includes('/api/v1/students/me/home')) {
+        return Promise.resolve(successfulStudentHomeSummaryResponse());
+      }
+      if (url.includes('/api/v1/students/me/rooms/availability')) {
+        return Promise.resolve(successfulStudentRoomAvailabilityResponse());
+      }
+      if (url.includes('/api/v1/bookings/me')) {
+        return Promise.resolve(successfulStudentBookingsResponse());
+      }
+      if (url.includes('/api/v1/favorites/me/rooms')) {
+        return Promise.resolve(successfulStudentRoomFavoritesResponse(['room-gm-301', 'room-science-201']));
+      }
+      if (url.includes('/api/v1/notifications/me')) {
+        return Promise.resolve(successfulStudentNotificationsResponse());
+      }
+      return Promise.resolve(successfulStudentBookingsResponse());
+    });
+    vi.stubGlobal('fetch', fetcher);
+
+    await renderStudentHome('home', { accessToken: 'student-token' });
+
+    expect(fetcher).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/students/me/home'),
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ Authorization: 'Bearer student-token' })
+      })
+    );
+    expect(container?.textContent).toContain('今日全校空座198共 207 个座位较昨日 +6%');
+    expect(container?.textContent).toContain('今日我的预约2还有 1 次可用今日 2 场');
+    expect(container?.textContent).toContain('常用自习室2经管自习室 301 · 理工自习室 201已收藏');
+    expect(container?.textContent).toContain('本周学习时长7.5h较上周 +2.5h持续提升');
+    expect(fetcher).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/students/me/rooms/availability'),
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ Authorization: 'Bearer student-token' })
+      })
+    );
+    const recommendedRoomsText = container?.querySelector('.student-home-room-list')?.textContent ?? '';
+    expect(recommendedRoomsText).toContain('经管自习室 301');
+    expect(recommendedRoomsText).toContain('34 / 37');
+    expect(recommendedRoomsText).toContain('理工自习室 201');
+    expect(recommendedRoomsText).toContain('38 / 38');
+    expect(recommendedRoomsText).toContain('文史馆阅览室');
+    expect(recommendedRoomsText).toContain('38 / 38');
+    expect(container?.textContent).not.toContain('12 / 48');
+    expect(container?.textContent).not.toContain('31 / 64');
+    expect(container?.textContent).not.toContain('5 / 80');
+  });
+
+  it('学生自习室列表座位数使用服务端真实座位统计', async () => {
+    const fetcher = vi.fn<typeof fetch>((input) => {
+      const url = String(input);
+      if (url.includes('/api/v1/students/me/rooms/availability')) {
+        return Promise.resolve(successfulStudentRoomAvailabilityResponse());
+      }
+      if (url.includes('/api/v1/favorites/me/rooms')) {
+        return Promise.resolve(successfulStudentRoomFavoritesResponse(['room-gm-301']));
+      }
+      if (url.includes('/api/v1/notifications/me')) {
+        return Promise.resolve(successfulStudentNotificationsResponse());
+      }
+      return Promise.resolve(successfulStudentBookingsResponse());
+    });
+    vi.stubGlobal('fetch', fetcher);
+
+    await renderStudentHome('rooms', { accessToken: 'student-token' });
+
+    expect(fetcher).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/students/me/rooms/availability'),
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({ Authorization: 'Bearer student-token' })
+      })
+    );
+    expect(container?.textContent).toContain('34 空余 / 37');
+    expect(container?.textContent).toContain('38 空余 / 38');
+    expect(container?.textContent).not.toContain('12 空余 / 48');
+    expect(container?.textContent).not.toContain('31 空余 / 64');
+  });
+
+  it('自习室列表状态根据服务端真实余位推导', async () => {
+    const fetcher = vi.fn<typeof fetch>((input) => {
+      const url = String(input);
+      if (url.includes('/api/v1/students/me/rooms/availability')) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              code: 'SUCCESS',
+              message: 'success',
+              data: {
+                totalSeats: 293,
+                availableSeats: 202,
+                rooms: [
+                  { roomId: 'room-gm-301', totalSeats: 37, availableSeats: 34 },
+                  { roomId: 'room-science-201', totalSeats: 38, availableSeats: 38 },
+                  { roomId: 'room-humanities-a', totalSeats: 80, availableSeats: 5 },
+                  { roomId: 'room-news-seminar', totalSeats: 37, availableSeats: 37 },
+                  { roomId: 'room-science-403', totalSeats: 56, availableSeats: 0 },
+                  { roomId: 'room-library-zone', totalSeats: 120, availableSeats: 88 }
+                ]
+              }
+            }),
+            { headers: { 'Content-Type': 'application/json' }, status: 200 }
+          )
+        );
+      }
+      if (url.includes('/api/v1/favorites/me/rooms')) {
+        return Promise.resolve(successfulStudentRoomFavoritesResponse(['room-gm-301']));
+      }
+      if (url.includes('/api/v1/notifications/me')) {
+        return Promise.resolve(successfulStudentNotificationsResponse());
+      }
+      return Promise.resolve(successfulStudentBookingsResponse());
+    });
+    vi.stubGlobal('fetch', fetcher);
+
+    await renderStudentHome('rooms', { accessToken: 'student-token' });
+
+    expect(getArticleText('新闻学院研讨室')).toContain('37 空余 / 37');
+    expect(getArticleText('新闻学院研讨室')).toContain('开放中');
+    expect(getArticleText('新闻学院研讨室')).toContain('预约');
+    expect(getArticleText('新闻学院研讨室')).not.toContain('已满座');
+    expect(getArticleText('新闻学院研讨室')).not.toContain('加入候补');
+
+    expect(getArticleText('文史馆阅览室 A')).toContain('5 空余 / 80');
+    expect(getArticleText('文史馆阅览室 A')).toContain('较繁忙');
+
+    expect(getArticleText('理工自习室 403')).toContain('0 空余 / 56');
+    expect(getArticleText('理工自习室 403')).toContain('已满座');
+    expect(getArticleText('理工自习室 403')).toContain('加入候补');
+  });
+
   async function renderStudentHome(
     initialActive?: Parameters<typeof StudentHomePreview>[0]['initialActive'],
     props: Partial<Parameters<typeof StudentHomePreview>[0]> = {}
@@ -749,6 +1135,23 @@ describe('student interactive controls', () => {
       normalize(candidate.textContent).includes(normalize(buttonLabel))
     );
     if (!button) throw new Error(`button not found in article: ${buttonLabel}`);
+
+    await act(async () => {
+      button.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+  }
+
+  async function clickButtonInResultCard(cardText: string, buttonLabel: string) {
+    const card = [...(container?.querySelectorAll('.student-assistant-result-card') ?? [])].find(
+      (candidate) => normalize(candidate.textContent).includes(normalize(cardText))
+    );
+    if (!card) throw new Error(`result card not found: ${cardText}`);
+    const button = [...card.querySelectorAll('button')].find((candidate) =>
+      normalize(candidate.textContent).includes(normalize(buttonLabel))
+    );
+    if (!button) throw new Error(`button not found in result card: ${buttonLabel}`);
 
     await act(async () => {
       button.click();
@@ -934,6 +1337,44 @@ describe('student interactive controls', () => {
           ],
           suggestions: ['查看我的预约', '重新找座']
         }
+      }),
+      { headers: { 'Content-Type': 'application/json' }, status: 200 }
+    );
+  }
+
+  function successfulAssistantSeatResponse() {
+    return new Response(
+      JSON.stringify({
+        code: 'SUCCESS',
+        message: 'success',
+        data: {
+          intent: 'availability',
+          text: '找到 1 个可预约座位。',
+          seats: [
+            {
+              roomId: 'room-gm-301',
+              seatId: 'seat-gm-301-c3',
+              room: '经管自习室 301',
+              location: '光华楼 A座 3楼',
+              seat: 'C3',
+              time: '明天 18:17–20:43',
+              tags: ['插座', '安静区']
+            }
+          ],
+          bookings: [],
+          suggestions: ['查看我的预约']
+        }
+      }),
+      { headers: { 'Content-Type': 'application/json' }, status: 200 }
+    );
+  }
+
+  function successfulStudentRoomFavoritesIdsOnlyResponse(favoriteRoomIds: string[]) {
+    return new Response(
+      JSON.stringify({
+        code: 'SUCCESS',
+        message: 'success',
+        data: { favoriteRoomIds }
       }),
       { headers: { 'Content-Type': 'application/json' }, status: 200 }
     );
