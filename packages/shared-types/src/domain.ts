@@ -80,6 +80,18 @@ export interface Room {
   status: ResourceStatus;
 }
 
+export interface RoomCatalogItem {
+  id: string;
+  name: string;
+  building: string;
+  floor: string;
+  capacity: number;
+  hours: string;
+  scope: string;
+  tags: string[];
+  resourceStatus: ResourceStatus;
+}
+
 export interface Seat {
   id: string;
   roomId: string;
@@ -185,17 +197,20 @@ export interface StudentHomeSummary {
   weekRecords: StudentHomeWeekRecord[];
 }
 
-export interface StudentRoomAvailabilityRecord {
+export interface RoomAvailabilityRecord {
   roomId: string;
   totalSeats: number;
   availableSeats: number;
 }
 
-export interface StudentRoomAvailabilitySummary {
+export interface RoomAvailabilitySummary {
   totalSeats: number;
   availableSeats: number;
-  rooms: StudentRoomAvailabilityRecord[];
+  rooms: RoomAvailabilityRecord[];
 }
+
+export type StudentRoomAvailabilityRecord = RoomAvailabilityRecord;
+export type StudentRoomAvailabilitySummary = RoomAvailabilitySummary;
 
 export type StudentBookingStatus = 'upcoming' | 'using' | 'completed' | 'cancelled' | 'violation';
 
@@ -309,6 +324,9 @@ export interface AdminDashboardRecentBooking {
 export interface AdminDashboardRoomStatus {
   name: string;
   pct: number;
+  totalSeats: number;
+  occupiedSeats: number;
+  availableSeats: number;
   status: 'low' | 'mid' | 'high' | 'full' | 'closed';
 }
 

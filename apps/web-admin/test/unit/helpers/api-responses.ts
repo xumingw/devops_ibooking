@@ -1,4 +1,4 @@
-import type { AdminOverviewSnapshot } from '@ibooking/shared-types';
+import type { AdminOverviewSnapshot, RoomCatalogItem } from '@ibooking/shared-types';
 
 export const adminOverviewFixture = (): AdminOverviewSnapshot => ({
   dashboard: {
@@ -27,8 +27,22 @@ export const adminOverviewFixture = (): AdminOverviewSnapshot => ({
       [0.1, 0.3]
     ],
     roomStatuses: [
-      { name: '经管自习室 301', pct: 50, status: 'mid' },
-      { name: '理工自习室 201', pct: 0, status: 'low' }
+      {
+        name: '经管自习室 301',
+        pct: 50,
+        totalSeats: 2,
+        occupiedSeats: 1,
+        availableSeats: 1,
+        status: 'mid'
+      },
+      {
+        name: '理工自习室 201',
+        pct: 0,
+        totalSeats: 2,
+        occupiedSeats: 0,
+        availableSeats: 2,
+        status: 'low'
+      }
     ],
     recentBookings: [
       {
@@ -634,6 +648,83 @@ export const successfulStudentRoomAvailabilityResponse = () =>
       headers: { 'Content-Type': 'application/json' },
       status: 200
     }
+  );
+
+export const successfulRoomCatalogResponse = (rooms: RoomCatalogItem[] = [
+  {
+    id: 'room-gm-301',
+    name: '经管自习室 301',
+    building: '光华楼 A座',
+    floor: '3楼',
+    capacity: 37,
+    hours: '08:00–22:00',
+    scope: '全校开放',
+    tags: ['插座', '靠窗', '安静区'],
+    resourceStatus: 'ACTIVE'
+  },
+  {
+    id: 'room-science-201',
+    name: '理工自习室 201',
+    building: '理科楼',
+    floor: '2楼',
+    capacity: 38,
+    hours: '00:00–24:00',
+    scope: '全校开放',
+    tags: ['24小时', '插座'],
+    resourceStatus: 'ACTIVE'
+  },
+  {
+    id: 'room-humanities-a',
+    name: '文史馆阅览室 A',
+    building: '文史馆',
+    floor: '1楼',
+    capacity: 38,
+    hours: '08:00–21:00',
+    scope: '全校开放',
+    tags: ['靠窗', '低噪音'],
+    resourceStatus: 'ACTIVE'
+  },
+  {
+    id: 'room-news-seminar',
+    name: '新闻学院研讨室',
+    building: '新闻学院楼',
+    floor: '4楼',
+    capacity: 37,
+    hours: '09:00–20:00',
+    scope: '全校开放',
+    tags: ['白板', '投影'],
+    resourceStatus: 'ACTIVE'
+  },
+  {
+    id: 'room-science-403',
+    name: '理工自习室 403',
+    building: '逸夫楼',
+    floor: '4楼',
+    capacity: 37,
+    hours: '08:00–23:00',
+    scope: '全校开放',
+    tags: ['插座', '安静区'],
+    resourceStatus: 'ACTIVE'
+  },
+  {
+    id: 'room-library-zone',
+    name: '图书馆自习区',
+    building: '李兆基图书馆',
+    floor: '2楼',
+    capacity: 37,
+    hours: '08:00–22:00',
+    scope: '全校开放',
+    tags: ['插座', '靠窗', '安静区'],
+    resourceStatus: 'ACTIVE'
+  }
+]) =>
+  new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: rooms
+    }),
+    { headers: { 'Content-Type': 'application/json' }, status: 200 }
   );
 
 export const successfulStudentBookingsResponse = () =>

@@ -28,4 +28,27 @@ describe('violations', () => {
     expect(html).not.toContain('今日新增 18 条');
     expect(html).not.toContain('管理模块');
   });
+
+  it('长违约编号会压缩展示并保留完整 title', () => {
+    const overview = adminOverviewFixture();
+    overview.violations.records = [
+      {
+        ...overview.violations.records[0],
+        id: 'cmq6ssw3d000ijar3kfclbhvf',
+        bookingId: 'seed-admin-booking-today-pending'
+      }
+    ];
+
+    const html = renderToStaticMarkup(
+      <AdminDashboard
+        adminName="系统管理员"
+        initialActive="violations"
+        initialAdminOverview={overview}
+      />
+    );
+
+    expect(html).toContain('cmq6ssw3…clbhvf');
+    expect(html).toContain('title="cmq6ssw3d000ijar3kfclbhvf"');
+    expect(html).toContain('title="seed-admin-booking-today-pending"');
+  });
 });

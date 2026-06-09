@@ -1,4 +1,4 @@
-import { ForbiddenException, Get, Req, UseGuards } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, Req, UseGuards } from '@nestjs/common';
 import { ErrorCode } from '@ibooking/shared-types';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { AdminOverviewService } from './admin-overview.service';
@@ -10,6 +10,7 @@ const ADMIN_ROLE_CODES = new Set([
   'ROLE_DEPARTMENT_ADMIN'
 ]);
 
+@Controller()
 @UseGuards(AuthGuard)
 export class AdminOverviewController {
   constructor(private readonly service: AdminOverviewService) {}

@@ -78,6 +78,14 @@ type AuditLogWithActor = Prisma.AuditLogGetPayload<{
   };
 }>;
 
+type OccupiedSlotRow = {
+  slotStart: Date;
+  seatId: string;
+  booking: {
+    roomId: string;
+  };
+};
+
 @Injectable()
 export class PrismaAdminOverviewRepository implements AdminOverviewRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -212,10 +220,11 @@ export class PrismaAdminOverviewRepository implements AdminOverviewRepository {
       this.prisma.bookingSlot.findMany({
         where: {
           slotStart: { gte: weekStart, lt: weekEnd },
-          booking: { status: { in: ACTIVE_BOOKING_STATUSES } }
+          booking: { status: { in: VALID_BOOKING_STATUSES } }
         },
         select: {
           slotStart: true,
+          seatId: true,
           booking: {
             select: {
               roomId: true
@@ -229,7 +238,7 @@ export class PrismaAdminOverviewRepository implements AdminOverviewRepository {
     const violationRate = percentage(recentViolationCount, Math.max(validRecentBookingCount, 1));
     const openRoomCount = rooms.filter((room) => room.status === 'ACTIVE').length;
     const totalRoomCount = rooms.length;
-    const roomStatuses = summarizeRoomStatuses(rooms, recentBookings, now);
+    const roomStatuses = summarizeRoomStatuses(rooms, occupiedSlots, currentSlotStart);
     const weeklyBookings = summarizeWeeklyBookings(reportBookings, weekStart);
 
     return {
@@ -494,36 +503,44 @@ function buildScheduleSpecialRules(rooms: RoomWithSeats[]) {
 
 function summarizeRoomStatuses(
   rooms: RoomWithSeats[],
-  bookings: BookingWithRelations[],
-  now: Date
+  occupiedSlots: OccupiedSlotRow[],
+  currentSlotStart: Date
 ): AdminDashboardRoomStatus[] {
   return rooms.slice(0, 8).map((room) => {
-    if (room.status !== 'ACTIVE') {
-      return { name: room.name, pct: 0, status: 'closed' };
-    }
     const totalSeats = room.seats.filter((seat) => seat.status === 'ACTIVE').length;
+    if (room.status !== 'ACTIVE') {
+      return {
+        name: room.name,
+        pct: 0,
+        totalSeats,
+        occupiedSeats: 0,
+        availableSeats: totalSeats,
+        status: 'closed'
+      };
+    }
     const occupied = new Set(
-      bookings
+      occupiedSlots
         .filter(
-          (booking) =>
-            booking.room.id === room.id &&
-            ACTIVE_BOOKING_STATUSES.includes(booking.status) &&
-            booking.startAt <= now &&
-            booking.endAt > now
+          (slot) =>
+            slot.booking.roomId === room.id &&
+            slot.slotStart.getTime() === currentSlotStart.getTime()
         )
-        .map((booking) => booking.seat.code)
+        .map((slot) => slot.seatId)
     ).size;
     const pct = totalSeats > 0 ? Math.round((occupied / totalSeats) * 100) : 0;
     return {
       name: room.name,
       pct,
+      totalSeats,
+      occupiedSeats: occupied,
+      availableSeats: Math.max(0, totalSeats - occupied),
       status: pct >= 95 ? 'full' : pct >= 70 ? 'high' : pct >= 35 ? 'mid' : 'low'
     };
   });
 }
 
 function summarizeHeatmap(
-  occupiedSlots: Array<{ slotStart: Date; booking: { roomId: string } }>,
+  occupiedSlots: OccupiedSlotRow[],
   activeSeatCount: number,
   weekStart: Date
 ): number[][] {
@@ -599,7 +616,7 @@ function summarizeTopSeats(bookings: BookingWithRelations[]): Array<[string, str
 }
 
 function summarizeLowPeriods(
-  occupiedSlots: Array<{ slotStart: Date; booking: { roomId: string } }>,
+  occupiedSlots: OccupiedSlotRow[],
   activeSeatCount: number,
   weekStart: Date
 ): Array<[string, string, string]> {

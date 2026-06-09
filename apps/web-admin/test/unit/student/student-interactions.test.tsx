@@ -12,7 +12,8 @@ import {
   successfulStudentBookingCreateResponse,
   successfulStudentHomeSummaryResponse,
   successfulStudentRoomAvailabilityResponse,
-  successfulStudentBookingsResponse
+  successfulStudentBookingsResponse,
+  successfulRoomCatalogResponse
 } from '../helpers/api-responses';
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
@@ -561,6 +562,39 @@ describe('student interactive controls', () => {
           )
         );
       }
+      if (url.includes('/api/v1/rooms/catalog')) {
+        return Promise.resolve(
+          successfulRoomCatalogResponse([
+            {
+              id: 'room-gm-301',
+              name: '经管自习室 301',
+              building: '光华楼 A座',
+              floor: '3楼',
+              capacity: 48,
+              hours: '08:00–22:00',
+              scope: '全校开放',
+              tags: ['插座', '靠窗', '安静区'],
+              resourceStatus: 'ACTIVE'
+            }
+          ])
+        );
+      }
+      if (url.includes('/api/v1/rooms/availability')) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              code: 'SUCCESS',
+              message: 'success',
+              data: {
+                totalSeats: 48,
+                availableSeats: 11,
+                rooms: [{ roomId: 'room-gm-301', totalSeats: 48, availableSeats: 11 }]
+              }
+            }),
+            { headers: { 'Content-Type': 'application/json' }, status: 200 }
+          )
+        );
+      }
       if (url.includes('/api/v1/favorites/me/rooms')) {
         return Promise.resolve(successfulStudentRoomFavoritesResponse());
       }
@@ -970,7 +1004,10 @@ describe('student interactive controls', () => {
       if (url.includes('/api/v1/students/me/home')) {
         return Promise.resolve(successfulStudentHomeSummaryResponse());
       }
-      if (url.includes('/api/v1/students/me/rooms/availability')) {
+      if (url.includes('/api/v1/rooms/catalog')) {
+        return Promise.resolve(successfulRoomCatalogResponse());
+      }
+      if (url.includes('/api/v1/rooms/availability')) {
         return Promise.resolve(successfulStudentRoomAvailabilityResponse());
       }
       if (url.includes('/api/v1/bookings/me')) {
@@ -1000,7 +1037,7 @@ describe('student interactive controls', () => {
     expect(container?.textContent).toContain('常用自习室2经管自习室 301 · 理工自习室 201已收藏');
     expect(container?.textContent).toContain('本周学习时长7.5h较上周 +2.5h持续提升');
     expect(fetcher).toHaveBeenCalledWith(
-      expect.stringContaining('/api/v1/students/me/rooms/availability'),
+      expect.stringContaining('/api/v1/rooms/availability'),
       expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({ Authorization: 'Bearer student-token' })
@@ -1021,7 +1058,10 @@ describe('student interactive controls', () => {
   it('学生自习室列表座位数使用服务端真实座位统计', async () => {
     const fetcher = vi.fn<typeof fetch>((input) => {
       const url = String(input);
-      if (url.includes('/api/v1/students/me/rooms/availability')) {
+      if (url.includes('/api/v1/rooms/catalog')) {
+        return Promise.resolve(successfulRoomCatalogResponse());
+      }
+      if (url.includes('/api/v1/rooms/availability')) {
         return Promise.resolve(successfulStudentRoomAvailabilityResponse());
       }
       if (url.includes('/api/v1/favorites/me/rooms')) {
@@ -1037,7 +1077,7 @@ describe('student interactive controls', () => {
     await renderStudentHome('rooms', { accessToken: 'student-token' });
 
     expect(fetcher).toHaveBeenCalledWith(
-      expect.stringContaining('/api/v1/students/me/rooms/availability'),
+      expect.stringContaining('/api/v1/rooms/availability'),
       expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({ Authorization: 'Bearer student-token' })
@@ -1054,7 +1094,10 @@ describe('student interactive controls', () => {
     vi.setSystemTime(new Date('2026-06-02T03:42:00.000Z'));
     const fetcher = vi.fn<typeof fetch>((input) => {
       const url = String(input);
-      if (url.includes('/api/v1/students/me/rooms/availability')) {
+      if (url.includes('/api/v1/rooms/catalog')) {
+        return Promise.resolve(successfulRoomCatalogResponse());
+      }
+      if (url.includes('/api/v1/rooms/availability')) {
         return Promise.resolve(
           new Response(
             JSON.stringify({

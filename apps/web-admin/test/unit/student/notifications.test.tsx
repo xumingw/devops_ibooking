@@ -11,7 +11,13 @@ import {
   requestStudentNotificationsMarkAllRead,
   StudentHomePreview
 } from '../../../src/App';
-import { successfulStudentNotificationsResponse } from '../helpers/api-responses';
+import {
+  successfulRoomCatalogResponse,
+  successfulStudentBookingsResponse,
+  successfulStudentHomeSummaryResponse,
+  successfulStudentNotificationsResponse,
+  successfulStudentRoomAvailabilityResponse
+} from '../helpers/api-responses';
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
@@ -76,10 +82,10 @@ describe('student notifications api', () => {
   });
 
   it('通知中心点击标记全部已读会调用持久化接口并刷新未读数', async () => {
-    const fetcher = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(successfulStudentNotificationsResponse())
-      .mockResolvedValueOnce(successfulStudentNotificationsReadResponse());
+    const fetcher = createStudentNotificationFetchMock({
+      notification: successfulStudentNotificationsResponse,
+      markRead: successfulStudentNotificationsReadResponse
+    });
     vi.stubGlobal('fetch', fetcher);
 
     await renderStudentNotify();
@@ -95,10 +101,10 @@ describe('student notifications api', () => {
   });
 
   it('通知中心顶部全部已读按钮也会持久化已读状态', async () => {
-    const fetcher = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(successfulStudentNotificationsResponse())
-      .mockResolvedValueOnce(successfulStudentNotificationsReadResponse());
+    const fetcher = createStudentNotificationFetchMock({
+      notification: successfulStudentNotificationsResponse,
+      markRead: successfulStudentNotificationsReadResponse
+    });
     vi.stubGlobal('fetch', fetcher);
 
     await renderStudentNotify();
@@ -113,7 +119,10 @@ describe('student notifications api', () => {
   });
 
   it('学生首页加载时会同步服务端通知未读数，避免重新登录后显示旧角标', async () => {
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(successfulStudentNotificationsReadResponse());
+    const fetcher = createStudentNotificationFetchMock({
+      notification: successfulStudentNotificationsReadResponse,
+      markRead: successfulStudentNotificationsReadResponse
+    });
     vi.stubGlobal('fetch', fetcher);
 
     await renderStudentPage();
@@ -217,6 +226,41 @@ describe('student notifications api', () => {
     return (button.textContent ?? '').replace(/\s+/g, '');
   }
 });
+
+const createStudentNotificationFetchMock = ({
+  notification,
+  markRead
+}: {
+  notification: () => Response;
+  markRead: () => Response;
+}) =>
+  vi.fn<typeof fetch>((input) => {
+    const url = String(input);
+    if (url.includes('/api/v1/notifications/me/read-all')) {
+      return Promise.resolve(markRead());
+    }
+    if (url.includes('/api/v1/notifications/me')) {
+      return Promise.resolve(notification());
+    }
+    if (url.includes('/api/v1/rooms/catalog')) {
+      return Promise.resolve(successfulRoomCatalogResponse());
+    }
+    if (url.includes('/api/v1/students/me/home')) {
+      return Promise.resolve(successfulStudentHomeSummaryResponse());
+    }
+    if (url.includes('/api/v1/students/me/bookings')) {
+      return Promise.resolve(successfulStudentBookingsResponse());
+    }
+    if (url.includes('/api/v1/rooms/availability')) {
+      return Promise.resolve(successfulStudentRoomAvailabilityResponse());
+    }
+    return Promise.resolve(
+      new Response(JSON.stringify({ code: 'SUCCESS', message: 'success', data: {} }), {
+        headers: { 'Content-Type': 'application/json' },
+        status: 200
+      })
+    );
+  });
 
 const successfulStudentNotificationsReadResponse = () =>
   new Response(

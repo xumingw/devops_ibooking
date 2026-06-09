@@ -10,7 +10,9 @@ import type {
   AdminReportSnapshot,
   AdminScheduleSnapshot,
   AdminSystemParamSnapshot,
-  AdminViolationSnapshot
+  AdminViolationSnapshot,
+  RoomAvailabilitySummary,
+  RoomCatalogItem
 } from '@ibooking/shared-types';
 
 export type EntryKind = 'student' | 'admin';
@@ -279,17 +281,7 @@ type StudentRoomFavoriteSummary = {
   favorites?: StudentRoomFavoriteRecord[];
 };
 
-type StudentRoomAvailabilityRecord = {
-  roomId: string;
-  totalSeats: number;
-  availableSeats: number;
-};
-
-type StudentRoomAvailabilitySummary = {
-  totalSeats: number;
-  availableSeats: number;
-  rooms: StudentRoomAvailabilityRecord[];
-};
+type StudentRoomAvailabilitySummary = RoomAvailabilitySummary;
 
 type StudentWeekdayLabel = '一' | '二' | '三' | '四' | '五' | '六' | '日';
 
@@ -1066,6 +1058,36 @@ export const requestStudentHomeSummary = async (
   return payload.data;
 };
 
+export const requestRoomCatalog = async (
+  accessToken: string,
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl(),
+  authOptions: AuthenticatedRequestOptions = {}
+): Promise<RoomCatalogItem[]> => {
+  const response = await fetchWithSessionRefresh(
+    accessToken,
+    (nextAccessToken) =>
+      fetcher(`${apiBaseUrl}/api/v1/rooms/catalog`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${nextAccessToken}` }
+      }),
+    fetcher,
+    apiBaseUrl,
+    authOptions
+  );
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: RoomCatalogItem[];
+  } | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || !Array.isArray(payload.data)) {
+    throw new Error(payload?.message || '自习室目录加载失败');
+  }
+
+  return payload.data;
+};
+
 export const requestStudentRoomAvailability = async (
   accessToken: string,
   input: { startAt: string; endAt: string },
@@ -1077,7 +1099,7 @@ export const requestStudentRoomAvailability = async (
   const response = await fetchWithSessionRefresh(
     accessToken,
     (nextAccessToken) =>
-      fetcher(`${apiBaseUrl}/api/v1/students/me/rooms/availability?${params.toString()}`, {
+      fetcher(`${apiBaseUrl}/api/v1/rooms/availability?${params.toString()}`, {
         method: 'GET',
         credentials: 'include',
         headers: { Authorization: `Bearer ${nextAccessToken}` }
@@ -2240,6 +2262,12 @@ const ADMIN_VIOLATION_STATUS_META = {
 
 const ADMIN_VIOLATION_FILTERS = ['今日', '全部原因', '全部状态'] as const;
 
+const formatAdminRecordCode = (value: string) => {
+  const normalized = value.trim();
+  if (normalized.length <= 20) return normalized;
+  return `${normalized.slice(0, 8)}…${normalized.slice(-6)}`;
+};
+
 const ADMIN_DYNAMIC_CODE_STATUS_META = {
   active: { label: '正常', variant: 'green' },
   expiring: { label: '即将过期', variant: 'gold' },
@@ -2621,7 +2649,7 @@ const STUDENT_ROOM_LIST = [
     hours: '08:00–22:00',
     scope: '全校开放',
     tags: ['插座', '靠窗', '安静区'],
-    status: 'open'
+    resourceStatus: 'ACTIVE'
   },
   {
     id: 'room-science-201',
@@ -2633,7 +2661,7 @@ const STUDENT_ROOM_LIST = [
     hours: '00:00–24:00',
     scope: '全校开放',
     tags: ['24小时', '插座', '白板'],
-    status: 'open'
+    resourceStatus: 'ACTIVE'
   },
   {
     id: 'room-humanities-a',
@@ -2645,7 +2673,7 @@ const STUDENT_ROOM_LIST = [
     hours: '08:00–21:00',
     scope: '文理兼容',
     tags: ['靠窗', '低噪音'],
-    status: 'busy'
+    resourceStatus: 'ACTIVE'
   },
   {
     id: 'room-news-seminar',
@@ -2657,7 +2685,7 @@ const STUDENT_ROOM_LIST = [
     hours: '09:00–20:00',
     scope: '仅新闻学院',
     tags: ['白板', '投影'],
-    status: 'full'
+    resourceStatus: 'ACTIVE'
   },
   {
     id: 'room-science-403',
@@ -2669,7 +2697,7 @@ const STUDENT_ROOM_LIST = [
     hours: '08:00–23:00',
     scope: '全校开放',
     tags: ['插座', '安静区'],
-    status: 'open'
+    resourceStatus: 'ACTIVE'
   },
   {
     id: 'room-library-zone',
@@ -2681,20 +2709,9 @@ const STUDENT_ROOM_LIST = [
     hours: '08:00–22:00',
     scope: '全校开放',
     tags: ['插座', '靠窗', '安静区'],
-    status: 'open'
+    resourceStatus: 'ACTIVE'
   }
-] satisfies Array<{
-  id: string;
-  name: string;
-  building: string;
-  floor: string;
-  capacity: number;
-  available: number;
-  hours: string;
-  scope: string;
-  tags: string[];
-  status: 'open' | 'busy' | 'full';
-}>;
+] satisfies Array<RoomCatalogItem & { available: number }>;
 
 const STUDENT_ROOM_STATUS_META = {
   open: { label: '开放中', variant: 'green' },
@@ -2702,6 +2719,11 @@ const STUDENT_ROOM_STATUS_META = {
   full: { label: '已满座', variant: 'red' }
 } as const;
 type StudentRoomStatus = keyof typeof STUDENT_ROOM_STATUS_META;
+type StudentRoomCatalogSource = RoomCatalogItem & { available?: number };
+type StudentRoomListItem = RoomCatalogItem & {
+  available: number;
+  status: StudentRoomStatus;
+};
 const getStudentRoomAvailabilityStatus = (
   available: number,
   capacity: number
@@ -2778,8 +2800,11 @@ const STUDENT_ROOM_ID_BY_NAME: Record<string, string> = {
 const resolveStudentRoomId = (roomName: string) =>
   STUDENT_ROOM_ID_BY_NAME[roomName] ?? `room-${roomName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 
-const normalizeStudentRoomFavoriteIds = (summary: StudentRoomFavoriteSummary) => {
-  const knownRoomIds = new Set(STUDENT_ROOM_LIST.map((room) => room.id));
+const normalizeStudentRoomFavoriteIds = (
+  summary: StudentRoomFavoriteSummary,
+  rooms: readonly Pick<RoomCatalogItem, 'id' | 'name'>[] = STUDENT_ROOM_LIST
+) => {
+  const knownRoomIds = new Set(rooms.map((room) => room.id));
   const favoriteIds = new Set<string>();
 
   (summary.favoriteRoomIds ?? []).forEach((roomId) => {
@@ -2797,10 +2822,13 @@ const normalizeStudentRoomFavoriteIds = (summary: StudentRoomFavoriteSummary) =>
   return Array.from(favoriteIds);
 };
 
-const formatStudentFavoriteRoomSummary = (favoriteRoomIds: string[]) => {
+const formatStudentFavoriteRoomSummary = (
+  favoriteRoomIds: string[],
+  rooms: readonly Pick<RoomCatalogItem, 'id' | 'building'>[] = STUDENT_ROOM_LIST
+) => {
   if (favoriteRoomIds.length === 0) return '暂无收藏自习室';
   const roomNames = favoriteRoomIds
-    .map((roomId) => STUDENT_ROOM_LIST.find((room) => room.id === roomId)?.building)
+    .map((roomId) => rooms.find((room) => room.id === roomId)?.building)
     .filter((building): building is string => Boolean(building));
   return Array.from(new Set(roomNames)).slice(0, 3).join(' · ') || '已收藏自习室';
 };
@@ -2876,8 +2904,24 @@ const parseStudentRoomSeatCounts = (seats: string) => {
   };
 };
 
+const createStudentRoomListItem = (
+  room: StudentRoomCatalogSource,
+  stats?: { totalSeats?: number; availableSeats?: number },
+  availabilityById: Record<string, number> = {}
+): StudentRoomListItem => {
+  const capacity = stats?.totalSeats ?? room.capacity;
+  const fallbackAvailable = room.available ?? capacity;
+  const available = stats?.availableSeats ?? availabilityById[room.id] ?? fallbackAvailable;
+  return {
+    ...room,
+    capacity,
+    available,
+    status: getStudentRoomAvailabilityStatus(available, capacity)
+  };
+};
+
 const createStudentSeatRoomContextFromRoom = (
-  room: (typeof STUDENT_ROOM_LIST)[number]
+  room: StudentRoomListItem
 ): StudentSeatRoomContext => ({
   name: room.name,
   location: `${room.building} · ${room.floor}`,
@@ -2897,7 +2941,7 @@ const createStudentSeatRoomContextFromRecommendedRoom = (
   const matchedRoom = STUDENT_ROOM_LIST.find(
     (candidate) => candidate.id === roomId || candidate.name === room.name
   );
-  if (matchedRoom) return createStudentSeatRoomContextFromRoom(matchedRoom);
+  if (matchedRoom) return createStudentSeatRoomContextFromRoom(createStudentRoomListItem(matchedRoom));
 
   const seatCounts = parseStudentRoomSeatCounts(room.seats);
   return {
@@ -2918,7 +2962,7 @@ const createStudentSeatRoomContextFromName = (roomName: string): StudentSeatRoom
   const matchedRoom = STUDENT_ROOM_LIST.find(
     (room) => normalizedRoomName.includes(room.name) || room.name.includes(normalizedRoomName)
   );
-  if (matchedRoom) return createStudentSeatRoomContextFromRoom(matchedRoom);
+  if (matchedRoom) return createStudentSeatRoomContextFromRoom(createStudentRoomListItem(matchedRoom));
   return {
     ...DEFAULT_STUDENT_SEAT_ROOM_CONTEXT,
     name: normalizedRoomName || roomName,
@@ -3076,7 +3120,11 @@ const createStudentRoomSearchTimeState = (
   endTime: string;
 } => {
   const bookableStartTimes = getStudentRoomBookableStartTimes(dateLabel, now);
-  const normalizedDate = bookableStartTimes.length > 0 ? dateLabel : '明天';
+  const shouldPreferTomorrow =
+    dateLabel === '今天' &&
+    !(bookableStartTimes as readonly string[]).includes(preferredStart) &&
+    getStudentShanghaiCurrentSlotStartMinutes(now) >= STUDENT_ROOM_DEFAULT_CLOSE_MINUTES;
+  const normalizedDate = bookableStartTimes.length > 0 && !shouldPreferTomorrow ? dateLabel : '明天';
   const normalizedStartTimes = getStudentRoomBookableStartTimes(normalizedDate, now);
   const startTime = (normalizedStartTimes as readonly string[]).includes(preferredStart)
     ? preferredStart
@@ -3168,7 +3216,7 @@ const mapStudentRoomTotalSeatsById = (summary: StudentRoomAvailabilitySummary) =
   );
 
 const isStudentRoomOpenForTime = (
-  room: (typeof STUDENT_ROOM_LIST)[number],
+  room: Pick<RoomCatalogItem, 'hours'>,
   startClock: string,
   endClock: string
 ) => {
@@ -3194,12 +3242,12 @@ const isStudentRoomOpenForTime = (
 const formatStudentRoomBookingTime = (startClock: string, endClock: string) =>
   `${startClock} – ${endClock}（${formatStudentBookingDurationLabel(startClock, endClock)}）`;
 
-type StudentRoomWithContext = (typeof STUDENT_ROOM_LIST)[number] & {
+type StudentRoomWithContext = StudentRoomListItem & {
   roomContext: StudentSeatRoomContext;
 };
 
-const groupStudentRoomsByBuilding = () =>
-  STUDENT_ROOM_LIST.map((room) => ({
+const groupStudentRoomsByBuilding = (rooms: StudentRoomListItem[]) =>
+  rooms.map((room) => ({
     ...room,
     roomContext: createStudentSeatRoomContextFromRoom(room)
   })).reduce(
@@ -4893,7 +4941,11 @@ function DashboardOverview({
               <div className="room-status-row" data-status={room.status} key={room.name}>
                 <div>
                   <span>{room.name}</span>
-                  <strong>{room.status === 'closed' ? '已关闭' : `${room.pct}%`}</strong>
+                  <strong>
+                    {room.status === 'closed'
+                      ? '已关闭'
+                      : `${room.availableSeats} 空余 / ${room.totalSeats}`}
+                  </strong>
                 </div>
                 <div className="room-status-bar">
                   <i style={{ width: `${room.pct}%` }} />
@@ -6301,15 +6353,33 @@ function ViolationRecordsPanel({
               const status = ADMIN_VIOLATION_STATUS_META[record.status];
               return (
                 <div className="violation-records-table-row" key={record.id}>
-                  <strong>{record.id}</strong>
-                  <span>{record.bookingId}</span>
-                  <span>{record.student}</span>
-                  <span>{record.uid}</span>
-                  <span>{record.room}</span>
-                  <span>{record.seat}</span>
-                  <span>{record.reason}</span>
-                  <span>{record.action}</span>
-                  <span>{record.occurred}</span>
+                  <strong className="violation-records-cell" title={record.id}>
+                    {formatAdminRecordCode(record.id)}
+                  </strong>
+                  <span className="violation-records-cell" title={record.bookingId}>
+                    {formatAdminRecordCode(record.bookingId)}
+                  </span>
+                  <span className="violation-records-cell" title={record.student}>
+                    {record.student}
+                  </span>
+                  <span className="violation-records-cell" title={record.uid}>
+                    {record.uid}
+                  </span>
+                  <span className="violation-records-cell" title={record.room}>
+                    {record.room}
+                  </span>
+                  <span className="violation-records-cell" title={record.seat}>
+                    {record.seat}
+                  </span>
+                  <span className="violation-records-cell" title={record.reason}>
+                    {record.reason}
+                  </span>
+                  <span className="violation-records-cell" title={record.action}>
+                    {record.action}
+                  </span>
+                  <span className="violation-records-cell" title={record.occurred}>
+                    {record.occurred}
+                  </span>
                   <span>
                     <mark data-variant={status.variant}>{status.label}</mark>
                   </span>
@@ -7381,6 +7451,7 @@ export function StudentHomePreview({
         : getStudentBookingFallbackSummary()
   );
   const [studentHomeSummary, setStudentHomeSummary] = useState<StudentHomeSummary | null>(null);
+  const [studentRoomCatalog, setStudentRoomCatalog] = useState<RoomCatalogItem[]>([]);
   const [checkInNotice, setCheckInNotice] = useState('');
   const [studentActionNotice, setStudentActionNotice] = useState('');
   const [notificationMarkingRead, setNotificationMarkingRead] = useState(false);
@@ -7421,7 +7492,7 @@ export function StudentHomePreview({
   const studentHomeFavoriteCount = studentHomeSummary?.favoriteRooms?.length ?? favoriteRoomIds.length;
   const studentHomeFavoriteSummary = studentHomeSummary
     ? formatStudentFavoriteRoomNameSummary(studentHomeSummary.favoriteRooms ?? [])
-    : formatStudentFavoriteRoomSummary(favoriteRoomIds);
+    : formatStudentFavoriteRoomSummary(favoriteRoomIds, studentRoomCatalog.length > 0 ? studentRoomCatalog : STUDENT_ROOM_LIST);
   const studentHomeWeekRecords =
     studentHomeSummary?.weekRecords ??
     STUDENT_WEEK_RECORDS.map(([day, hours]) => ({ day, hours }));
@@ -7476,6 +7547,40 @@ export function StudentHomePreview({
     }
     return stat;
   });
+  const studentHomeRecommendedRooms = useMemo(() => {
+    if (studentRoomCatalog.length > 0) {
+      const tones = [F.navy, '#3A6FA8', '#C8820A'];
+      return studentRoomCatalog.slice(0, 3).map((room, index) => {
+        const hasStats =
+          studentRoomCapacityById[room.id] !== undefined ||
+          studentRoomAvailabilityById[room.id] !== undefined;
+        const roomView = createStudentRoomListItem(
+          room,
+          hasStats
+            ? {
+                totalSeats: studentRoomCapacityById[room.id],
+                availableSeats: studentRoomAvailabilityById[room.id]
+              }
+            : undefined,
+          studentRoomAvailabilityById
+        );
+        return {
+          name: roomView.name,
+          location: `${roomView.building} ${roomView.floor}`,
+          seats: `${roomView.available} / ${roomView.capacity}`,
+          status: STUDENT_ROOM_STATUS_META[roomView.status].label,
+          tags: roomView.tags,
+          tone: tones[index % tones.length],
+          roomContext: createStudentSeatRoomContextFromRoom(roomView)
+        };
+      });
+    }
+
+    return STUDENT_RECOMMENDED_ROOMS.map((room) => ({
+      ...room,
+      roomContext: createStudentSeatRoomContextFromRecommendedRoom(room)
+    }));
+  }, [studentRoomAvailabilityById, studentRoomCapacityById, studentRoomCatalog]);
   const handleStudentBookingSummaryChange = useCallback((nextSummary: StudentBookingSummaryView) => {
     setStudentBookingSummary(nextSummary);
     if (Object.keys(studentRoomCapacityById).length > 0) return;
@@ -7488,6 +7593,29 @@ export function StudentHomePreview({
       pushAppPath('/student/rooms');
     }
   }, []);
+
+  useEffect(() => {
+    let alive = true;
+    if (!accessToken) return () => {
+      alive = false;
+    };
+
+    requestRoomCatalog(accessToken, fetch, resolveApiBaseUrl(), {
+      onSessionExpired,
+      onSessionRefresh
+    })
+      .then((catalog) => {
+        if (!alive) return;
+        setStudentRoomCatalog(catalog);
+      })
+      .catch(() => {
+        // 登录态目录接口短暂不可用时保留兜底列表，避免页面空白。
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [accessToken, onSessionExpired, onSessionRefresh]);
 
   useEffect(() => {
     let alive = true;
@@ -7531,7 +7659,12 @@ export function StudentHomePreview({
       .then((nextSummary) => {
         if (!alive) return;
         setStudentHomeSummary(nextSummary);
-        setFavoriteRoomIds(normalizeStudentRoomFavoriteIds({ favorites: nextSummary.favoriteRooms }));
+        setFavoriteRoomIds(
+          normalizeStudentRoomFavoriteIds(
+            { favorites: nextSummary.favoriteRooms },
+            studentRoomCatalog.length > 0 ? studentRoomCatalog : STUDENT_ROOM_LIST
+          )
+        );
       })
       .catch(() => {
         // 首页保留本地兜底指标，避免概览接口短暂不可用时空白。
@@ -7540,7 +7673,7 @@ export function StudentHomePreview({
     return () => {
       alive = false;
     };
-  }, [accessToken, activeMenu, onSessionExpired, onSessionRefresh]);
+  }, [accessToken, activeMenu, onSessionExpired, onSessionRefresh, studentRoomCatalog]);
 
   useEffect(() => {
     let alive = true;
@@ -7733,10 +7866,16 @@ export function StudentHomePreview({
       records: [createdRecord, ...current.records.filter((record) => record.id !== booking.id)]
     }));
     const roomId = resolveStudentRoomId(booking.room);
-    const sourceRoom = STUDENT_ROOM_LIST.find((room) => room.id === roomId);
+    const sourceRoom =
+      studentRoomCatalog.find((room) => room.id === roomId) ??
+      STUDENT_ROOM_LIST.find((room) => room.id === roomId);
     if (!sourceRoom) return;
     setStudentRoomAvailabilityById((current) => {
-      const currentAvailable = current[roomId] ?? sourceRoom.available;
+      const fallbackAvailable =
+        'available' in sourceRoom && typeof sourceRoom.available === 'number'
+          ? sourceRoom.available
+          : sourceRoom.capacity;
+      const currentAvailable = current[roomId] ?? fallbackAvailable;
       return {
         ...current,
         [roomId]: Math.max(0, currentAvailable - 1)
@@ -7772,11 +7911,17 @@ export function StudentHomePreview({
     }
 
     const roomId = resolveStudentRoomId(booking.room);
-    const sourceRoom = STUDENT_ROOM_LIST.find((room) => room.id === roomId);
+    const sourceRoom =
+      studentRoomCatalog.find((room) => room.id === roomId) ??
+      STUDENT_ROOM_LIST.find((room) => room.id === roomId);
     if (!sourceRoom) return;
     const capacity = studentRoomCapacityById[roomId] ?? sourceRoom.capacity;
     setStudentRoomAvailabilityById((current) => {
-      const currentAvailable = current[roomId] ?? sourceRoom.available;
+      const fallbackAvailable =
+        'available' in sourceRoom && typeof sourceRoom.available === 'number'
+          ? sourceRoom.available
+          : sourceRoom.capacity;
+      const currentAvailable = current[roomId] ?? fallbackAvailable;
       return {
         ...current,
         [roomId]: Math.min(capacity, currentAvailable + 1)
@@ -7800,7 +7945,9 @@ export function StudentHomePreview({
   };
   const pageSubtitleByMenu: Record<StudentMenuId, string> = {
     home: `${formatStudentHomeDateLabel(currentStudentNow)} · 学习空间实时状态`,
-    rooms: `按日期、时间、楼栋、楼层筛选 · 共 ${STUDENT_ROOM_LIST.length} 个自习室`,
+    rooms: `按日期、时间、楼栋、楼层筛选 · 共 ${
+      studentRoomCatalog.length > 0 ? studentRoomCatalog.length : STUDENT_ROOM_LIST.length
+    } 个自习室`,
     bookings: formatStudentBookingSubtitle(studentBookingSummary),
     checkin: '输入动态码或扫码完成签到',
     assistant: '自然语言找座 · 预约管理 · 政策咨询',
@@ -8001,6 +8148,7 @@ export function StudentHomePreview({
             availabilityById={studentRoomAvailabilityById}
             favoriteRoomIds={favoriteRoomIds}
             initialFilter={roomInitialFilter}
+            roomCatalog={studentRoomCatalog}
             onBookRoom={(room, bookingOptions) =>
               handleStudentRoomBook(
                 createStudentSeatRoomContextFromRoom(room),
@@ -8204,58 +8352,32 @@ export function StudentHomePreview({
               </button>
             </header>
             <div className="student-home-room-list">
-              {STUDENT_RECOMMENDED_ROOMS.map((room) => {
-                const sourceRoomId = resolveStudentRoomId(room.name);
-                const sourceRoom = STUDENT_ROOM_LIST.find(
-                  (candidate) => candidate.id === sourceRoomId || candidate.name === room.name
-                );
-                const available = sourceRoom
-                  ? studentRoomAvailabilityById[sourceRoom.id] ?? sourceRoom.available
-                  : null;
-                const capacity = sourceRoom
-                  ? studentRoomCapacityById[sourceRoom.id] ?? sourceRoom.capacity
-                  : null;
-                const roomStatus =
-                  available !== null && capacity !== null
-                    ? STUDENT_ROOM_STATUS_META[getStudentRoomAvailabilityStatus(available, capacity)].label
-                    : room.status;
-                const seatLabel =
-                  sourceRoom && available !== null && capacity !== null
-                    ? `${available} / ${capacity}`
-                    : room.seats;
-
-                return (
-                  <article className="dashboard-card student-home-room-card" key={room.name}>
-                    <span className="student-home-room-icon" style={{ color: room.tone }}>
-                      <DashboardIcon name="building" size={18} />
-                    </span>
-                    <div className="student-home-room-info">
-                      <strong>{room.name}</strong>
-                      <small>
-                        <DashboardIcon name="pin" size={11} />
-                        {room.location}
-                      </small>
-                    </div>
-                    <div className="student-home-room-tags">
-                      {room.tags.map((tag) => (
-                        <span key={tag}>{tag}</span>
-                      ))}
-                    </div>
-                    <div className="student-home-room-seats">
-                      <strong>{seatLabel}</strong>
-                      <small>{roomStatus}</small>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleStudentRoomBook(createStudentSeatRoomContextFromRecommendedRoom(room))
-                      }
-                    >
-                      去预约
-                    </button>
-                  </article>
-                );
-              })}
+              {studentHomeRecommendedRooms.map((room) => (
+                <article className="dashboard-card student-home-room-card" key={room.name}>
+                  <span className="student-home-room-icon" style={{ color: room.tone }}>
+                    <DashboardIcon name="building" size={18} />
+                  </span>
+                  <div className="student-home-room-info">
+                    <strong>{room.name}</strong>
+                    <small>
+                      <DashboardIcon name="pin" size={11} />
+                      {room.location}
+                    </small>
+                  </div>
+                  <div className="student-home-room-tags">
+                    {room.tags.map((tag) => (
+                      <span key={tag}>{tag}</span>
+                    ))}
+                  </div>
+                  <div className="student-home-room-seats">
+                    <strong>{room.seats}</strong>
+                    <small>{room.status}</small>
+                  </div>
+                  <button type="button" onClick={() => handleStudentRoomBook(room.roomContext)}>
+                    去预约
+                  </button>
+                </article>
+              ))}
             </div>
           </section>
 
@@ -8317,6 +8439,7 @@ function StudentRoomsPanel({
   initialFilter = '全部楼栋',
   onBookRoom,
   onFavoriteRoomIdsChange,
+  roomCatalog = [],
   onSessionExpired,
   onSessionRefresh,
   onWaitlist
@@ -8326,13 +8449,14 @@ function StudentRoomsPanel({
   favoriteRoomIds?: string[];
   initialFilter?: StudentRoomFilter;
   onBookRoom?: (
-    room: (typeof STUDENT_ROOM_LIST)[number],
+    room: StudentRoomListItem,
     bookingOptions: { dateLabel: string; time: string }
   ) => void;
   onFavoriteRoomIdsChange?: (favoriteRoomIds: string[]) => void;
+  roomCatalog?: RoomCatalogItem[];
   onSessionExpired?: () => void;
   onSessionRefresh?: (session: SessionView) => void;
-  onWaitlist?: (room: (typeof STUDENT_ROOM_LIST)[number]) => void;
+  onWaitlist?: (room: StudentRoomListItem) => void;
 }) {
   const [activeFilter, setActiveFilter] = useState<StudentRoomFilter>(initialFilter);
   const [activeBuilding, setActiveBuilding] = useState('');
@@ -8354,24 +8478,19 @@ function StudentRoomsPanel({
   const [roomAvailabilitySummary, setRoomAvailabilitySummary] =
     useState<StudentRoomAvailabilitySummary | null>(null);
   const [searchNotice, setSearchNotice] = useState('');
+  const sourceRooms: StudentRoomCatalogSource[] =
+    roomCatalog.length > 0 ? roomCatalog : STUDENT_ROOM_LIST;
   const rooms = useMemo(
     () =>
-      STUDENT_ROOM_LIST.map((room) => {
+      sourceRooms.map((room) => {
         const roomStats = (roomAvailabilitySummary?.rooms ?? []).find(
           (candidate) => candidate.roomId === room.id
         );
-        const capacity = roomStats?.totalSeats ?? room.capacity;
-        const available = roomStats?.availableSeats ?? availabilityById[room.id] ?? room.available;
-        return {
-          ...room,
-          capacity,
-          available,
-          status: getStudentRoomAvailabilityStatus(available, capacity)
-        };
+        return createStudentRoomListItem(room, roomStats, availabilityById);
       }),
-    [availabilityById, roomAvailabilitySummary]
+    [availabilityById, roomAvailabilitySummary, sourceRooms]
   );
-  const roomTree = useMemo(groupStudentRoomsByBuilding, []);
+  const roomTree = useMemo(() => groupStudentRoomsByBuilding(rooms), [rooms]);
   const buildingOptions = roomTree.map((building) => building.building);
   const floorOptions = useMemo(() => {
     const floors = activeBuilding
@@ -8427,7 +8546,7 @@ function StudentRoomsPanel({
     })
       .then((summary) => {
         if (!ignore) {
-          const nextFavoriteRoomIds = normalizeStudentRoomFavoriteIds(summary);
+          const nextFavoriteRoomIds = normalizeStudentRoomFavoriteIds(summary, sourceRooms);
           setLocalFavoriteRoomIds(nextFavoriteRoomIds);
           onFavoriteRoomIdsChange?.(nextFavoriteRoomIds);
         }
@@ -8439,7 +8558,7 @@ function StudentRoomsPanel({
     return () => {
       ignore = true;
     };
-  }, [accessToken, onFavoriteRoomIdsChange, onSessionExpired, onSessionRefresh]);
+  }, [accessToken, onFavoriteRoomIdsChange, onSessionExpired, onSessionRefresh, sourceRooms]);
 
   useEffect(() => {
     if (!accessToken) {
@@ -8537,7 +8656,7 @@ function StudentRoomsPanel({
     );
   };
 
-  const handleFavoriteToggle = (room: (typeof STUDENT_ROOM_LIST)[number]) => {
+  const handleFavoriteToggle = (room: StudentRoomListItem) => {
     const isFavorite = favoriteRoomIds.includes(room.id);
     const previousFavoriteRoomIds = favoriteRoomIds;
     const nextFavoriteRoomIds = isFavorite
@@ -8552,9 +8671,9 @@ function StudentRoomsPanel({
     requestStudentRoomFavoriteSet(accessToken, room.id, !isFavorite, fetch, resolveApiBaseUrl(), {
       onSessionExpired,
       onSessionRefresh
-    })
+      })
       .then((summary) => {
-        const nextServerFavoriteRoomIds = normalizeStudentRoomFavoriteIds(summary);
+        const nextServerFavoriteRoomIds = normalizeStudentRoomFavoriteIds(summary, sourceRooms);
         setLocalFavoriteRoomIds(nextServerFavoriteRoomIds);
         onFavoriteRoomIdsChange?.(nextServerFavoriteRoomIds);
       })

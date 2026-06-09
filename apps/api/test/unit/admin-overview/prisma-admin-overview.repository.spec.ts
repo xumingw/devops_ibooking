@@ -95,7 +95,11 @@ describe('PrismaAdminOverviewRepository', () => {
     ]);
     prisma.bookingSlot.count.mockResolvedValue(1);
     prisma.bookingSlot.findMany.mockResolvedValue([
-      { slotStart: new Date('2026-06-09T11:00:00.000Z'), booking: { roomId: 'room-gm-301' } }
+      {
+        slotStart: new Date('2026-06-09T12:00:00.000Z'),
+        seatId: 'seat-gm-301-01',
+        booking: { roomId: 'room-gm-301' }
+      }
     ]);
     prisma.booking.count.mockResolvedValueOnce(3).mockResolvedValueOnce(4).mockResolvedValueOnce(2);
     prisma.violation.count.mockResolvedValue(1);
@@ -206,6 +210,14 @@ describe('PrismaAdminOverviewRepository', () => {
         expect.objectContaining({ label: '当前在座人数', value: '1' })
       ])
     );
+    expect(snapshot.dashboard.roomStatuses[0]).toEqual(
+      expect.objectContaining({
+        name: '经管自习室 301',
+        totalSeats: 48,
+        occupiedSeats: 1,
+        availableSeats: 47
+      })
+    );
     expect(snapshot.bookings.records[0]).toEqual(
       expect.objectContaining({
         id: 'booking-admin-001',
@@ -275,7 +287,17 @@ function roomFixture(
     closeHour,
     overnight,
     status: 'ACTIVE',
-    seats: []
+    seats: Array.from({ length: capacity }, (_, index) => ({
+      id: `${id}-seat-${index + 1}`,
+      roomId: id,
+      code: `${index + 1}`,
+      x: 0,
+      y: 0,
+      hasPower: false,
+      nearWindow: false,
+      attributes: null,
+      status: 'ACTIVE'
+    }))
   };
 }
 

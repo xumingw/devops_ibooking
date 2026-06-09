@@ -2939,6 +2939,8 @@ button {
 }
 
 .violation-summary-icon .dashboard-icon {
+  width: 18px;
+  height: 18px;
   color: #ffffff;
 }
 
@@ -2951,7 +2953,7 @@ button {
   line-height: 1.1;
 }
 
-.violation-summary-card span {
+.violation-summary-card > div > span {
   display: block;
   margin-top: 3px;
   color: #4a6b64;
@@ -3069,9 +3071,20 @@ button {
 .violation-records-table-head,
 .violation-records-table-row {
   display: grid;
-  grid-template-columns: 0.8fr 0.88fr 0.72fr 0.85fr 0.78fr 0.42fr 1.3fr 0.72fr 0.9fr 0.66fr 1.35fr;
+  grid-template-columns:
+    minmax(124px, 0.9fr)
+    minmax(124px, 0.9fr)
+    minmax(72px, 0.62fr)
+    minmax(92px, 0.72fr)
+    minmax(116px, 0.9fr)
+    52px
+    minmax(72px, 0.64fr)
+    minmax(132px, 1fr)
+    94px
+    82px
+    168px;
   align-items: center;
-  min-width: 1120px;
+  min-width: 1220px;
   column-gap: 10px;
 }
 
@@ -3082,6 +3095,18 @@ button {
   color: #8aaaa4;
   font-size: 11px;
   font-weight: 800;
+}
+
+.violation-records-table-head > span,
+.violation-records-table-row > * {
+  min-width: 0;
+}
+
+.violation-records-table-head > span,
+.violation-records-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .violation-records-table-row {
@@ -3143,6 +3168,8 @@ button {
   display: flex;
   align-items: center;
   gap: 5px;
+  justify-content: flex-start;
+  white-space: nowrap;
 }
 
 .violation-records-actions button {
@@ -3237,6 +3264,8 @@ button {
 }
 
 .dynamic-code-summary-icon .dashboard-icon {
+  width: 18px;
+  height: 18px;
   color: #ffffff;
 }
 
@@ -3249,7 +3278,7 @@ button {
   line-height: 1.1;
 }
 
-.dynamic-code-summary-card span {
+.dynamic-code-summary-card > div > span {
   display: block;
   margin-top: 3px;
   color: #4a6b64;
@@ -3573,6 +3602,8 @@ button {
 }
 
 .user-management-summary-icon .dashboard-icon {
+  width: 18px;
+  height: 18px;
   color: #ffffff;
 }
 
@@ -3585,7 +3616,7 @@ button {
   line-height: 1.1;
 }
 
-.user-management-summary-card span {
+.user-management-summary-card > div > span {
   display: block;
   margin-top: 3px;
   color: #4a6b64;
@@ -3877,6 +3908,8 @@ button {
 }
 
 .role-management-summary-icon .dashboard-icon {
+  width: 18px;
+  height: 18px;
   color: #ffffff;
 }
 
@@ -3889,7 +3922,7 @@ button {
   line-height: 1.1;
 }
 
-.role-management-summary-card span {
+.role-management-summary-card > div > span {
   display: block;
   margin-top: 3px;
   color: #4a6b64;
@@ -4261,6 +4294,8 @@ button {
 }
 
 .system-parameter-summary-icon .dashboard-icon {
+  width: 18px;
+  height: 18px;
   color: #ffffff;
 }
 
@@ -4273,7 +4308,7 @@ button {
   line-height: 1.1;
 }
 
-.system-parameter-summary-card span {
+.system-parameter-summary-card > div > span {
   display: block;
   margin-top: 3px;
   color: #4a6b64;
@@ -4592,6 +4627,8 @@ button {
 }
 
 .audit-log-summary-icon .dashboard-icon {
+  width: 18px;
+  height: 18px;
   color: #ffffff;
 }
 
@@ -4604,7 +4641,7 @@ button {
   line-height: 1.1;
 }
 
-.audit-log-summary-card span {
+.audit-log-summary-card > div > span {
   display: block;
   margin-top: 3px;
   color: #4a6b64;
@@ -4931,7 +4968,7 @@ button {
   line-height: 1.1;
 }
 
-.data-reports-summary-card span {
+.data-reports-summary-card > div > span {
   display: block;
   margin-top: 3px;
   color: #4a6b64;
