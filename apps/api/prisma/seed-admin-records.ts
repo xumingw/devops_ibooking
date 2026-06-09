@@ -1,8 +1,20 @@
 import { BookingStatus, PrismaClient } from '@prisma/client';
+import { createStudentRoomSeatFixtures } from './seed-seat-fixtures';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SHANGHAI_OFFSET_MS = 8 * 60 * 60 * 1000;
 const SLOT_MS = 30 * 60 * 1000;
+const HEATMAP_HOUR_STARTS = Array.from({ length: 16 }, (_, index) => index + 6);
+const HEATMAP_MAX_PARALLEL_BOOKINGS = 120;
+const HEATMAP_ROOM_IDS = [
+  'room-gm-301',
+  'room-science-201',
+  'room-humanities-a',
+  'room-cs-lab-b',
+  'room-news-seminar',
+  'room-science-403',
+  'room-library-zone'
+] as const;
 
 const ADMIN_BOOKING_IDS = [
   'seed-admin-booking-now',
@@ -18,7 +30,7 @@ const ADMIN_BOOKING_IDS = [
   'seed-admin-booking-week-7'
 ];
 const HEATMAP_BOOKING_IDS = Array.from(
-  { length: 7 * 6 * 8 },
+  { length: 7 * HEATMAP_HOUR_STARTS.length * HEATMAP_MAX_PARALLEL_BOOKINGS },
   (_, index) => `seed-admin-heatmap-${String(index + 1).padStart(3, '0')}`
 );
 const SEEDED_BOOKING_IDS = [...ADMIN_BOOKING_IDS, ...HEATMAP_BOOKING_IDS];
@@ -173,29 +185,28 @@ async function seedCheckInCodes(prisma: PrismaClient, todayStart: Date) {
     ['code-library-zone-today', 'room-library-zone', '952701']
   ] as const;
 
-  await Promise.all(
-    codes.map(([id, roomId, code]) =>
-      prisma.checkInCode.upsert({
-        where: {
-          roomId_validAt: {
+  for (const [id, roomId, code] of codes) {
+    await prisma.checkInCode.deleteMany({
+      where: {
+        OR: [
+          { id },
+          {
             roomId,
             validAt: todayStart
           }
-        },
-        update: {
-          code,
-          expiresAt: tomorrowStart
-        },
-        create: {
-          id,
-          roomId,
-          code,
-          validAt: todayStart,
-          expiresAt: tomorrowStart
-        }
-      })
-    )
-  );
+        ]
+      }
+    });
+    await prisma.checkInCode.create({
+      data: {
+        id,
+        roomId,
+        code,
+        validAt: todayStart,
+        expiresAt: tomorrowStart
+      }
+    });
+  }
 }
 
 async function resetAdminBookings(prisma: PrismaClient) {
@@ -234,32 +245,36 @@ async function seedBookingSlots(
   }
 }
 
-function createHeatmapBookingInputs(input: {
+export function createHeatmapBookingInputs(input: {
   mondayStart: Date;
   now: Date;
   students: string[];
 }) {
-  const hourStarts = [8, 12, 14, 16, 18, 20];
-  const rooms = [
-    roomSeatPool('room-gm-301', 'seat-gm-301'),
-    roomSeatPool('room-science-201', 'seat-science-201'),
-    roomSeatPool('room-humanities-a', 'seat-humanities-a'),
-    roomSeatPool('room-cs-lab-b', 'seat-cs-lab-b'),
-    roomSeatPool('room-news-seminar', 'seat-news-seminar'),
-    roomSeatPool('room-science-403', 'seat-science-403'),
-    roomSeatPool('room-library-zone', 'seat-library-zone')
-  ];
+  const seats = createStudentRoomSeatFixtures(HEATMAP_ROOM_IDS).map((seat) => ({
+    roomId: seat.roomId,
+    seatId: seat.id
+  }));
+  const hourDensityProfile = [0.1, 0.16, 0.28, 0.38, 0.5, 0.6, 0.66, 0.72, 0.9, 0.96, 0.82, 0.74, 0.9, 1, 0.86, 0.58];
+  const dayDensityFactor = [0.78, 0.88, 0.96, 1, 1.08, 0.82, 0.68];
   let bookingIndex = 0;
 
   return Array.from({ length: 7 }).flatMap((_, dayIndex) =>
-    hourStarts.flatMap((hour, hourIndex) => {
+    HEATMAP_HOUR_STARTS.flatMap((hour, hourIndex) => {
       const slotStart = new Date(input.mondayStart.getTime() + dayIndex * DAY_MS + hour * 60 * 60 * 1000);
-      const density = ((dayIndex + 2) * (hourIndex + 3)) % 8;
-      const bookingCount = Math.max(1, density);
+      const targetCount = Math.round(
+        HEATMAP_MAX_PARALLEL_BOOKINGS *
+          (hourDensityProfile[hourIndex] ?? 0.4) *
+          (dayDensityFactor[dayIndex] ?? 0.8)
+      );
+      const bookingCount = Math.min(
+        HEATMAP_MAX_PARALLEL_BOOKINGS,
+        seats.length,
+        input.students.length,
+        Math.max(6, targetCount)
+      );
 
       return Array.from({ length: bookingCount }, (_, parallelIndex) => {
-        const room = rooms[(dayIndex + hourIndex + parallelIndex) % rooms.length];
-        const seatCode = room.seatCodes[(hourIndex * 2 + parallelIndex) % room.seatCodes.length];
+        const seat = seats[(dayIndex * 37 + hourIndex * 19 + parallelIndex) % seats.length];
         const startAt = new Date(slotStart);
         const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
         const status = endAt <= input.now ? 'COMPLETED' : startAt <= input.now ? 'CHECKED_IN' : 'PENDING_CHECKIN';
@@ -267,8 +282,8 @@ function createHeatmapBookingInputs(input: {
         return bookingInput({
           id,
           userId: input.students[(dayIndex * 11 + hourIndex * 7 + parallelIndex) % input.students.length],
-          roomId: room.roomId,
-          seatId: `${room.seatIdPrefix}-${seatCode.toLowerCase()}`,
+          roomId: seat.roomId,
+          seatId: seat.seatId,
           startAt,
           endAt,
           status
@@ -276,14 +291,6 @@ function createHeatmapBookingInputs(input: {
       });
     })
   );
-}
-
-function roomSeatPool(roomId: string, seatIdPrefix: string) {
-  return {
-    roomId,
-    seatIdPrefix,
-    seatCodes: ['A1', 'A2', 'A4', 'A6', 'A7', 'A8', 'B1', 'B2']
-  };
 }
 
 async function seedAuditLogs(prisma: PrismaClient, adminUserId: string, now: Date) {

@@ -130,24 +130,10 @@ async function main() {
   });
 
   const generatedStudentIds: string[] = [];
-  const generatedStudentNames = [
-    '赵一鸣',
-    '钱雨桐',
-    '孙嘉宁',
-    '李若溪',
-    '周子昂',
-    '吴思琪',
-    '郑文博',
-    '王语嫣',
-    '冯浩宇',
-    '陈若琳',
-    '褚明轩',
-    '卫诗涵',
-    '蒋晨曦',
-    '沈卓然',
-    '韩佳怡',
-    '杨知远'
-  ];
+  const generatedStudentNames = Array.from(
+    { length: 160 },
+    (_, index) => `演示学生${String(index + 1).padStart(3, '0')}`
+  );
   const generatedDepartments = [cs.id, economics.id, journalism.id];
   for (const [index, name] of generatedStudentNames.entries()) {
     const order = index + 1;

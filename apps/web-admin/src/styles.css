@@ -3397,9 +3397,17 @@ button {
 .dynamic-code-table-head,
 .dynamic-code-table-row {
   display: grid;
-  grid-template-columns: 1.25fr 0.9fr 0.95fr 0.9fr 0.82fr 0.72fr 0.7fr 1.45fr;
+  grid-template-columns:
+    minmax(148px, 1.25fr)
+    minmax(112px, 0.9fr)
+    minmax(112px, 0.95fr)
+    minmax(112px, 0.9fr)
+    minmax(104px, 0.82fr)
+    minmax(92px, 0.72fr)
+    minmax(92px, 0.7fr)
+    270px;
   align-items: center;
-  min-width: 1040px;
+  min-width: 1180px;
   column-gap: 10px;
 }
 
@@ -3475,21 +3483,25 @@ button {
 .dynamic-code-actions {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
+  white-space: nowrap;
 }
 
 .dynamic-code-actions button {
   height: 27px;
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   border: 1px solid #d8e8e5;
   border-radius: 7px;
-  padding: 0 7px;
+  padding: 0 10px;
   background: #fafefe;
   color: #2d7a6e;
   font-size: 11px;
   font-weight: 800;
+  white-space: nowrap;
   cursor: pointer;
 }
 
