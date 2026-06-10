@@ -4772,6 +4772,9 @@ export function AdminDashboard({
             loading={adminOverviewLoading}
             overview={adminOverview?.dashboard}
             error={adminOverviewError}
+            onViewAllBookings={
+              authorizedMenuSet.has('bookings') ? () => handleMenuChange('bookings') : undefined
+            }
           />
         ) : activeMenu === 'rooms' ? (
           <RoomManagementPanel
@@ -4880,11 +4883,16 @@ function AdminDataState({
   );
 }
 
+type DashboardOverviewProps = AdminDataPanelProps<AdminDashboardSnapshot> & {
+  onViewAllBookings?: () => void;
+};
+
 function DashboardOverview({
   error,
   loading,
+  onViewAllBookings,
   overview
-}: AdminDataPanelProps<AdminDashboardSnapshot>) {
+}: DashboardOverviewProps) {
   if (!overview) {
     return <AdminDataState error={error} loading={loading} label="管理仪表盘" />;
   }
@@ -4971,10 +4979,12 @@ function DashboardOverview({
         <section className="dashboard-card dashboard-booking-card">
           <header className="dashboard-card-title">
             <h2>最近预约记录</h2>
-            <button type="button">
-              查看全部
-              <DashboardIcon name="arrow-right" size={13} />
-            </button>
+            {onViewAllBookings ? (
+              <button type="button" onClick={onViewAllBookings}>
+                查看全部
+                <DashboardIcon name="arrow-right" size={13} />
+              </button>
+            ) : null}
           </header>
           <div className="booking-table">
             <div className="booking-table-head">
