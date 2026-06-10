@@ -8034,14 +8034,12 @@ function UserManagementPanel({
     setUserDialog({ type: 'create' });
     setUserForm(newAdminUserForm());
     setUserFormError('');
-    announceUserAction('已打开新增用户流程。');
   };
 
   const openImportUserDialog = () => {
     setUserDialog({ type: 'import' });
     setBulkUserText('');
     setUserFormError('');
-    announceUserAction('已准备导入名单流程。');
   };
 
   useEffect(() => {
@@ -8221,7 +8219,6 @@ function UserManagementPanel({
     setUserDialog({ type: 'assign', userId: user.id });
     setAssignRole(user.role.split('、')[0] || '学生');
     setUserFormError('');
-    announceUserAction(`已打开${user.name}的角色分配表单。`);
   };
 
   const handleSaveAssignedRole = async (event: FormEvent<HTMLFormElement>) => {
@@ -8720,7 +8717,6 @@ function RoleManagementPanel({
         : newAdminRoleForm()
     );
     setRoleFormError('');
-    announceRoleAction(sourceRole ? `已复制${sourceRole.name}为新角色草稿。` : '已打开新建角色流程。');
   };
 
   const openPermissionDialog = (role?: AdminRoleRow) => {
@@ -8739,7 +8735,6 @@ function RoleManagementPanel({
       menuKeys: getRoleEditableMenuKeys(targetRecord)
     });
     setRoleFormError('');
-    announceRoleAction(`已打开${targetRecord.name}权限分配流程。`);
   };
 
   useEffect(() => {

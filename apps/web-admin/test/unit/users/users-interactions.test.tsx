@@ -60,7 +60,8 @@ describe('users interactions', () => {
       toolbarCreateButton?.click();
       await Promise.resolve();
     });
-    expect(container.textContent).toContain('用户管理：已打开新增用户流程。');
+    expect(container.textContent).toContain('新增用户');
+    expect(container.textContent).not.toContain('用户管理：已打开新增用户流程。');
 
     const topbarImportButton = Array.from(
       container.querySelectorAll<HTMLButtonElement>('.dashboard-actions button')
@@ -69,7 +70,8 @@ describe('users interactions', () => {
       topbarImportButton?.click();
       await Promise.resolve();
     });
-    expect(container.textContent).toContain('用户管理：已准备导入名单流程。');
+    expect(container.textContent).toContain('导入名单');
+    expect(container.textContent).not.toContain('用户管理：已准备导入名单流程。');
 
     const disableButton = Array.from(
       container.querySelectorAll<HTMLButtonElement>('.user-management-actions button')
