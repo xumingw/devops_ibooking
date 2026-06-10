@@ -137,6 +137,54 @@ describe('users interactions', () => {
     expect(container.textContent).toContain('周明');
   });
 
+  it('新增用户、导入名单和分配角色会真实更新用户列表', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((input) => {
+      const url = String(input);
+      return Promise.resolve(url.includes('/users') ? successfulMixedUsersResponse() : successfulAdminOverviewResponse());
+    });
+    vi.stubGlobal('fetch', fetcher);
+    window.history.pushState(null, '', '/dashboard/users');
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(
+        <AdminDashboard
+          accessToken="admin-token"
+          adminName="系统管理员"
+          initialActive="users"
+          initialAdminOverview={adminOverviewFixture()}
+        />
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await clickByText('新增用户');
+    expect(container.textContent).toContain('新增用户');
+    await fillByLabel('用户姓名', '赵新雨');
+    await fillByLabel('登录账号', 'stu_new_01');
+    await selectFilter('用户院系', '新闻学院');
+    await selectFilter('用户角色', '学生');
+    await clickByText('保存用户');
+    expect(container.textContent).toContain('赵新雨');
+    expect(container.textContent).toContain('stu_new_01');
+    expect(container.textContent).toContain('4当前展示按搜索条件实时过滤');
+
+    await clickByText('导入名单');
+    await fillByLabel('名单内容', '钱导入,stu_import_01,经济学院,学生\n孙审计,audit_import,未分配,数据审计员');
+    await clickByText('导入用户');
+    expect(container.textContent).toContain('钱导入');
+    expect(container.textContent).toContain('孙审计');
+    expect(container.textContent).toContain('6当前展示按搜索条件实时过滤');
+
+    await clickRowButton('林晓明', '分配角色');
+    await selectFilter('分配角色', '数据审计员');
+    await clickByText('保存角色');
+    expect(findRowText('林晓明')).toContain('数据审计员');
+  });
+
   async function selectFilter(label: string, value: string) {
     const select = Array.from(container?.querySelectorAll<HTMLSelectElement>('select') ?? []).find(
       (candidate) => candidate.getAttribute('aria-label') === label
@@ -147,6 +195,50 @@ describe('users interactions', () => {
       select!.dispatchEvent(new Event('change', { bubbles: true }));
       await Promise.resolve();
     });
+  }
+
+  async function fillByLabel(label: string, value: string) {
+    const input = Array.from(
+      container?.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea') ?? []
+    ).find((candidate) => candidate.getAttribute('aria-label') === label);
+    expect(input, `missing input: ${label}`).toBeTruthy();
+    await act(async () => {
+      input!.value = value;
+      input!.dispatchEvent(new Event('input', { bubbles: true }));
+      await Promise.resolve();
+    });
+  }
+
+  async function clickByText(label: string) {
+    const button = Array.from(container?.querySelectorAll<HTMLButtonElement>('button') ?? []).find(
+      (candidate) => candidate.textContent?.includes(label)
+    );
+    expect(button, `missing button: ${label}`).toBeTruthy();
+    await act(async () => {
+      button?.click();
+      await Promise.resolve();
+    });
+  }
+
+  async function clickRowButton(rowText: string, buttonText: string) {
+    const row = Array.from(container?.querySelectorAll<HTMLElement>('.user-management-table-row') ?? []).find(
+      (candidate) => candidate.textContent?.includes(rowText)
+    );
+    expect(row, `missing row: ${rowText}`).toBeTruthy();
+    const button = Array.from(row!.querySelectorAll<HTMLButtonElement>('button')).find((candidate) =>
+      candidate.textContent?.includes(buttonText)
+    );
+    expect(button, `missing row button: ${buttonText}`).toBeTruthy();
+    await act(async () => {
+      button?.click();
+      await Promise.resolve();
+    });
+  }
+
+  function findRowText(rowText: string) {
+    return Array.from(container?.querySelectorAll<HTMLElement>('.user-management-table-row') ?? []).find(
+      (candidate) => candidate.textContent?.includes(rowText)
+    )?.textContent;
   }
 });
 

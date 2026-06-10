@@ -182,6 +182,19 @@ type AdminUserRow = {
   status: 'active' | 'disabled';
 };
 
+type AdminUserFormState = {
+  name: string;
+  account: string;
+  department: string;
+  role: string;
+  status: 'active' | 'disabled';
+};
+
+type AdminUserDialog =
+  | { type: 'create' }
+  | { type: 'import' }
+  | { type: 'assign'; userId: string };
+
 type AdminRolePermission = {
   id: string;
   code: string;
@@ -214,6 +227,17 @@ type AdminRoleRow = {
   status: 'active' | 'pending' | 'disabled';
   searchText: string;
 };
+
+type AdminRoleFormState = {
+  id?: string;
+  name: string;
+  code: string;
+  menuKeys: AdminMenuId[];
+};
+
+type AdminRoleDialog =
+  | { type: 'create' }
+  | { type: 'permissions'; roleId: string };
 
 type StudentViolationStatus = 'confirmed' | 'appealed';
 
@@ -2461,6 +2485,17 @@ const ADMIN_USER_STATUS_META = {
   disabled: { label: '停用', variant: 'red' }
 } as const;
 
+const ADMIN_USER_DEPARTMENT_OPTIONS = ['计算机学院', '经济学院', '新闻学院', '未分配'] as const;
+const ADMIN_USER_ROLE_OPTIONS = ['学生', '自习室管理员', '数据审计员', '超级管理员'] as const;
+
+const newAdminUserForm = (): AdminUserFormState => ({
+  name: '',
+  account: '',
+  department: '计算机学院',
+  role: '学生',
+  status: 'active'
+});
+
 const formatAdminUserUpdatedAt = (updatedAt?: string) => {
   if (!updatedAt) return '未记录';
   const date = new Date(updatedAt);
@@ -2484,6 +2519,50 @@ const toAdminUserRow = (user: AdminUser): AdminUserRow => ({
   source: getAdminUserSource(user),
   lastUpdated: formatAdminUserUpdatedAt(user.updatedAt),
   status: user.status === 'ACTIVE' ? 'active' : 'disabled'
+});
+
+const createLocalAdminUserRow = (
+  form: AdminUserFormState,
+  idPrefix = 'local-user'
+): AdminUserRow => ({
+  id: `${idPrefix}-${form.account}-${Date.now()}`,
+  name: form.name.trim(),
+  account: form.account.trim(),
+  department: form.department,
+  role: form.role,
+  source: form.role === '学生' ? '统一认证' : '后台创建',
+  lastUpdated: formatAdminUserUpdatedAt(new Date().toISOString()),
+  status: form.status
+});
+
+const newAdminRoleForm = (): AdminRoleFormState => ({
+  name: '',
+  code: '',
+  menuKeys: []
+});
+
+const getRoleEditableMenuKeys = (role: AdminRole): AdminMenuId[] => {
+  if (role.code === 'ROLE_FULL_ADMIN') return [...ADMIN_MENU_IDS];
+  return getRoleMenuKeys(role).filter((menuKey): menuKey is AdminMenuId =>
+    isAdminMenuId(menuKey)
+  );
+};
+
+const createRolePermissionsFromMenuKeys = (menuKeys: AdminMenuId[]): AdminRolePermission[] =>
+  menuKeys.map((menuKey) => ({
+    id: `local-perm-${menuKey}`,
+    code: `${menuKey}.read`,
+    name: `${ADMIN_MENU_META[menuKey].title}权限`,
+    menuKey
+  }));
+
+const createLocalRoleRecord = (form: AdminRoleFormState): AdminRole => ({
+  id: `local-role-${form.code.trim().toLowerCase()}-${Date.now()}`,
+  code: form.code.trim(),
+  name: form.name.trim(),
+  userCount: 0,
+  permissions: createRolePermissionsFromMenuKeys(form.menuKeys),
+  updatedAt: new Date().toISOString()
 });
 
 const ADMIN_ROLE_STATUS_META = {
@@ -7751,19 +7830,38 @@ function UserManagementPanel({
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [actionNotice, setActionNotice] = useState('');
+  const [userDialog, setUserDialog] = useState<AdminUserDialog | null>(null);
+  const [userForm, setUserForm] = useState<AdminUserFormState>(() => newAdminUserForm());
+  const [bulkUserText, setBulkUserText] = useState('');
+  const [assignRole, setAssignRole] = useState('学生');
+  const [userFormError, setUserFormError] = useState('');
 
   const announceUserAction = (message: string) => {
     setActionNotice(`用户管理：${message}`);
   };
 
+  const openCreateUserDialog = () => {
+    setUserDialog({ type: 'create' });
+    setUserForm(newAdminUserForm());
+    setUserFormError('');
+    announceUserAction('已打开新增用户流程。');
+  };
+
+  const openImportUserDialog = () => {
+    setUserDialog({ type: 'import' });
+    setBulkUserText('');
+    setUserFormError('');
+    announceUserAction('已准备导入名单流程。');
+  };
+
   useEffect(() => {
     if (actionSignal?.menu !== 'users') return;
     if (actionSignal.label === '新增用户') {
-      announceUserAction('已打开新增用户流程。');
+      openCreateUserDialog();
       return;
     }
     if (actionSignal.label === '导入名单') {
-      announceUserAction('已准备导入名单流程。');
+      openImportUserDialog();
       return;
     }
     announceUserAction(`${actionSignal.label}已触发。`);
@@ -7843,6 +7941,95 @@ function UserManagementPanel({
     announceUserAction(
       nextStatus === 'disabled' ? `已停用${user.name}。` : `已启用${user.name}。`
     );
+  };
+
+  const handleSaveUser = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!userForm.name.trim() || !userForm.account.trim()) {
+      setUserFormError('请填写用户姓名和登录账号');
+      return;
+    }
+    if (users.some((user) => user.account === userForm.account.trim())) {
+      setUserFormError('登录账号已存在');
+      return;
+    }
+    const nextUser = createLocalAdminUserRow(userForm);
+    setUsers((currentUsers) => [nextUser, ...currentUsers]);
+    setUserDialog(null);
+    setUserFormError('');
+    announceUserAction(`已新增用户${nextUser.name}。`);
+  };
+
+  const parseBulkUsers = () =>
+    bulkUserText
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [name = '', account = '', department = '未分配', role = '学生'] = line
+          .split(/[,，\t]/)
+          .map((part) => part.trim());
+        return { name, account, department, role };
+      })
+      .filter((item) => item.name && item.account);
+
+  const handleImportUsers = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const parsedUsers = parseBulkUsers();
+    if (parsedUsers.length === 0) {
+      setUserFormError('请按“姓名,账号,院系,角色”格式填写名单');
+      return;
+    }
+    const existingAccounts = new Set(users.map((user) => user.account));
+    const importedUsers = parsedUsers
+      .filter((user) => !existingAccounts.has(user.account))
+      .map((user) =>
+        createLocalAdminUserRow(
+          {
+            name: user.name,
+            account: user.account,
+            department: user.department || '未分配',
+            role: user.role || '学生',
+            status: 'active'
+          },
+          'import-user'
+        )
+      );
+    if (importedUsers.length === 0) {
+      setUserFormError('名单中的账号都已存在');
+      return;
+    }
+    setUsers((currentUsers) => [...importedUsers, ...currentUsers]);
+    setUserDialog(null);
+    setUserFormError('');
+    announceUserAction(`已导入 ${importedUsers.length} 个用户。`);
+  };
+
+  const openAssignRoleDialog = (user: AdminUserRow) => {
+    setUserDialog({ type: 'assign', userId: user.id });
+    setAssignRole(user.role.split('、')[0] || '学生');
+    setUserFormError('');
+    announceUserAction(`已打开${user.name}的角色分配表单。`);
+  };
+
+  const handleSaveAssignedRole = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (userDialog?.type !== 'assign') return;
+    const targetUser = users.find((user) => user.id === userDialog.userId);
+    setUsers((currentUsers) =>
+      currentUsers.map((user) =>
+        user.id === userDialog.userId
+          ? {
+              ...user,
+              role: assignRole,
+              source: assignRole === '学生' ? user.source : '后台创建',
+              lastUpdated: formatAdminUserUpdatedAt(new Date().toISOString())
+            }
+          : user
+      )
+    );
+    setUserDialog(null);
+    announceUserAction(`已将${targetUser?.name ?? '用户'}分配为${assignRole}。`);
   };
 
   const studentCount = users.filter((user) => user.source === '统一认证').length;
@@ -7966,12 +8153,12 @@ function UserManagementPanel({
         <button
           className="user-management-primary"
           type="button"
-          onClick={() => announceUserAction('已打开新增用户流程。')}
+          onClick={openCreateUserDialog}
         >
           <DashboardIcon name="users" size={13} />
           新增用户
         </button>
-        <button type="button" onClick={() => announceUserAction('已准备导入名单流程。')}>
+        <button type="button" onClick={openImportUserDialog}>
           <DashboardIcon name="download" size={13} />
           导入名单
         </button>
@@ -8018,7 +8205,7 @@ function UserManagementPanel({
                   <span className="user-management-actions">
                     <button
                       type="button"
-                      onClick={() => announceUserAction(`已打开${user.name}的角色分配流程。`)}
+                      onClick={() => openAssignRoleDialog(user)}
                     >
                       <DashboardIcon name="shield" size={12} />
                       分配角色
@@ -8066,6 +8253,193 @@ function UserManagementPanel({
           ))}
         </aside>
       </div>
+
+      {userDialog && (
+        <div className="room-editor-layer" role="presentation">
+          <button
+            aria-label="关闭用户表单"
+            className="room-editor-backdrop"
+            type="button"
+            onClick={() => setUserDialog(null)}
+          />
+          {userDialog.type === 'create' && (
+            <form className="dashboard-card room-editor" onSubmit={handleSaveUser}>
+              <header className="room-editor-head">
+                <div>
+                  <h2>新增用户</h2>
+                  <p>创建学生或管理端账号，保存后立即进入当前账号列表。</p>
+                </div>
+                <button type="button" onClick={() => setUserDialog(null)}>
+                  <DashboardIcon name="x" size={14} />
+                </button>
+              </header>
+              <div className="room-form-grid">
+                <RoomFormField label="姓名">
+                  <input
+                    aria-label="用户姓名"
+                    value={userForm.name}
+                    onChange={(event) =>
+                      setUserForm((current) => ({ ...current, name: event.target.value }))
+                    }
+                    onInput={(event) =>
+                      {
+                        const { value } = event.currentTarget;
+                        setUserForm((current) => ({
+                          ...current,
+                          name: value
+                        }));
+                      }
+                    }
+                  />
+                </RoomFormField>
+                <RoomFormField label="登录账号">
+                  <input
+                    aria-label="登录账号"
+                    value={userForm.account}
+                    onChange={(event) =>
+                      setUserForm((current) => ({ ...current, account: event.target.value }))
+                    }
+                    onInput={(event) =>
+                      {
+                        const { value } = event.currentTarget;
+                        setUserForm((current) => ({
+                          ...current,
+                          account: value
+                        }));
+                      }
+                    }
+                  />
+                </RoomFormField>
+                <RoomFormField label="院系">
+                  <select
+                    aria-label="用户院系"
+                    value={userForm.department}
+                    onChange={(event) =>
+                      setUserForm((current) => ({ ...current, department: event.target.value }))
+                    }
+                  >
+                    {ADMIN_USER_DEPARTMENT_OPTIONS.map((department) => (
+                      <option key={department} value={department}>
+                        {department}
+                      </option>
+                    ))}
+                  </select>
+                </RoomFormField>
+                <RoomFormField label="角色">
+                  <select
+                    aria-label="用户角色"
+                    value={userForm.role}
+                    onChange={(event) =>
+                      setUserForm((current) => ({ ...current, role: event.target.value }))
+                    }
+                  >
+                    {ADMIN_USER_ROLE_OPTIONS.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </select>
+                </RoomFormField>
+                <RoomFormField label="账号状态">
+                  <select
+                    aria-label="用户状态"
+                    value={userForm.status}
+                    onChange={(event) =>
+                      setUserForm((current) => ({
+                        ...current,
+                        status: event.target.value as AdminUserFormState['status']
+                      }))
+                    }
+                  >
+                    <option value="active">正常</option>
+                    <option value="disabled">停用</option>
+                  </select>
+                </RoomFormField>
+              </div>
+              {userFormError && <div className="room-form-error">{userFormError}</div>}
+              <div className="room-editor-actions">
+                <button type="button" onClick={() => setUserDialog(null)}>
+                  取消
+                </button>
+                <button className="room-primary-button" type="submit">
+                  <DashboardIcon name="check" size={13} />
+                  保存用户
+                </button>
+              </div>
+            </form>
+          )}
+          {userDialog.type === 'import' && (
+            <form className="dashboard-card room-editor" onSubmit={handleImportUsers}>
+              <header className="room-editor-head">
+                <div>
+                  <h2>导入名单</h2>
+                  <p>每行一个用户，格式为“姓名,账号,院系,角色”。</p>
+                </div>
+                <button type="button" onClick={() => setUserDialog(null)}>
+                  <DashboardIcon name="x" size={14} />
+                </button>
+              </header>
+              <RoomFormField label="名单内容">
+                <textarea
+                  aria-label="名单内容"
+                  className="admin-dialog-textarea"
+                  value={bulkUserText}
+                  onChange={(event) => setBulkUserText(event.target.value)}
+                  onInput={(event) => {
+                    const { value } = event.currentTarget;
+                    setBulkUserText(value);
+                  }}
+                />
+              </RoomFormField>
+              {userFormError && <div className="room-form-error">{userFormError}</div>}
+              <div className="room-editor-actions">
+                <button type="button" onClick={() => setUserDialog(null)}>
+                  取消
+                </button>
+                <button className="room-primary-button" type="submit">
+                  <DashboardIcon name="download" size={13} />
+                  导入用户
+                </button>
+              </div>
+            </form>
+          )}
+          {userDialog.type === 'assign' && (
+            <form className="dashboard-card room-editor" onSubmit={handleSaveAssignedRole}>
+              <header className="room-editor-head">
+                <div>
+                  <h2>分配角色</h2>
+                  <p>修改后会立即更新账号列表中的角色与账号来源。</p>
+                </div>
+                <button type="button" onClick={() => setUserDialog(null)}>
+                  <DashboardIcon name="x" size={14} />
+                </button>
+              </header>
+              <RoomFormField label="角色">
+                <select
+                  aria-label="分配角色"
+                  value={assignRole}
+                  onChange={(event) => setAssignRole(event.target.value)}
+                >
+                  {ADMIN_USER_ROLE_OPTIONS.map((role) => (
+                    <option key={role} value={role}>
+                      {role}
+                    </option>
+                  ))}
+                </select>
+              </RoomFormField>
+              <div className="room-editor-actions">
+                <button type="button" onClick={() => setUserDialog(null)}>
+                  取消
+                </button>
+                <button className="room-primary-button" type="submit">
+                  <DashboardIcon name="check" size={13} />
+                  保存角色
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      )}
     </section>
   );
 }
@@ -8090,19 +8464,59 @@ function RoleManagementPanel({
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [actionNotice, setActionNotice] = useState('');
+  const [roleDialog, setRoleDialog] = useState<AdminRoleDialog | null>(null);
+  const [roleForm, setRoleForm] = useState<AdminRoleFormState>(() => newAdminRoleForm());
+  const [roleFormError, setRoleFormError] = useState('');
 
   const announceRoleAction = (message: string) => {
     setActionNotice(`角色权限管理：${message}`);
   };
 
+  const openCreateRoleDialog = (sourceRole?: AdminRoleRow) => {
+    const sourceRecord = sourceRole
+      ? roleRecords.find((record) => record.id === sourceRole.id)
+      : undefined;
+    setRoleDialog({ type: 'create' });
+    setRoleForm(
+      sourceRecord
+        ? {
+            name: `${sourceRecord.name}副本`,
+            code: `${sourceRecord.code}_COPY`,
+            menuKeys: getRoleEditableMenuKeys(sourceRecord)
+          }
+        : newAdminRoleForm()
+    );
+    setRoleFormError('');
+    announceRoleAction(sourceRole ? `已复制${sourceRole.name}为新角色草稿。` : '已打开新建角色流程。');
+  };
+
+  const openPermissionDialog = (role?: AdminRoleRow) => {
+    const targetRecord =
+      (role ? roleRecords.find((record) => record.id === role.id) : undefined) ?? roleRecords[0];
+    if (!targetRecord) {
+      setRoleFormError('暂无可分配权限的角色');
+      announceRoleAction('暂无可分配权限的角色。');
+      return;
+    }
+    setRoleDialog({ type: 'permissions', roleId: targetRecord.id });
+    setRoleForm({
+      id: targetRecord.id,
+      name: targetRecord.name,
+      code: targetRecord.code,
+      menuKeys: getRoleEditableMenuKeys(targetRecord)
+    });
+    setRoleFormError('');
+    announceRoleAction(`已打开${targetRecord.name}权限分配流程。`);
+  };
+
   useEffect(() => {
     if (actionSignal?.menu !== 'roles') return;
     if (actionSignal.label === '新建角色') {
-      announceRoleAction('已打开新建角色流程。');
+      openCreateRoleDialog();
       return;
     }
     if (actionSignal.label === '分配权限') {
-      announceRoleAction('已打开权限分配流程。');
+      openPermissionDialog();
       return;
     }
     announceRoleAction(`${actionSignal.label}已触发。`);
@@ -8176,6 +8590,60 @@ function RoleManagementPanel({
     announceRoleAction(
       nextStatus === 'disabled' ? `已禁用${role.name}。` : `已启用${role.name}。`
     );
+  };
+
+  const handleSetRolePermission = (menuId: AdminMenuId, checked: boolean) => {
+    setRoleForm((current) => {
+      const currentMenuKeys = new Set(current.menuKeys);
+      if (checked) {
+        currentMenuKeys.add(menuId);
+      } else {
+        currentMenuKeys.delete(menuId);
+      }
+      return { ...current, menuKeys: Array.from(currentMenuKeys) };
+    });
+  };
+
+  const handleSaveRole = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const name = roleForm.name.trim();
+    const code = roleForm.code.trim();
+    if (!name || !code) {
+      setRoleFormError('请填写角色名称和角色编码');
+      return;
+    }
+    if (roleRecords.some((role) => role.code === code)) {
+      setRoleFormError('角色编码已存在');
+      return;
+    }
+    const nextRole = createLocalRoleRecord({ ...roleForm, name, code });
+    setRoleRecords((currentRecords) => [nextRole, ...currentRecords]);
+    setRoles((currentRoles) => [mapAdminRoleToRow(nextRole), ...currentRoles]);
+    setRoleDialog(null);
+    setRoleFormError('');
+    announceRoleAction(`已新建角色${name}。`);
+  };
+
+  const handleSaveRolePermissions = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!roleForm.id) {
+      setRoleFormError('请选择要分配权限的角色');
+      return;
+    }
+    const updatedRecords = roleRecords.map((role) =>
+      role.id === roleForm.id
+        ? {
+            ...role,
+            permissions: createRolePermissionsFromMenuKeys(roleForm.menuKeys),
+            updatedAt: new Date().toISOString()
+          }
+        : role
+    );
+    setRoleRecords(updatedRecords);
+    setRoles(updatedRecords.map(mapAdminRoleToRow));
+    setRoleDialog(null);
+    setRoleFormError('');
+    announceRoleAction(`已更新${roleForm.name}的权限。`);
   };
 
   const permissionCount = new Set(
@@ -8307,12 +8775,12 @@ function RoleManagementPanel({
         <button
           className="role-management-primary"
           type="button"
-          onClick={() => announceRoleAction('已打开新建角色流程。')}
+          onClick={() => openCreateRoleDialog()}
         >
           <DashboardIcon name="shield" size={13} />
           新建角色
         </button>
-        <button type="button" onClick={() => announceRoleAction('已打开权限分配流程。')}>
+        <button type="button" onClick={() => openPermissionDialog()}>
           <DashboardIcon name="settings" size={13} />
           分配权限
         </button>
@@ -8360,14 +8828,14 @@ function RoleManagementPanel({
                   <span className="role-management-actions">
                     <button
                       type="button"
-                      onClick={() => announceRoleAction(`已打开${role.name}权限编辑。`)}
+                      onClick={() => openPermissionDialog(role)}
                     >
                       <DashboardIcon name="edit" size={12} />
                       编辑权限
                     </button>
                     <button
                       type="button"
-                      onClick={() => announceRoleAction(`已复制${role.name}为新角色草稿。`)}
+                      onClick={() => openCreateRoleDialog(role)}
                     >
                       <DashboardIcon name="plus" size={12} />
                       复制角色
@@ -8432,6 +8900,155 @@ function RoleManagementPanel({
           ))}
         </aside>
       </div>
+
+      {roleDialog && (
+        <div className="room-editor-layer" role="presentation">
+          <button
+            aria-label="关闭角色表单"
+            className="room-editor-backdrop"
+            type="button"
+            onClick={() => setRoleDialog(null)}
+          />
+          {roleDialog.type === 'create' && (
+            <form className="dashboard-card room-editor admin-role-dialog" onSubmit={handleSaveRole}>
+              <header className="room-editor-head">
+                <div>
+                  <h2>新建角色</h2>
+                  <p>勾选菜单权限后保存，角色会立即出现在列表和权限矩阵中。</p>
+                </div>
+                <button type="button" onClick={() => setRoleDialog(null)}>
+                  <DashboardIcon name="x" size={14} />
+                </button>
+              </header>
+              <div className="room-form-grid">
+                <RoomFormField label="角色名称">
+                  <input
+                    aria-label="角色名称"
+                    value={roleForm.name}
+                    onChange={(event) =>
+                      setRoleForm((current) => ({ ...current, name: event.target.value }))
+                    }
+                    onInput={(event) =>
+                      {
+                        const { value } = event.currentTarget;
+                        setRoleForm((current) => ({
+                          ...current,
+                          name: value
+                        }));
+                      }
+                    }
+                  />
+                </RoomFormField>
+                <RoomFormField label="角色编码">
+                  <input
+                    aria-label="角色编码"
+                    value={roleForm.code}
+                    onChange={(event) =>
+                      setRoleForm((current) => ({ ...current, code: event.target.value }))
+                    }
+                    onInput={(event) =>
+                      {
+                        const { value } = event.currentTarget;
+                        setRoleForm((current) => ({
+                          ...current,
+                          code: value
+                        }));
+                      }
+                    }
+                  />
+                </RoomFormField>
+              </div>
+              <fieldset className="admin-permission-grid">
+                <legend>菜单权限</legend>
+                {ADMIN_MENU_IDS.map((menuId) => (
+                  <label className="room-checkbox" key={menuId}>
+                    <input
+                      aria-label={ADMIN_MENU_META[menuId].title}
+                      checked={roleForm.menuKeys.includes(menuId)}
+                      type="checkbox"
+                      onChange={(event) => handleSetRolePermission(menuId, event.target.checked)}
+                    />
+                    <span>{ADMIN_MENU_META[menuId].title}</span>
+                  </label>
+                ))}
+              </fieldset>
+              {roleFormError && <div className="room-form-error">{roleFormError}</div>}
+              <div className="room-editor-actions">
+                <button type="button" onClick={() => setRoleDialog(null)}>
+                  取消
+                </button>
+                <button className="room-primary-button" type="submit">
+                  <DashboardIcon name="check" size={13} />
+                  保存角色
+                </button>
+              </div>
+            </form>
+          )}
+          {roleDialog.type === 'permissions' && (
+            <form
+              className="dashboard-card room-editor admin-role-dialog"
+              onSubmit={handleSaveRolePermissions}
+            >
+              <header className="room-editor-head">
+                <div>
+                  <h2>分配权限</h2>
+                  <p>选择角色并调整菜单权限，保存后立即刷新角色列表。</p>
+                </div>
+                <button type="button" onClick={() => setRoleDialog(null)}>
+                  <DashboardIcon name="x" size={14} />
+                </button>
+              </header>
+              <RoomFormField label="角色">
+                <select
+                  aria-label="待分配角色"
+                  value={roleForm.name}
+                  onChange={(event) => {
+                    const nextRole = roleRecords.find((role) => role.name === event.target.value);
+                    if (!nextRole) return;
+                    setRoleDialog({ type: 'permissions', roleId: nextRole.id });
+                    setRoleForm({
+                      id: nextRole.id,
+                      name: nextRole.name,
+                      code: nextRole.code,
+                      menuKeys: getRoleEditableMenuKeys(nextRole)
+                    });
+                  }}
+                >
+                  {roles.map((role) => (
+                    <option key={role.id} value={role.name}>
+                      {role.name}
+                    </option>
+                  ))}
+                </select>
+              </RoomFormField>
+              <fieldset className="admin-permission-grid">
+                <legend>菜单权限</legend>
+                {ADMIN_MENU_IDS.map((menuId) => (
+                  <label className="room-checkbox" key={menuId}>
+                    <input
+                      aria-label={ADMIN_MENU_META[menuId].title}
+                      checked={roleForm.menuKeys.includes(menuId)}
+                      type="checkbox"
+                      onChange={(event) => handleSetRolePermission(menuId, event.target.checked)}
+                    />
+                    <span>{ADMIN_MENU_META[menuId].title}</span>
+                  </label>
+                ))}
+              </fieldset>
+              {roleFormError && <div className="room-form-error">{roleFormError}</div>}
+              <div className="room-editor-actions">
+                <button type="button" onClick={() => setRoleDialog(null)}>
+                  取消
+                </button>
+                <button className="room-primary-button" type="submit">
+                  <DashboardIcon name="check" size={13} />
+                  保存权限
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      )}
     </section>
   );
 }

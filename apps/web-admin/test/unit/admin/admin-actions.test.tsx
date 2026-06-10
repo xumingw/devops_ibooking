@@ -98,6 +98,30 @@ describe('admin action buttons', () => {
     expect(container?.textContent).toContain('临时观察员');
   });
 
+  it('新建角色和分配权限会真实更新角色列表', async () => {
+    await mountDashboard('roles');
+
+    await clickButton('新建角色');
+    await fillByLabel('角色名称', '夜间值班管理员');
+    await fillByLabel('角色编码', 'ROLE_NIGHT_ADMIN');
+    await togglePermission('预约记录管理');
+    await togglePermission('动态码管理');
+    await clickButton('保存角色');
+
+    expect(container?.textContent).toContain('夜间值班管理员');
+    expect(container?.textContent).toContain('2/13');
+
+    await clickButton('分配权限');
+    await selectByLabel('待分配角色', '夜间值班管理员');
+    await togglePermission('违约记录管理');
+    await clickButton('保存权限');
+
+    const roleRow = Array.from(container?.querySelectorAll<HTMLElement>('.role-management-table-row') ?? []).find(
+      (row) => row.textContent?.includes('夜间值班管理员')
+    );
+    expect(roleRow?.textContent).toContain('3/13');
+  });
+
   async function mountDashboard(active: Parameters<typeof AdminDashboard>[0]['initialActive']) {
     cleanup();
     window.history.pushState(null, '', `/dashboard/${active}`);
@@ -138,6 +162,29 @@ describe('admin action buttons', () => {
     await act(async () => {
       select!.value = value;
       select!.dispatchEvent(new Event('change', { bubbles: true }));
+      await Promise.resolve();
+    });
+  }
+
+  async function fillByLabel(label: string, value: string) {
+    const input = Array.from(container?.querySelectorAll<HTMLInputElement>('input') ?? []).find(
+      (candidate) => candidate.getAttribute('aria-label') === label
+    );
+    expect(input, `missing input: ${label}`).toBeTruthy();
+    await act(async () => {
+      input!.value = value;
+      input!.dispatchEvent(new Event('input', { bubbles: true }));
+      await Promise.resolve();
+    });
+  }
+
+  async function togglePermission(label: string) {
+    const checkbox = Array.from(container?.querySelectorAll<HTMLInputElement>('input[type="checkbox"]') ?? []).find(
+      (candidate) => candidate.getAttribute('aria-label') === label
+    );
+    expect(checkbox, `missing permission: ${label}`).toBeTruthy();
+    await act(async () => {
+      checkbox!.click();
       await Promise.resolve();
     });
   }

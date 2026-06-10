@@ -1554,9 +1554,9 @@ button {
 }
 
 .room-form-field input,
-.room-form-field select {
+.room-form-field select,
+.room-form-field textarea {
   width: 100%;
-  height: 34px;
   border: 1px solid #d8e8e5;
   border-radius: 7px;
   padding: 0 10px;
@@ -1564,6 +1564,39 @@ button {
   color: #1a2e2a;
   font: inherit;
   font-weight: 500;
+}
+
+.room-form-field input,
+.room-form-field select {
+  height: 34px;
+}
+
+.room-form-field textarea {
+  min-height: 126px;
+  padding: 10px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.admin-role-dialog {
+  width: min(520px, 100%);
+}
+
+.admin-permission-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  border: 1px solid #d8e8e5;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.admin-permission-grid legend {
+  padding: 0 6px;
+  color: #4a6b64;
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .room-form-field select:disabled {
