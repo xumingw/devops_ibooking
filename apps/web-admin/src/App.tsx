@@ -2396,7 +2396,6 @@ const ADMIN_BOOKING_STATUS_META = {
   cancelled: { label: '已取消', variant: 'gray' }
 } as const;
 
-const ADMIN_BOOKING_FILTERS = ['今日', '本周', '全部状态'] as const;
 const ADMIN_BOOKING_PAGE_SIZE = 10;
 
 const resolveAdminBookingPage = (
@@ -2418,7 +2417,6 @@ const ADMIN_VIOLATION_STATUS_META = {
   restricted: { label: '限制中', variant: 'gray' }
 } as const;
 
-const ADMIN_VIOLATION_FILTERS = ['今日', '全部原因', '全部状态'] as const;
 const ADMIN_VIOLATION_PAGE_SIZE = 10;
 
 const resolveAdminViolationPage = (
@@ -2446,8 +2444,6 @@ const ADMIN_DYNAMIC_CODE_STATUS_META = {
   closed: { label: '维护中', variant: 'gray' }
 } as const;
 
-const ADMIN_DYNAMIC_CODE_FILTERS = ['全部楼栋', '全部状态', '刷新策略'] as const;
-
 const formatDynamicCodeQrValue = (
   record: AdminDynamicCodeSnapshot['preview'] | undefined | null
 ) => {
@@ -2464,8 +2460,6 @@ const ADMIN_USER_STATUS_META = {
   active: { label: '正常', variant: 'green' },
   disabled: { label: '停用', variant: 'red' }
 } as const;
-
-const ADMIN_USER_FILTERS = ['全部院系', '全部角色', '账号状态'] as const;
 
 const formatAdminUserUpdatedAt = (updatedAt?: string) => {
   if (!updatedAt) return '未记录';
@@ -2497,8 +2491,6 @@ const ADMIN_ROLE_STATUS_META = {
   pending: { label: '待审批', variant: 'gold' },
   disabled: { label: '禁用', variant: 'gray' }
 } as const;
-
-const ADMIN_ROLE_FILTERS = ['全部角色', '权限范围', '审批状态'] as const;
 
 const formatAdminRoleUpdatedAt = (updatedAt?: string) => {
   if (!updatedAt) return '未记录';
@@ -2711,8 +2703,6 @@ const ADMIN_PARAM_STATUS_META = {
   review: { label: '待发布', variant: 'gold' }
 } as const;
 
-const ADMIN_PARAM_FILTERS = ['全部参数', '生效范围', '发布状态'] as const;
-
 const ADMIN_AUDIT_STATUS_META = {
   success: { label: '成功', variant: 'green' },
   pending: { label: '待处理', variant: 'gold' },
@@ -2720,8 +2710,6 @@ const ADMIN_AUDIT_STATUS_META = {
   review: { label: '待审批', variant: 'gold' },
   risk: { label: '异常', variant: 'red' }
 } as const;
-
-const ADMIN_AUDIT_FILTERS = ['全部模块', '全部结果', '最近 24 小时'] as const;
 
 const ADMIN_REPORT_FILTER_OPTIONS = {
   month: [ADMIN_DEMO_MONTH_LABEL, '近 30 天', '本周'],
@@ -5548,6 +5536,8 @@ function RoomManagementPanel({
 }) {
   const [rooms, setRooms] = useState<AdminRoomRow[]>([]);
   const [query, setQuery] = useState('');
+  const [roomStatusFilter, setRoomStatusFilter] = useState('全部状态');
+  const [roomBuildingFilter, setRoomBuildingFilter] = useState('全部楼栋');
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [editor, setEditor] = useState<AdminRoomEditor | null>(null);
@@ -5615,11 +5605,25 @@ function RoomManagementPanel({
 
   const filteredRooms = rooms.filter((room) => {
     const keyword = query.trim().toLowerCase();
-    if (!keyword) return true;
-    return [room.name, room.building, room.departmentLabel].some((field) =>
-      field.toLowerCase().includes(keyword)
-    );
+    const matchesKeyword =
+      !keyword ||
+      [room.name, room.building, room.departmentLabel].some((field) =>
+        field.toLowerCase().includes(keyword)
+      );
+    const matchesStatus =
+      roomStatusFilter === '全部状态' || room.statusLabel === roomStatusFilter;
+    const matchesBuilding =
+      roomBuildingFilter === '全部楼栋' || room.building === roomBuildingFilter;
+    return matchesKeyword && matchesStatus && matchesBuilding;
   });
+  const roomStatusOptions = useMemo(
+    () => ['全部状态', ...Array.from(new Set(rooms.map((room) => room.statusLabel))).sort()],
+    [rooms]
+  );
+  const roomBuildingOptions = useMemo(
+    () => ['全部楼栋', ...Array.from(new Set(rooms.map((room) => room.building))).sort()],
+    [rooms]
+  );
 
   const openCreate = () => {
     setEditor({ mode: 'create', room: null });
@@ -5687,22 +5691,40 @@ function RoomManagementPanel({
             onChange={(event) => setQuery(event.target.value)}
           />
         </label>
-        <button
-          className="room-filter-button"
-          type="button"
-          onClick={() => announceRoomAction('已展开状态筛选。')}
-        >
-          全部状态
+        <label className="admin-filter-select">
+          <select
+            aria-label="自习室状态筛选"
+            value={roomStatusFilter}
+            onChange={(event) => {
+              setRoomStatusFilter(event.target.value);
+              announceRoomAction(`已按状态筛选：${event.target.value}。`);
+            }}
+          >
+            {roomStatusOptions.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
           <DashboardIcon name="chevron-down" size={12} />
-        </button>
-        <button
-          className="room-filter-button"
-          type="button"
-          onClick={() => announceRoomAction('已展开楼栋筛选。')}
-        >
-          全部楼栋
+        </label>
+        <label className="admin-filter-select">
+          <select
+            aria-label="自习室楼栋筛选"
+            value={roomBuildingFilter}
+            onChange={(event) => {
+              setRoomBuildingFilter(event.target.value);
+              announceRoomAction(`已按楼栋筛选：${event.target.value}。`);
+            }}
+          >
+            {roomBuildingOptions.map((building) => (
+              <option key={building} value={building}>
+                {building}
+              </option>
+            ))}
+          </select>
           <DashboardIcon name="chevron-down" size={12} />
-        </button>
+        </label>
         <button
           className="room-secondary-button"
           type="button"
@@ -5932,6 +5954,9 @@ function SeatManagementPanel({
 }) {
   const [seats, setSeats] = useState<AdminSeat[]>([]);
   const [query, setQuery] = useState('');
+  const [seatRoomFilter, setSeatRoomFilter] = useState('全部自习室');
+  const [seatTagFilter, setSeatTagFilter] = useState('全部标签');
+  const [seatStatusFilter, setSeatStatusFilter] = useState('全部状态');
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [editor, setEditor] = useState<AdminSeatEditor | null>(null);
@@ -6005,11 +6030,24 @@ function SeatManagementPanel({
 
   const filteredSeats = seats.filter((seat) => {
     const keyword = query.trim().toLowerCase();
-    if (!keyword) return true;
-    return [seat.code, seat.roomName, ...getSeatTags(seat)].some((field) =>
-      field.toLowerCase().includes(keyword)
-    );
+    const tags = getSeatTags(seat);
+    const matchesKeyword =
+      !keyword ||
+      [seat.code, seat.roomName, ...tags].some((field) => field.toLowerCase().includes(keyword));
+    const matchesRoom = seatRoomFilter === '全部自习室' || seat.roomName === seatRoomFilter;
+    const matchesTag = seatTagFilter === '全部标签' || tags.includes(seatTagFilter);
+    const statusLabel = seat.status === 'ACTIVE' ? '可预约' : '禁用';
+    const matchesStatus = seatStatusFilter === '全部状态' || statusLabel === seatStatusFilter;
+    return matchesKeyword && matchesRoom && matchesTag && matchesStatus;
   });
+  const seatRoomOptions = useMemo(
+    () => ['全部自习室', ...Array.from(new Set(seats.map((seat) => seat.roomName))).sort()],
+    [seats]
+  );
+  const seatTagOptions = useMemo(
+    () => ['全部标签', ...Array.from(new Set(seats.flatMap((seat) => getSeatTags(seat)))).sort()],
+    [seats]
+  );
 
   const openCreate = () => {
     setEditor({ mode: 'create', seat: null });
@@ -6090,18 +6128,57 @@ function SeatManagementPanel({
             onChange={(event) => setQuery(event.target.value)}
           />
         </label>
-        <button type="button" onClick={() => announceSeatAction('已展开自习室筛选。')}>
-          全部自习室
+        <label className="admin-filter-select">
+          <select
+            aria-label="座位自习室筛选"
+            value={seatRoomFilter}
+            onChange={(event) => {
+              setSeatRoomFilter(event.target.value);
+              announceSeatAction(`已按自习室筛选：${event.target.value}。`);
+            }}
+          >
+            {seatRoomOptions.map((room) => (
+              <option key={room} value={room}>
+                {room}
+              </option>
+            ))}
+          </select>
           <DashboardIcon name="chevron-down" size={12} />
-        </button>
-        <button type="button" onClick={() => announceSeatAction('已展开标签筛选。')}>
-          全部标签
+        </label>
+        <label className="admin-filter-select">
+          <select
+            aria-label="座位标签筛选"
+            value={seatTagFilter}
+            onChange={(event) => {
+              setSeatTagFilter(event.target.value);
+              announceSeatAction(`已按标签筛选：${event.target.value}。`);
+            }}
+          >
+            {seatTagOptions.map((tag) => (
+              <option key={tag} value={tag}>
+                {tag}
+              </option>
+            ))}
+          </select>
           <DashboardIcon name="chevron-down" size={12} />
-        </button>
-        <button type="button" onClick={() => announceSeatAction('已展开状态筛选。')}>
-          全部状态
+        </label>
+        <label className="admin-filter-select">
+          <select
+            aria-label="座位状态筛选"
+            value={seatStatusFilter}
+            onChange={(event) => {
+              setSeatStatusFilter(event.target.value);
+              announceSeatAction(`已按状态筛选：${event.target.value}。`);
+            }}
+          >
+            {['全部状态', '可预约', '禁用'].map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
           <DashboardIcon name="chevron-down" size={12} />
-        </button>
+        </label>
         <button className="seat-primary-action" type="button" onClick={openCreate}>
           <DashboardIcon name="plus" size={13} />
           新增座位
@@ -6860,6 +6937,9 @@ function BookingRecordsPanel({
   pageError = '',
   pageLoading = false
 }: BookingRecordsPanelProps) {
+  const [bookingQuery, setBookingQuery] = useState('');
+  const [bookingDateFilter, setBookingDateFilter] = useState('全部日期');
+  const [bookingStatusFilter, setBookingStatusFilter] = useState('全部状态');
   const [actionNotice, setActionNotice] = useState('');
   const announceBookingAction = (message: string) => {
     setActionNotice(`预约记录管理：${message}`);
@@ -6882,6 +6962,29 @@ function BookingRecordsPanel({
     return <AdminDataState error={error} loading={loading} label="预约记录管理" />;
   }
   const resolvedPage = resolveAdminBookingPage(page, overview.records);
+  const displayedBookingRecords = resolvedPage.items.filter((record) => {
+    const keyword = bookingQuery.trim().toLowerCase();
+    const matchesKeyword =
+      !keyword ||
+      [record.id, record.uid, record.user, record.room, record.seat].some((field) =>
+        field.toLowerCase().includes(keyword)
+      );
+    const matchesDate = bookingDateFilter === '全部日期' || record.date === bookingDateFilter;
+    const statusLabel = ADMIN_BOOKING_STATUS_META[record.status].label;
+    const matchesStatus =
+      bookingStatusFilter === '全部状态' || statusLabel === bookingStatusFilter;
+    return matchesKeyword && matchesDate && matchesStatus;
+  });
+  const bookingDateOptions = [
+    '全部日期',
+    ...Array.from(new Set(resolvedPage.items.map((record) => record.date))).sort()
+  ];
+  const bookingStatusOptions = [
+    '全部状态',
+    ...Array.from(
+      new Set(resolvedPage.items.map((record) => ADMIN_BOOKING_STATUS_META[record.status].label))
+    ).sort()
+  ];
   const totalPages = Math.max(1, Math.ceil(resolvedPage.total / Math.max(1, resolvedPage.size)));
   const canGoPrev = resolvedPage.page > 1 && !pageLoading;
   const canGoNext = resolvedPage.page < totalPages && !pageLoading;
@@ -6891,19 +6994,48 @@ function BookingRecordsPanel({
       <div className="booking-records-toolbar">
         <label className="booking-records-search">
           <DashboardIcon name="search" size={14} />
-          <input aria-label="搜索预约记录" placeholder="学号、姓名、座位编号" />
+          <input
+            aria-label="搜索预约记录"
+            placeholder="学号、姓名、座位编号"
+            value={bookingQuery}
+            onChange={(event) => setBookingQuery(event.target.value)}
+          />
         </label>
-        {ADMIN_BOOKING_FILTERS.map((filter) => (
-          <button
-            key={filter}
-            type="button"
-            onClick={() => announceBookingAction(`已展开${filter}筛选。`)}
+        <label className="admin-filter-select">
+          <select
+            aria-label="预约日期筛选"
+            value={bookingDateFilter}
+            onChange={(event) => {
+              setBookingDateFilter(event.target.value);
+              announceBookingAction(`已按日期筛选：${event.target.value}。`);
+            }}
           >
-            {filter}
+            {bookingDateOptions.map((date) => (
+              <option key={date} value={date}>
+                {date}
+              </option>
+            ))}
+          </select>
+          <DashboardIcon name="chevron-down" size={12} />
+        </label>
+        <label className="admin-filter-select">
+          <select
+            aria-label="预约状态筛选"
+            value={bookingStatusFilter}
+            onChange={(event) => {
+              setBookingStatusFilter(event.target.value);
+              announceBookingAction(`已按状态筛选：${event.target.value}。`);
+            }}
+          >
+            {bookingStatusOptions.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
             <DashboardIcon name="chevron-down" size={12} />
-          </button>
-        ))}
-        <span className="booking-records-selected">已选 0 条</span>
+        </label>
+        <span className="booking-records-selected">匹配 {displayedBookingRecords.length} 条</span>
         <button
           className="booking-records-danger"
           type="button"
@@ -6956,7 +7088,7 @@ function BookingRecordsPanel({
                 <span key={`${head}-${index}`}>{head}</span>
               ))}
             </div>
-            {resolvedPage.items.map((record) => {
+            {displayedBookingRecords.map((record) => {
               const status = ADMIN_BOOKING_STATUS_META[record.status];
               return (
                 <div className="booking-records-table-row" key={record.id}>
@@ -6998,6 +7130,7 @@ function BookingRecordsPanel({
                 </div>
               );
             })}
+            {displayedBookingRecords.length === 0 && <div className="room-empty">没有匹配的预约记录</div>}
           </div>
           <div className="admin-record-pagination" aria-label="预约记录分页">
             <span>
@@ -7064,6 +7197,9 @@ function ViolationRecordsPanel({
   pageError = '',
   pageLoading = false
 }: ViolationRecordsPanelProps) {
+  const [violationQuery, setViolationQuery] = useState('');
+  const [violationReasonFilter, setViolationReasonFilter] = useState('全部原因');
+  const [violationStatusFilter, setViolationStatusFilter] = useState('全部状态');
   const [actionNotice, setActionNotice] = useState('');
   const announceViolationAction = (message: string) => {
     setActionNotice(`违约记录管理：${message}`);
@@ -7086,6 +7222,32 @@ function ViolationRecordsPanel({
     return <AdminDataState error={error} loading={loading} label="违约记录管理" />;
   }
   const resolvedPage = resolveAdminViolationPage(page, overview.records);
+  const displayedViolationRecords = resolvedPage.items.filter((record) => {
+    const keyword = violationQuery.trim().toLowerCase();
+    const matchesKeyword =
+      !keyword ||
+      [record.id, record.bookingId, record.student, record.uid, record.room, record.seat].some(
+        (field) => field.toLowerCase().includes(keyword)
+      );
+    const matchesReason =
+      violationReasonFilter === '全部原因' || record.reason === violationReasonFilter;
+    const statusLabel = ADMIN_VIOLATION_STATUS_META[record.status].label;
+    const matchesStatus =
+      violationStatusFilter === '全部状态' || statusLabel === violationStatusFilter;
+    return matchesKeyword && matchesReason && matchesStatus;
+  });
+  const violationReasonOptions = [
+    '全部原因',
+    ...Array.from(new Set(resolvedPage.items.map((record) => record.reason))).sort()
+  ];
+  const violationStatusOptions = [
+    '全部状态',
+    ...Array.from(
+      new Set(
+        resolvedPage.items.map((record) => ADMIN_VIOLATION_STATUS_META[record.status].label)
+      )
+    ).sort()
+  ];
   const totalPages = Math.max(1, Math.ceil(resolvedPage.total / Math.max(1, resolvedPage.size)));
   const canGoPrev = resolvedPage.page > 1 && !pageLoading;
   const canGoNext = resolvedPage.page < totalPages && !pageLoading;
@@ -7110,18 +7272,47 @@ function ViolationRecordsPanel({
       <div className="violation-records-toolbar">
         <label className="violation-records-search">
           <DashboardIcon name="search" size={14} />
-          <input aria-label="搜索违约记录" placeholder="学生、学号、预约编号" />
+          <input
+            aria-label="搜索违约记录"
+            placeholder="学生、学号、预约编号"
+            value={violationQuery}
+            onChange={(event) => setViolationQuery(event.target.value)}
+          />
         </label>
-        {ADMIN_VIOLATION_FILTERS.map((filter) => (
-          <button
-            key={filter}
-            type="button"
-            onClick={() => announceViolationAction(`已展开${filter}筛选。`)}
+        <label className="admin-filter-select">
+          <select
+            aria-label="违约原因筛选"
+            value={violationReasonFilter}
+            onChange={(event) => {
+              setViolationReasonFilter(event.target.value);
+              announceViolationAction(`已按原因筛选：${event.target.value}。`);
+            }}
           >
-            {filter}
+            {violationReasonOptions.map((reason) => (
+              <option key={reason} value={reason}>
+                {reason}
+              </option>
+            ))}
+          </select>
+          <DashboardIcon name="chevron-down" size={12} />
+        </label>
+        <label className="admin-filter-select">
+          <select
+            aria-label="违约状态筛选"
+            value={violationStatusFilter}
+            onChange={(event) => {
+              setViolationStatusFilter(event.target.value);
+              announceViolationAction(`已按状态筛选：${event.target.value}。`);
+            }}
+          >
+            {violationStatusOptions.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
             <DashboardIcon name="chevron-down" size={12} />
-          </button>
-        ))}
+        </label>
         <button
           className="violation-records-primary"
           type="button"
@@ -7166,7 +7357,7 @@ function ViolationRecordsPanel({
                 <span key={head}>{head}</span>
               ))}
             </div>
-            {resolvedPage.items.map((record) => {
+            {displayedViolationRecords.map((record) => {
               const status = ADMIN_VIOLATION_STATUS_META[record.status];
               return (
                 <div className="violation-records-table-row" key={record.id}>
@@ -7229,6 +7420,7 @@ function ViolationRecordsPanel({
                 </div>
               );
             })}
+            {displayedViolationRecords.length === 0 && <div className="room-empty">没有匹配的违约记录</div>}
           </div>
           <div className="admin-record-pagination" aria-label="违约记录分页">
             <span>
@@ -7284,6 +7476,10 @@ function DynamicCodePanel({
   loading,
   overview
 }: AdminDataPanelProps<AdminDynamicCodeSnapshot>) {
+  const [codeQuery, setCodeQuery] = useState('');
+  const [codeBuildingFilter, setCodeBuildingFilter] = useState('全部楼栋');
+  const [codeStatusFilter, setCodeStatusFilter] = useState('全部状态');
+  const [codeRefreshFilter, setCodeRefreshFilter] = useState('刷新策略');
   const [actionNotice, setActionNotice] = useState('');
   const announceDynamicCodeAction = (message: string) => {
     setActionNotice(`动态码管理：${message}`);
@@ -7306,6 +7502,34 @@ function DynamicCodePanel({
     return <AdminDataState error={error} loading={loading} label="动态码管理" />;
   }
   const previewQrValue = formatDynamicCodeQrValue(overview.preview);
+  const displayedCodeRecords = overview.records.filter((record) => {
+    const keyword = codeQuery.trim().toLowerCase();
+    const matchesKeyword =
+      !keyword ||
+      [record.room, record.building, record.webCode, record.qrStatus].some((field) =>
+        field.toLowerCase().includes(keyword)
+      );
+    const statusLabel = ADMIN_DYNAMIC_CODE_STATUS_META[record.status].label;
+    const matchesBuilding =
+      codeBuildingFilter === '全部楼栋' || record.building === codeBuildingFilter;
+    const matchesStatus = codeStatusFilter === '全部状态' || statusLabel === codeStatusFilter;
+    const matchesRefresh = codeRefreshFilter === '刷新策略' || record.refresh === codeRefreshFilter;
+    return matchesKeyword && matchesBuilding && matchesStatus && matchesRefresh;
+  });
+  const codeBuildingOptions = [
+    '全部楼栋',
+    ...Array.from(new Set(overview.records.map((record) => record.building))).sort()
+  ];
+  const codeStatusOptions = [
+    '全部状态',
+    ...Array.from(
+      new Set(overview.records.map((record) => ADMIN_DYNAMIC_CODE_STATUS_META[record.status].label))
+    ).sort()
+  ];
+  const codeRefreshOptions = [
+    '刷新策略',
+    ...Array.from(new Set(overview.records.map((record) => record.refresh))).sort()
+  ];
 
   return (
     <section className="dynamic-code-panel" aria-label="动态码管理">
@@ -7327,18 +7551,64 @@ function DynamicCodePanel({
       <div className="dynamic-code-toolbar">
         <label className="dynamic-code-search">
           <DashboardIcon name="search" size={14} />
-          <input aria-label="搜索动态码" placeholder="自习室、签到码、楼栋" />
+          <input
+            aria-label="搜索动态码"
+            placeholder="自习室、签到码、楼栋"
+            value={codeQuery}
+            onChange={(event) => setCodeQuery(event.target.value)}
+          />
         </label>
-        {ADMIN_DYNAMIC_CODE_FILTERS.map((filter) => (
-          <button
-            key={filter}
-            type="button"
-            onClick={() => announceDynamicCodeAction(`已展开${filter}筛选。`)}
+        <label className="admin-filter-select">
+          <select
+            aria-label="动态码楼栋筛选"
+            value={codeBuildingFilter}
+            onChange={(event) => {
+              setCodeBuildingFilter(event.target.value);
+              announceDynamicCodeAction(`已按楼栋筛选：${event.target.value}。`);
+            }}
           >
-            {filter}
+            {codeBuildingOptions.map((building) => (
+              <option key={building} value={building}>
+                {building}
+              </option>
+            ))}
+          </select>
+          <DashboardIcon name="chevron-down" size={12} />
+        </label>
+        <label className="admin-filter-select">
+          <select
+            aria-label="动态码状态筛选"
+            value={codeStatusFilter}
+            onChange={(event) => {
+              setCodeStatusFilter(event.target.value);
+              announceDynamicCodeAction(`已按状态筛选：${event.target.value}。`);
+            }}
+          >
+            {codeStatusOptions.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
+          <DashboardIcon name="chevron-down" size={12} />
+        </label>
+        <label className="admin-filter-select">
+          <select
+            aria-label="动态码刷新策略筛选"
+            value={codeRefreshFilter}
+            onChange={(event) => {
+              setCodeRefreshFilter(event.target.value);
+              announceDynamicCodeAction(`已按刷新策略筛选：${event.target.value}。`);
+            }}
+          >
+            {codeRefreshOptions.map((refresh) => (
+              <option key={refresh} value={refresh}>
+                {refresh}
+              </option>
+            ))}
+          </select>
             <DashboardIcon name="chevron-down" size={12} />
-          </button>
-        ))}
+        </label>
         <button
           className="dynamic-code-primary"
           type="button"
@@ -7380,7 +7650,7 @@ function DynamicCodePanel({
                 <span key={head}>{head}</span>
               ))}
             </div>
-            {overview.records.map((record) => {
+            {displayedCodeRecords.map((record) => {
               const status = ADMIN_DYNAMIC_CODE_STATUS_META[record.status];
               return (
                 <div className="dynamic-code-table-row" key={record.room}>
@@ -7419,6 +7689,7 @@ function DynamicCodePanel({
                 </div>
               );
             })}
+            {displayedCodeRecords.length === 0 && <div className="room-empty">没有匹配的动态码</div>}
           </div>
         </section>
 
@@ -7474,6 +7745,9 @@ function UserManagementPanel({
 }) {
   const [users, setUsers] = useState<AdminUserRow[]>([]);
   const [query, setQuery] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('全部院系');
+  const [roleFilter, setRoleFilter] = useState('全部角色');
+  const [statusFilter, setStatusFilter] = useState('账号状态');
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [actionNotice, setActionNotice] = useState('');
@@ -7530,22 +7804,34 @@ function UserManagementPanel({
     };
   }, [accessToken, onSessionExpired, onSessionRefresh, query]);
 
+  const departmentOptions = useMemo(
+    () => ['全部院系', ...Array.from(new Set(users.map((user) => user.department))).sort()],
+    [users]
+  );
+  const roleOptions = useMemo(
+    () => [
+      '全部角色',
+      ...Array.from(
+        new Set(users.flatMap((user) => user.role.split('、').filter(Boolean)))
+      ).sort()
+    ],
+    [users]
+  );
+
   const filteredUsers = users.filter((user) => {
     const keyword = query.trim().toLowerCase();
-    if (!keyword) return true;
-    return [user.name, user.account, user.department, user.role].some((field) =>
+    const matchesKeyword =
+      !keyword ||
+      [user.name, user.account, user.department, user.role].some((field) =>
       field.toLowerCase().includes(keyword)
-    );
+      );
+    const matchesDepartment =
+      departmentFilter === '全部院系' || user.department === departmentFilter;
+    const matchesRole = roleFilter === '全部角色' || user.role.split('、').includes(roleFilter);
+    const statusLabel = ADMIN_USER_STATUS_META[user.status].label;
+    const matchesStatus = statusFilter === '账号状态' || statusLabel === statusFilter;
+    return matchesKeyword && matchesDepartment && matchesRole && matchesStatus;
   });
-
-  const handleUserFilterClick = (filter: (typeof ADMIN_USER_FILTERS)[number]) => {
-    const messages: Record<(typeof ADMIN_USER_FILTERS)[number], string> = {
-      全部院系: '已展开院系筛选。',
-      全部角色: '已展开角色筛选。',
-      账号状态: '已展开账号状态筛选。'
-    };
-    announceUserAction(messages[filter]);
-  };
 
   const handleToggleUserStatus = (user: AdminUserRow) => {
     const nextStatus = user.status === 'disabled' ? 'active' : 'disabled';
@@ -7626,12 +7912,57 @@ function UserManagementPanel({
             onChange={(event) => setQuery(event.target.value)}
           />
         </label>
-        {ADMIN_USER_FILTERS.map((filter) => (
-          <button key={filter} type="button" onClick={() => handleUserFilterClick(filter)}>
-            {filter}
+        <label className="admin-filter-select">
+          <select
+            aria-label="院系筛选"
+            value={departmentFilter}
+            onChange={(event) => {
+              setDepartmentFilter(event.target.value);
+              announceUserAction(`已按院系筛选：${event.target.value}。`);
+            }}
+          >
+            {departmentOptions.map((department) => (
+              <option key={department} value={department}>
+                {department}
+              </option>
+            ))}
+          </select>
+          <DashboardIcon name="chevron-down" size={12} />
+        </label>
+        <label className="admin-filter-select">
+          <select
+            aria-label="角色筛选"
+            value={roleFilter}
+            onChange={(event) => {
+              setRoleFilter(event.target.value);
+              announceUserAction(`已按角色筛选：${event.target.value}。`);
+            }}
+          >
+            {roleOptions.map((role) => (
+              <option key={role} value={role}>
+                {role}
+              </option>
+            ))}
+          </select>
+          <DashboardIcon name="chevron-down" size={12} />
+        </label>
+        <label className="admin-filter-select">
+          <select
+            aria-label="账号状态筛选"
+            value={statusFilter}
+            onChange={(event) => {
+              setStatusFilter(event.target.value);
+              announceUserAction(`已按账号状态筛选：${event.target.value}。`);
+            }}
+          >
+            {['账号状态', '正常', '停用'].map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
             <DashboardIcon name="chevron-down" size={12} />
-          </button>
-        ))}
+        </label>
         <button
           className="user-management-primary"
           type="button"
@@ -7753,6 +8084,9 @@ function RoleManagementPanel({
   const [roles, setRoles] = useState<AdminRoleRow[]>([]);
   const [roleRecords, setRoleRecords] = useState<AdminRole[]>([]);
   const [query, setQuery] = useState('');
+  const [roleNameFilter, setRoleNameFilter] = useState('全部角色');
+  const [roleScopeFilter, setRoleScopeFilter] = useState('全部范围');
+  const [roleStatusFilter, setRoleStatusFilter] = useState('审批状态');
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [actionNotice, setActionNotice] = useState('');
@@ -7812,10 +8146,22 @@ function RoleManagementPanel({
     };
   }, [accessToken, onSessionExpired, onSessionRefresh, query]);
 
+  const roleNameOptions = useMemo(
+    () => ['全部角色', ...Array.from(new Set(roles.map((role) => role.name))).sort()],
+    [roles]
+  );
+  const roleScopeOptions = useMemo(
+    () => ['全部范围', ...Array.from(new Set(roles.map((role) => role.scope))).sort()],
+    [roles]
+  );
   const filteredRoles = roles.filter((role) => {
     const keyword = query.trim().toLowerCase();
-    if (!keyword) return true;
-    return role.searchText.includes(keyword);
+    const matchesKeyword = !keyword || role.searchText.includes(keyword);
+    const matchesName = roleNameFilter === '全部角色' || role.name === roleNameFilter;
+    const matchesScope = roleScopeFilter === '全部范围' || role.scope === roleScopeFilter;
+    const statusLabel = ADMIN_ROLE_STATUS_META[role.status].label;
+    const matchesStatus = roleStatusFilter === '审批状态' || statusLabel === roleStatusFilter;
+    return matchesKeyword && matchesName && matchesScope && matchesStatus;
   });
   const permissionGroups = buildAdminRolePermissionGroups(roleRecords);
   const permissionMatrix = buildAdminRolePermissionMatrix(roleRecords);
@@ -7907,12 +8253,57 @@ function RoleManagementPanel({
             onChange={(event) => setQuery(event.target.value)}
           />
         </label>
-        {ADMIN_ROLE_FILTERS.map((filter) => (
-          <button key={filter} type="button" onClick={() => announceRoleAction(`已展开${filter}筛选。`)}>
-            {filter}
+        <label className="admin-filter-select">
+          <select
+            aria-label="角色筛选"
+            value={roleNameFilter}
+            onChange={(event) => {
+              setRoleNameFilter(event.target.value);
+              announceRoleAction(`已按角色筛选：${event.target.value}。`);
+            }}
+          >
+            {roleNameOptions.map((role) => (
+              <option key={role} value={role}>
+                {role}
+              </option>
+            ))}
+          </select>
+          <DashboardIcon name="chevron-down" size={12} />
+        </label>
+        <label className="admin-filter-select">
+          <select
+            aria-label="权限范围筛选"
+            value={roleScopeFilter}
+            onChange={(event) => {
+              setRoleScopeFilter(event.target.value);
+              announceRoleAction(`已按权限范围筛选：${event.target.value}。`);
+            }}
+          >
+            {roleScopeOptions.map((scope) => (
+              <option key={scope} value={scope}>
+                {scope}
+              </option>
+            ))}
+          </select>
+          <DashboardIcon name="chevron-down" size={12} />
+        </label>
+        <label className="admin-filter-select">
+          <select
+            aria-label="审批状态筛选"
+            value={roleStatusFilter}
+            onChange={(event) => {
+              setRoleStatusFilter(event.target.value);
+              announceRoleAction(`已按审批状态筛选：${event.target.value}。`);
+            }}
+          >
+            {['审批状态', '启用', '待审批', '禁用'].map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
             <DashboardIcon name="chevron-down" size={12} />
-          </button>
-        ))}
+        </label>
         <button
           className="role-management-primary"
           type="button"
@@ -8051,6 +8442,9 @@ function SystemParameterPanel({
   loading,
   overview
 }: AdminDataPanelProps<AdminSystemParamSnapshot>) {
+  const [paramQuery, setParamQuery] = useState('');
+  const [paramScopeFilter, setParamScopeFilter] = useState('生效范围');
+  const [paramStatusFilter, setParamStatusFilter] = useState('发布状态');
   const [actionNotice, setActionNotice] = useState('');
   const announceParamAction = (message: string) => {
     setActionNotice(`系统参数管理：${message}`);
@@ -8072,6 +8466,28 @@ function SystemParameterPanel({
   if (!overview) {
     return <AdminDataState error={error} loading={loading} label="系统参数管理" />;
   }
+  const displayedParams = overview.records.filter((param) => {
+    const keyword = paramQuery.trim().toLowerCase();
+    const matchesKeyword =
+      !keyword ||
+      [param.name, param.value, param.defaultValue, param.scope, param.type, param.note].some(
+        (field) => field.toLowerCase().includes(keyword)
+      );
+    const statusLabel = ADMIN_PARAM_STATUS_META[param.status].label;
+    const matchesScope = paramScopeFilter === '生效范围' || param.scope === paramScopeFilter;
+    const matchesStatus = paramStatusFilter === '发布状态' || statusLabel === paramStatusFilter;
+    return matchesKeyword && matchesScope && matchesStatus;
+  });
+  const paramScopeOptions = [
+    '生效范围',
+    ...Array.from(new Set(overview.records.map((param) => param.scope))).sort()
+  ];
+  const paramStatusOptions = [
+    '发布状态',
+    ...Array.from(
+      new Set(overview.records.map((param) => ADMIN_PARAM_STATUS_META[param.status].label))
+    ).sort()
+  ];
 
   return (
     <section className="system-parameter-panel" aria-label="系统参数管理">
@@ -8095,14 +8511,47 @@ function SystemParameterPanel({
       <div className="system-parameter-toolbar">
         <label className="system-parameter-search">
           <DashboardIcon name="search" size={14} />
-          <input aria-label="搜索系统参数" placeholder="参数名称、取值、适用范围" />
+          <input
+            aria-label="搜索系统参数"
+            placeholder="参数名称、取值、适用范围"
+            value={paramQuery}
+            onChange={(event) => setParamQuery(event.target.value)}
+          />
         </label>
-        {ADMIN_PARAM_FILTERS.map((filter) => (
-          <button key={filter} type="button" onClick={() => announceParamAction(`已展开${filter}筛选。`)}>
-            {filter}
+        <label className="admin-filter-select">
+          <select
+            aria-label="参数范围筛选"
+            value={paramScopeFilter}
+            onChange={(event) => {
+              setParamScopeFilter(event.target.value);
+              announceParamAction(`已按生效范围筛选：${event.target.value}。`);
+            }}
+          >
+            {paramScopeOptions.map((scope) => (
+              <option key={scope} value={scope}>
+                {scope}
+              </option>
+            ))}
+          </select>
+          <DashboardIcon name="chevron-down" size={12} />
+        </label>
+        <label className="admin-filter-select">
+          <select
+            aria-label="参数状态筛选"
+            value={paramStatusFilter}
+            onChange={(event) => {
+              setParamStatusFilter(event.target.value);
+              announceParamAction(`已按发布状态筛选：${event.target.value}。`);
+            }}
+          >
+            {paramStatusOptions.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
             <DashboardIcon name="chevron-down" size={12} />
-          </button>
-        ))}
+        </label>
         <button
           className="system-parameter-primary"
           type="button"
@@ -8133,7 +8582,7 @@ function SystemParameterPanel({
                 <span key={head}>{head}</span>
               ))}
             </div>
-            {overview.records.map((param) => {
+            {displayedParams.map((param) => {
               const status = ADMIN_PARAM_STATUS_META[param.status];
               return (
                 <div className="system-parameter-table-row" key={param.name}>
@@ -8149,6 +8598,7 @@ function SystemParameterPanel({
                 </div>
               );
             })}
+            {displayedParams.length === 0 && <div className="room-empty">没有匹配的系统参数</div>}
           </div>
         </section>
 
@@ -8202,6 +8652,9 @@ function AuditLogPanel({
   loading,
   overview
 }: AdminDataPanelProps<AdminAuditSnapshot>) {
+  const [auditQuery, setAuditQuery] = useState('');
+  const [auditModuleFilter, setAuditModuleFilter] = useState('全部模块');
+  const [auditResultFilter, setAuditResultFilter] = useState('全部结果');
   const [actionNotice, setActionNotice] = useState('');
   const announceAuditAction = (message: string) => {
     setActionNotice(`审计日志管理：${message}`);
@@ -8223,6 +8676,34 @@ function AuditLogPanel({
   if (!overview) {
     return <AdminDataState error={error} loading={loading} label="审计日志管理" />;
   }
+  const displayedAuditRecords = overview.records.filter((record) => {
+    const keyword = auditQuery.trim().toLowerCase();
+    const matchesKeyword =
+      !keyword ||
+      [
+        record.time,
+        record.operator,
+        record.module,
+        record.action,
+        record.target,
+        record.ip,
+        record.detail
+      ].some((field) => field.toLowerCase().includes(keyword));
+    const resultLabel = ADMIN_AUDIT_STATUS_META[record.result].label;
+    const matchesModule = auditModuleFilter === '全部模块' || record.module === auditModuleFilter;
+    const matchesResult = auditResultFilter === '全部结果' || resultLabel === auditResultFilter;
+    return matchesKeyword && matchesModule && matchesResult;
+  });
+  const auditModuleOptions = [
+    '全部模块',
+    ...Array.from(new Set(overview.records.map((record) => record.module))).sort()
+  ];
+  const auditResultOptions = [
+    '全部结果',
+    ...Array.from(
+      new Set(overview.records.map((record) => ADMIN_AUDIT_STATUS_META[record.result].label))
+    ).sort()
+  ];
 
   return (
     <section className="audit-log-panel" aria-label="审计日志管理">
@@ -8246,14 +8727,47 @@ function AuditLogPanel({
       <div className="audit-log-toolbar">
         <label className="audit-log-search">
           <DashboardIcon name="search" size={14} />
-          <input aria-label="搜索审计日志" placeholder="操作者、模块、预约编号" />
+          <input
+            aria-label="搜索审计日志"
+            placeholder="操作者、模块、预约编号"
+            value={auditQuery}
+            onChange={(event) => setAuditQuery(event.target.value)}
+          />
         </label>
-        {ADMIN_AUDIT_FILTERS.map((filter) => (
-          <button key={filter} type="button" onClick={() => announceAuditAction(`已展开${filter}筛选。`)}>
-            {filter}
+        <label className="admin-filter-select">
+          <select
+            aria-label="审计模块筛选"
+            value={auditModuleFilter}
+            onChange={(event) => {
+              setAuditModuleFilter(event.target.value);
+              announceAuditAction(`已按模块筛选：${event.target.value}。`);
+            }}
+          >
+            {auditModuleOptions.map((module) => (
+              <option key={module} value={module}>
+                {module}
+              </option>
+            ))}
+          </select>
+          <DashboardIcon name="chevron-down" size={12} />
+        </label>
+        <label className="admin-filter-select">
+          <select
+            aria-label="审计结果筛选"
+            value={auditResultFilter}
+            onChange={(event) => {
+              setAuditResultFilter(event.target.value);
+              announceAuditAction(`已按结果筛选：${event.target.value}。`);
+            }}
+          >
+            {auditResultOptions.map((result) => (
+              <option key={result} value={result}>
+                {result}
+              </option>
+            ))}
+          </select>
             <DashboardIcon name="chevron-down" size={12} />
-          </button>
-        ))}
+        </label>
         <button
           className="audit-log-primary"
           type="button"
@@ -8284,7 +8798,7 @@ function AuditLogPanel({
                 <span key={head}>{head}</span>
               ))}
             </div>
-            {overview.records.map((record) => {
+            {displayedAuditRecords.map((record) => {
               const status = ADMIN_AUDIT_STATUS_META[record.result];
               return (
                 <div className="audit-log-table-row" key={`${record.time}-${record.action}`}>
@@ -8301,6 +8815,7 @@ function AuditLogPanel({
                 </div>
               );
             })}
+            {displayedAuditRecords.length === 0 && <div className="room-empty">没有匹配的审计日志</div>}
           </div>
         </section>
 

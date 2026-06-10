@@ -87,4 +87,113 @@ describe('users interactions', () => {
       )
     ).toBe(true);
   });
+
+  it('用户管理筛选控件是真实下拉并会过滤列表', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((input) => {
+      const url = String(input);
+      return Promise.resolve(url.includes('/users') ? successfulMixedUsersResponse() : successfulAdminOverviewResponse());
+    });
+    vi.stubGlobal('fetch', fetcher);
+    window.history.pushState(null, '', '/dashboard/users');
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(
+        <AdminDashboard
+          accessToken="admin-token"
+          adminName="系统管理员"
+          initialActive="users"
+          initialAdminOverview={adminOverviewFixture()}
+        />
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.querySelectorAll('.user-management-table-row')).toHaveLength(3);
+
+    await selectFilter('院系筛选', '经济学院');
+    expect(container.querySelectorAll('.user-management-table-row')).toHaveLength(1);
+    expect(container.textContent).toContain('陈浩然');
+    expect(container.textContent).not.toContain('林晓明stu_cse_01');
+    expect(container.textContent).toContain('1当前展示按搜索条件实时过滤');
+
+    await selectFilter('角色筛选', '数据审计员');
+    expect(container.querySelectorAll('.user-management-table-row')).toHaveLength(0);
+    expect(container.textContent).toContain('没有匹配的用户');
+
+    await selectFilter('院系筛选', '全部院系');
+    expect(container.querySelectorAll('.user-management-table-row')).toHaveLength(1);
+    expect(container.textContent).toContain('周明');
+
+    await selectFilter('账号状态筛选', '停用');
+    expect(container.querySelectorAll('.user-management-table-row')).toHaveLength(1);
+    expect(container.textContent).toContain('周明');
+
+    await selectFilter('角色筛选', '全部角色');
+    expect(container.querySelectorAll('.user-management-table-row')).toHaveLength(1);
+    expect(container.textContent).toContain('周明');
+  });
+
+  async function selectFilter(label: string, value: string) {
+    const select = Array.from(container?.querySelectorAll<HTMLSelectElement>('select') ?? []).find(
+      (candidate) => candidate.getAttribute('aria-label') === label
+    );
+    expect(select, `missing select: ${label}`).toBeTruthy();
+    await act(async () => {
+      select!.value = value;
+      select!.dispatchEvent(new Event('change', { bubbles: true }));
+      await Promise.resolve();
+    });
+  }
 });
+
+function successfulMixedUsersResponse() {
+  return new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: [
+        {
+          id: 'user-stu-cse-01',
+          studentNo: 'stu_cse_01',
+          name: '林晓明',
+          email: 'stu_cse_01@fudan.edu.cn',
+          departmentId: 'dept-cs',
+          departmentName: '计算机学院',
+          status: 'ACTIVE',
+          roles: [{ id: 'role-student', code: 'ROLE_STUDENT', name: '学生' }],
+          updatedAt: '2026-05-28T03:40:35.000Z'
+        },
+        {
+          id: 'user-stu-econ-01',
+          studentNo: 'stu_econ_01',
+          name: '陈浩然',
+          email: 'stu_econ_01@fudan.edu.cn',
+          departmentId: 'dept-econ',
+          departmentName: '经济学院',
+          status: 'ACTIVE',
+          roles: [{ id: 'role-student', code: 'ROLE_STUDENT', name: '学生' }],
+          updatedAt: '2026-05-28T03:40:35.000Z'
+        },
+        {
+          id: 'user-audit-01',
+          studentNo: 'audit01',
+          name: '周明',
+          email: 'audit01@fudan.edu.cn',
+          departmentId: null,
+          departmentName: null,
+          status: 'INACTIVE',
+          roles: [{ id: 'role-audit', code: 'ROLE_AUDIT', name: '数据审计员' }],
+          updatedAt: '2026-05-28T03:40:35.000Z'
+        }
+      ]
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    }
+  );
+}

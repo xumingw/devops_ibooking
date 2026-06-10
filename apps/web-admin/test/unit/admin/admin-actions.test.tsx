@@ -5,11 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AdminDashboard } from '../../../src/App';
-import {
-  adminOverviewFixture,
-  successfulAdminOverviewResponse,
-  successfulRolesResponse
-} from '../helpers/api-responses';
+import { adminOverviewFixture, successfulAdminOverviewResponse } from '../helpers/api-responses';
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
@@ -25,7 +21,7 @@ describe('admin action buttons', () => {
         const url = String(input);
         if (url.includes('/api/v1/admin/bookings')) return Promise.resolve(adminBookingPageResponse());
         if (url.includes('/api/v1/admin/violations')) return Promise.resolve(adminViolationPageResponse());
-        if (url.includes('/api/v1/roles')) return Promise.resolve(successfulRolesResponse());
+        if (url.includes('/api/v1/roles')) return Promise.resolve(adminRolesResponse());
         return Promise.resolve(successfulAdminOverviewResponse());
       })
     );
@@ -78,6 +74,30 @@ describe('admin action buttons', () => {
     ).toBe(true);
   });
 
+  it('角色权限筛选是真实下拉并会过滤列表', async () => {
+    await mountDashboard('roles');
+
+    await selectByLabel('角色筛选', '自习室管理员');
+    expect(container?.querySelectorAll('.role-management-table-row')).toHaveLength(1);
+    expect(container?.textContent).toContain('自习室管理员');
+    expect(container?.textContent).not.toContain('超级管理员role-full-admin');
+
+    await selectByLabel('权限范围筛选', '全部院系');
+    expect(container?.querySelectorAll('.role-management-table-row')).toHaveLength(0);
+    expect(container?.textContent).toContain('没有匹配的角色');
+
+    await selectByLabel('角色筛选', '全部角色');
+    expect(container?.querySelectorAll('.role-management-table-row')).toHaveLength(1);
+    expect(container?.textContent).toContain('超级管理员');
+
+    await selectByLabel('审批状态筛选', '待审批');
+    expect(container?.querySelectorAll('.role-management-table-row')).toHaveLength(0);
+
+    await selectByLabel('权限范围筛选', '全部范围');
+    expect(container?.querySelectorAll('.role-management-table-row')).toHaveLength(1);
+    expect(container?.textContent).toContain('临时观察员');
+  });
+
   async function mountDashboard(active: Parameters<typeof AdminDashboard>[0]['initialActive']) {
     cleanup();
     window.history.pushState(null, '', `/dashboard/${active}`);
@@ -106,6 +126,18 @@ describe('admin action buttons', () => {
     expect(button, `missing button: ${label}`).toBeTruthy();
     await act(async () => {
       button?.click();
+      await Promise.resolve();
+    });
+  }
+
+  async function selectByLabel(label: string, value: string) {
+    const select = Array.from(container?.querySelectorAll<HTMLSelectElement>('select') ?? []).find(
+      (candidate) => candidate.getAttribute('aria-label') === label
+    );
+    expect(select, `missing select: ${label}`).toBeTruthy();
+    await act(async () => {
+      select!.value = value;
+      select!.dispatchEvent(new Event('change', { bubbles: true }));
       await Promise.resolve();
     });
   }
@@ -143,6 +175,51 @@ function adminBookingPageResponse() {
         size: 10,
         total: 1
       }
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    }
+  );
+}
+
+function adminRolesResponse() {
+  return new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: [
+        {
+          id: 'role-full-admin',
+          code: 'ROLE_FULL_ADMIN',
+          name: '超级管理员',
+          userCount: 1,
+          permissions: [
+            { id: 'perm-user-read', code: 'user.read', name: '查看用户', menuKey: 'users' },
+            { id: 'perm-role-assign', code: 'role.assign', name: '分配角色', menuKey: 'roles' }
+          ],
+          updatedAt: '2026-05-28T03:40:35.000Z'
+        },
+        {
+          id: 'role-room-admin',
+          code: 'ROLE_ROOM_ADMIN',
+          name: '自习室管理员',
+          userCount: 2,
+          permissions: [
+            { id: 'perm-room-read', code: 'room.read', name: '查看自习室', menuKey: 'rooms' },
+            { id: 'perm-seat-write', code: 'seat.write', name: '维护座位', menuKey: 'seats' }
+          ],
+          updatedAt: '2026-05-28T03:40:35.000Z'
+        },
+        {
+          id: 'role-temp-audit',
+          code: 'ROLE_TEMP_AUDIT',
+          name: '临时观察员',
+          userCount: 0,
+          permissions: [],
+          updatedAt: '2026-05-28T03:40:35.000Z'
+        }
+      ]
     }),
     {
       headers: { 'Content-Type': 'application/json' },
