@@ -32,6 +32,38 @@ class MemoryRoleRepository implements RoleRepository {
         permissions: role.permissions?.map((permission) => ({ ...permission }))
       }));
   }
+
+  async create(input: Parameters<RoleRepository['create']>[0]): Promise<Role> {
+    const role = roleFixture({
+      id: `role-${input.code}`,
+      code: input.code,
+      name: input.name,
+      userCount: 0,
+      permissions: input.menuKeys.map((menuKey) => ({
+        id: `perm-${menuKey}`,
+        code: `${menuKey}.read`,
+        name: `${menuKey}权限`,
+        menuKey
+      }))
+    });
+    this.roles.push(role);
+    return { ...role, permissions: role.permissions?.map((permission) => ({ ...permission })) };
+  }
+
+  async updatePermissions(
+    roleId: string,
+    input: Parameters<RoleRepository['updatePermissions']>[1]
+  ): Promise<Role> {
+    const role = this.roles.find((candidate) => candidate.id === roleId);
+    if (!role) throw new Error('not found');
+    role.permissions = input.menuKeys.map((menuKey) => ({
+      id: `perm-${menuKey}`,
+      code: `${menuKey}.read`,
+      name: `${menuKey}权限`,
+      menuKey
+    }));
+    return { ...role, permissions: role.permissions.map((permission) => ({ ...permission })) };
+  }
 }
 
 describe('RolesService', () => {
@@ -95,6 +127,31 @@ describe('RolesService', () => {
 
     expect(repository.lastFilters).toEqual({ keyword: '座位' });
     expect(roles.map((role) => role.code)).toEqual(['ROLE_ROOM_ADMIN']);
+  });
+
+  it('创建角色和更新菜单权限时会归一化输入', async () => {
+    const created = await service.createRole({
+      name: ' 夜间值班管理员 ',
+      code: ' ROLE_NIGHT_ADMIN ',
+      menuKeys: ['bookings', 'qrcode', 'bookings']
+    });
+
+    expect(created).toMatchObject({
+      name: '夜间值班管理员',
+      code: 'ROLE_NIGHT_ADMIN'
+    });
+    expect(created.permissions?.map((permission) => permission.menuKey)).toEqual([
+      'bookings',
+      'qrcode'
+    ]);
+
+    const updated = await service.updateRolePermissions(created.id, {
+      menuKeys: [' violations ', 'bookings']
+    });
+    expect(updated.permissions?.map((permission) => permission.menuKey)).toEqual([
+      'violations',
+      'bookings'
+    ]);
   });
 });
 

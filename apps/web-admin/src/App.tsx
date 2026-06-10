@@ -943,6 +943,123 @@ export const requestUsers = async (
   return payload.data;
 };
 
+export const requestCreateAdminUser = async (
+  accessToken: string,
+  input: AdminUserFormState,
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl(),
+  authOptions: AuthenticatedRequestOptions = {}
+): Promise<AdminUser> => {
+  const response = await fetchWithSessionRefresh(
+    accessToken,
+    (nextAccessToken) =>
+      fetcher(`${apiBaseUrl}/api/v1/users`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          Authorization: `Bearer ${nextAccessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: input.name,
+          studentNo: input.account,
+          departmentName: input.department,
+          roleName: input.role,
+          status: input.status === 'active' ? 'ACTIVE' : 'DISABLED'
+        })
+      }),
+    fetcher,
+    apiBaseUrl,
+    authOptions
+  );
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: AdminUser;
+  } | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
+    throw new Error(payload?.message || '新增用户失败');
+  }
+  return payload.data;
+};
+
+export const requestImportAdminUsers = async (
+  accessToken: string,
+  users: AdminUserFormState[],
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl(),
+  authOptions: AuthenticatedRequestOptions = {}
+): Promise<AdminUser[]> => {
+  const response = await fetchWithSessionRefresh(
+    accessToken,
+    (nextAccessToken) =>
+      fetcher(`${apiBaseUrl}/api/v1/users/import`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          Authorization: `Bearer ${nextAccessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          users: users.map((user) => ({
+            name: user.name,
+            studentNo: user.account,
+            departmentName: user.department,
+            roleName: user.role,
+            status: user.status === 'active' ? 'ACTIVE' : 'DISABLED'
+          }))
+        })
+      }),
+    fetcher,
+    apiBaseUrl,
+    authOptions
+  );
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: AdminUser[];
+  } | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
+    throw new Error(payload?.message || '导入用户失败');
+  }
+  return payload.data;
+};
+
+export const requestAssignAdminUserRole = async (
+  accessToken: string,
+  userId: string,
+  roleName: string,
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl(),
+  authOptions: AuthenticatedRequestOptions = {}
+): Promise<AdminUser> => {
+  const response = await fetchWithSessionRefresh(
+    accessToken,
+    (nextAccessToken) =>
+      fetcher(`${apiBaseUrl}/api/v1/users/${userId}/role`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: {
+          Authorization: `Bearer ${nextAccessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ roleName })
+      }),
+    fetcher,
+    apiBaseUrl,
+    authOptions
+  );
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: AdminUser;
+  } | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
+    throw new Error(payload?.message || '分配角色失败');
+  }
+  return payload.data;
+};
+
 export const requestRoles = async (
   accessToken: string,
   filters: AdminRoleFilters = {},
@@ -976,6 +1093,79 @@ export const requestRoles = async (
     throw new Error(payload?.message || '角色列表加载失败');
   }
 
+  return payload.data;
+};
+
+export const requestCreateAdminRole = async (
+  accessToken: string,
+  input: AdminRoleFormState,
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl(),
+  authOptions: AuthenticatedRequestOptions = {}
+): Promise<AdminRole> => {
+  const response = await fetchWithSessionRefresh(
+    accessToken,
+    (nextAccessToken) =>
+      fetcher(`${apiBaseUrl}/api/v1/roles`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          Authorization: `Bearer ${nextAccessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: input.name,
+          code: input.code,
+          menuKeys: input.menuKeys
+        })
+      }),
+    fetcher,
+    apiBaseUrl,
+    authOptions
+  );
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: AdminRole;
+  } | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
+    throw new Error(payload?.message || '新建角色失败');
+  }
+  return payload.data;
+};
+
+export const requestUpdateAdminRolePermissions = async (
+  accessToken: string,
+  roleId: string,
+  menuKeys: AdminMenuId[],
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl(),
+  authOptions: AuthenticatedRequestOptions = {}
+): Promise<AdminRole> => {
+  const response = await fetchWithSessionRefresh(
+    accessToken,
+    (nextAccessToken) =>
+      fetcher(`${apiBaseUrl}/api/v1/roles/${roleId}/permissions`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: {
+          Authorization: `Bearer ${nextAccessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ menuKeys })
+      }),
+    fetcher,
+    apiBaseUrl,
+    authOptions
+  );
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: AdminRole;
+  } | null;
+  if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
+    throw new Error(payload?.message || '保存权限失败');
+  }
   return payload.data;
 };
 
@@ -7943,7 +8133,7 @@ function UserManagementPanel({
     );
   };
 
-  const handleSaveUser = (event: FormEvent<HTMLFormElement>) => {
+  const handleSaveUser = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!userForm.name.trim() || !userForm.account.trim()) {
       setUserFormError('请填写用户姓名和登录账号');
@@ -7953,7 +8143,20 @@ function UserManagementPanel({
       setUserFormError('登录账号已存在');
       return;
     }
-    const nextUser = createLocalAdminUserRow(userForm);
+    let nextUser = createLocalAdminUserRow(userForm);
+    if (accessToken) {
+      try {
+        nextUser = toAdminUserRow(
+          await requestCreateAdminUser(accessToken, userForm, fetch, resolveApiBaseUrl(), {
+            onSessionExpired,
+            onSessionRefresh
+          })
+        );
+      } catch (error) {
+        setUserFormError(error instanceof Error ? error.message : '新增用户失败');
+        return;
+      }
+    }
     setUsers((currentUsers) => [nextUser, ...currentUsers]);
     setUserDialog(null);
     setUserFormError('');
@@ -7973,7 +8176,7 @@ function UserManagementPanel({
       })
       .filter((item) => item.name && item.account);
 
-  const handleImportUsers = (event: FormEvent<HTMLFormElement>) => {
+  const handleImportUsers = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const parsedUsers = parseBulkUsers();
     if (parsedUsers.length === 0) {
@@ -7981,23 +8184,32 @@ function UserManagementPanel({
       return;
     }
     const existingAccounts = new Set(users.map((user) => user.account));
-    const importedUsers = parsedUsers
+    const importForms = parsedUsers
       .filter((user) => !existingAccounts.has(user.account))
-      .map((user) =>
-        createLocalAdminUserRow(
-          {
-            name: user.name,
-            account: user.account,
-            department: user.department || '未分配',
-            role: user.role || '学生',
-            status: 'active'
-          },
-          'import-user'
-        )
-      );
+      .map((user) => ({
+        name: user.name,
+        account: user.account,
+        department: user.department || '未分配',
+        role: user.role || '学生',
+        status: 'active' as const
+      }));
+    let importedUsers = importForms.map((form) => createLocalAdminUserRow(form, 'import-user'));
     if (importedUsers.length === 0) {
       setUserFormError('名单中的账号都已存在');
       return;
+    }
+    if (accessToken) {
+      try {
+        importedUsers = (
+          await requestImportAdminUsers(accessToken, importForms, fetch, resolveApiBaseUrl(), {
+            onSessionExpired,
+            onSessionRefresh
+          })
+        ).map(toAdminUserRow);
+      } catch (error) {
+        setUserFormError(error instanceof Error ? error.message : '导入用户失败');
+        return;
+      }
     }
     setUsers((currentUsers) => [...importedUsers, ...currentUsers]);
     setUserDialog(null);
@@ -8012,14 +8224,35 @@ function UserManagementPanel({
     announceUserAction(`已打开${user.name}的角色分配表单。`);
   };
 
-  const handleSaveAssignedRole = (event: FormEvent<HTMLFormElement>) => {
+  const handleSaveAssignedRole = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (userDialog?.type !== 'assign') return;
     const targetUser = users.find((user) => user.id === userDialog.userId);
+    let updatedUser: AdminUserRow | null = null;
+    if (accessToken) {
+      try {
+        updatedUser = toAdminUserRow(
+          await requestAssignAdminUserRole(
+            accessToken,
+            userDialog.userId,
+            assignRole,
+            fetch,
+            resolveApiBaseUrl(),
+            {
+              onSessionExpired,
+              onSessionRefresh
+            }
+          )
+        );
+      } catch (error) {
+        setUserFormError(error instanceof Error ? error.message : '分配角色失败');
+        return;
+      }
+    }
     setUsers((currentUsers) =>
       currentUsers.map((user) =>
         user.id === userDialog.userId
-          ? {
+          ? updatedUser ?? {
               ...user,
               role: assignRole,
               source: assignRole === '学生' ? user.source : '后台创建',
@@ -8604,7 +8837,7 @@ function RoleManagementPanel({
     });
   };
 
-  const handleSaveRole = (event: FormEvent<HTMLFormElement>) => {
+  const handleSaveRole = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const name = roleForm.name.trim();
     const code = roleForm.code.trim();
@@ -8616,7 +8849,24 @@ function RoleManagementPanel({
       setRoleFormError('角色编码已存在');
       return;
     }
-    const nextRole = createLocalRoleRecord({ ...roleForm, name, code });
+    let nextRole = createLocalRoleRecord({ ...roleForm, name, code });
+    if (accessToken) {
+      try {
+        nextRole = await requestCreateAdminRole(
+          accessToken,
+          { ...roleForm, name, code },
+          fetch,
+          resolveApiBaseUrl(),
+          {
+            onSessionExpired,
+            onSessionRefresh
+          }
+        );
+      } catch (error) {
+        setRoleFormError(error instanceof Error ? error.message : '新建角色失败');
+        return;
+      }
+    }
     setRoleRecords((currentRecords) => [nextRole, ...currentRecords]);
     setRoles((currentRoles) => [mapAdminRoleToRow(nextRole), ...currentRoles]);
     setRoleDialog(null);
@@ -8624,15 +8874,34 @@ function RoleManagementPanel({
     announceRoleAction(`已新建角色${name}。`);
   };
 
-  const handleSaveRolePermissions = (event: FormEvent<HTMLFormElement>) => {
+  const handleSaveRolePermissions = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!roleForm.id) {
       setRoleFormError('请选择要分配权限的角色');
       return;
     }
+    let updatedRole: AdminRole | null = null;
+    if (accessToken) {
+      try {
+        updatedRole = await requestUpdateAdminRolePermissions(
+          accessToken,
+          roleForm.id,
+          roleForm.menuKeys,
+          fetch,
+          resolveApiBaseUrl(),
+          {
+            onSessionExpired,
+            onSessionRefresh
+          }
+        );
+      } catch (error) {
+        setRoleFormError(error instanceof Error ? error.message : '保存权限失败');
+        return;
+      }
+    }
     const updatedRecords = roleRecords.map((role) =>
       role.id === roleForm.id
-        ? {
+        ? updatedRole ?? {
             ...role,
             permissions: createRolePermissionsFromMenuKeys(roleForm.menuKeys),
             updatedAt: new Date().toISOString()

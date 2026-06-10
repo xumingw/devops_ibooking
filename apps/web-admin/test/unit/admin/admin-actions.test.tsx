@@ -17,10 +17,16 @@ describe('admin action buttons', () => {
   beforeEach(() => {
     vi.stubGlobal(
       'fetch',
-      vi.fn<typeof fetch>().mockImplementation((input) => {
+      vi.fn<typeof fetch>().mockImplementation((input, init) => {
         const url = String(input);
         if (url.includes('/api/v1/admin/bookings')) return Promise.resolve(adminBookingPageResponse());
         if (url.includes('/api/v1/admin/violations')) return Promise.resolve(adminViolationPageResponse());
+        if (url.includes('/api/v1/roles/role-night-admin/permissions')) {
+          return Promise.resolve(updatedNightRoleResponse());
+        }
+        if (url.includes('/api/v1/roles') && init?.method === 'POST') {
+          return Promise.resolve(createdNightRoleResponse());
+        }
         if (url.includes('/api/v1/roles')) return Promise.resolve(adminRolesResponse());
         return Promise.resolve(successfulAdminOverviewResponse());
       })
@@ -267,6 +273,56 @@ function adminRolesResponse() {
           updatedAt: '2026-05-28T03:40:35.000Z'
         }
       ]
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    }
+  );
+}
+
+function createdNightRoleResponse() {
+  return roleResponse({
+    id: 'role-night-admin',
+    code: 'ROLE_NIGHT_ADMIN',
+    name: '夜间值班管理员',
+    userCount: 0,
+    permissions: [
+      { id: 'perm-booking-read', code: 'booking.read', name: '查看预约', menuKey: 'bookings' },
+      { id: 'perm-checkin-code-manage', code: 'checkin_code.manage', name: '管理动态码', menuKey: 'qrcode' }
+    ]
+  });
+}
+
+function updatedNightRoleResponse() {
+  return roleResponse({
+    id: 'role-night-admin',
+    code: 'ROLE_NIGHT_ADMIN',
+    name: '夜间值班管理员',
+    userCount: 0,
+    permissions: [
+      { id: 'perm-booking-read', code: 'booking.read', name: '查看预约', menuKey: 'bookings' },
+      { id: 'perm-checkin-code-manage', code: 'checkin_code.manage', name: '管理动态码', menuKey: 'qrcode' },
+      { id: 'perm-violation-read', code: 'violation.read', name: '查看违约', menuKey: 'violations' }
+    ]
+  });
+}
+
+function roleResponse(input: {
+  id: string;
+  code: string;
+  name: string;
+  userCount: number;
+  permissions: Array<{ id: string; code: string; name: string; menuKey: string }>;
+}) {
+  return new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: {
+        ...input,
+        updatedAt: '2026-06-10T03:40:35.000Z'
+      }
     }),
     {
       headers: { 'Content-Type': 'application/json' },

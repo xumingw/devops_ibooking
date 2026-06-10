@@ -138,8 +138,15 @@ describe('users interactions', () => {
   });
 
   it('新增用户、导入名单和分配角色会真实更新用户列表', async () => {
-    const fetcher = vi.fn<typeof fetch>().mockImplementation((input) => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((input, init) => {
       const url = String(input);
+      if (url.includes('/users/import')) return Promise.resolve(successfulImportedUsersResponse());
+      if (url.includes('/users/user-stu-cse-01/role')) {
+        return Promise.resolve(successfulAssignedUserRoleResponse());
+      }
+      if (url.includes('/users') && init?.method === 'POST') {
+        return Promise.resolve(successfulCreatedUserResponse());
+      }
       return Promise.resolve(url.includes('/users') ? successfulMixedUsersResponse() : successfulAdminOverviewResponse());
     });
     vi.stubGlobal('fetch', fetcher);
@@ -282,6 +289,93 @@ function successfulMixedUsersResponse() {
           updatedAt: '2026-05-28T03:40:35.000Z'
         }
       ]
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    }
+  );
+}
+
+function successfulCreatedUserResponse() {
+  return successfulUserResponse({
+    id: 'local-user-stu-new-01',
+    studentNo: 'stu_new_01',
+    name: '赵新雨',
+    departmentId: 'dept-journalism',
+    departmentName: '新闻学院',
+    status: 'ACTIVE',
+    roles: [{ id: 'role-student', code: 'ROLE_STUDENT', name: '学生' }]
+  });
+}
+
+function successfulImportedUsersResponse() {
+  return new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: [
+        {
+          id: 'import-user-01',
+          studentNo: 'stu_import_01',
+          name: '钱导入',
+          email: null,
+          departmentId: 'dept-econ',
+          departmentName: '经济学院',
+          status: 'ACTIVE',
+          roles: [{ id: 'role-student', code: 'ROLE_STUDENT', name: '学生' }],
+          updatedAt: '2026-06-10T03:40:35.000Z'
+        },
+        {
+          id: 'import-user-02',
+          studentNo: 'audit_import',
+          name: '孙审计',
+          email: null,
+          departmentId: null,
+          departmentName: null,
+          status: 'ACTIVE',
+          roles: [{ id: 'role-audit', code: 'ROLE_AUDIT', name: '数据审计员' }],
+          updatedAt: '2026-06-10T03:40:35.000Z'
+        }
+      ]
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    }
+  );
+}
+
+function successfulAssignedUserRoleResponse() {
+  return successfulUserResponse({
+    id: 'user-stu-cse-01',
+    studentNo: 'stu_cse_01',
+    name: '林晓明',
+    departmentId: 'dept-cs',
+    departmentName: '计算机学院',
+    status: 'ACTIVE',
+    roles: [{ id: 'role-audit', code: 'ROLE_AUDIT', name: '数据审计员' }]
+  });
+}
+
+function successfulUserResponse(input: {
+  id: string;
+  studentNo: string;
+  name: string;
+  departmentId: string | null;
+  departmentName: string | null;
+  status: 'ACTIVE' | 'DISABLED';
+  roles: Array<{ id: string; code: string; name: string }>;
+}) {
+  return new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: {
+        ...input,
+        email: null,
+        updatedAt: '2026-06-10T03:40:35.000Z'
+      }
     }),
     {
       headers: { 'Content-Type': 'application/json' },
