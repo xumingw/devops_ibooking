@@ -2756,9 +2756,13 @@ button {
 .booking-records-table-head,
 .booking-records-table-row {
   display: grid;
-  grid-template-columns: 28px 1.1fr 0.8fr 0.72fr 0.82fr 0.44fr 0.62fr 0.88fr 0.74fr 0.66fr 0.9fr;
+  grid-template-columns:
+    28px minmax(132px, 1.1fr) minmax(82px, 0.8fr) minmax(70px, 0.72fr)
+    minmax(112px, 0.82fr) minmax(56px, 0.44fr) minmax(76px, 0.62fr)
+    minmax(100px, 0.88fr) minmax(76px, 0.74fr) minmax(84px, 0.66fr)
+    minmax(136px, 136px);
   align-items: center;
-  min-width: 980px;
+  min-width: 1120px;
   column-gap: 10px;
 }
 
@@ -2844,13 +2848,17 @@ button {
 .booking-records-actions {
   display: flex;
   align-items: center;
+  flex-wrap: nowrap;
   gap: 5px;
 }
 
 .booking-records-actions button {
+  min-width: 54px;
   height: 27px;
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
   border: 1px solid #d8e8e5;
   border-radius: 7px;
@@ -2859,6 +2867,8 @@ button {
   color: #2d7a6e;
   font-size: 11px;
   font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
   cursor: pointer;
 }
 
