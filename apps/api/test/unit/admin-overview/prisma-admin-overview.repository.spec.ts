@@ -262,6 +262,107 @@ describe('PrismaAdminOverviewRepository', () => {
         ['二', 1]
       ])
     );
+    expect(prisma.booking.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: { in: ['PENDING_CHECKIN', 'CHECKED_IN', 'COMPLETED'] },
+          startAt: expect.objectContaining({
+            gte: expect.any(Date),
+            lt: expect.any(Date)
+          })
+        })
+      })
+    );
+  });
+
+  it('分页返回管理端全部预约记录', async () => {
+    prisma.booking.count.mockResolvedValue(23);
+    prisma.booking.findMany.mockResolvedValue([
+      bookingFixture({
+        id: 'booking-page-011',
+        user: '周子昂',
+        studentNo: 'stu_seed_05',
+        room: '理工自习室 201',
+        building: '理科楼',
+        floor: 2,
+        seat: 'A4',
+        status: 'PENDING_CHECKIN',
+        startAt: new Date('2026-06-11T12:00:00.000Z'),
+        endAt: new Date('2026-06-11T13:00:00.000Z')
+      })
+    ]);
+
+    const page = await new PrismaAdminOverviewRepository(
+      prisma as unknown as PrismaService
+    ).listBookings({ page: 2, size: 10 });
+
+    expect(prisma.booking.count).toHaveBeenCalledWith();
+    expect(prisma.booking.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: { createdAt: 'desc' },
+        skip: 10,
+        take: 10
+      })
+    );
+    expect(page).toEqual(
+      expect.objectContaining({
+        total: 23,
+        page: 2,
+        size: 10,
+        items: [
+          expect.objectContaining({
+            id: 'booking-page-011',
+            uid: 'stu_seed_05',
+            user: '周子昂',
+            status: 'pending'
+          })
+        ]
+      })
+    );
+  });
+
+  it('分页返回管理端全部违约记录', async () => {
+    prisma.violation.count.mockResolvedValue(19);
+    prisma.violation.findMany.mockResolvedValue([
+      {
+        id: 'violation-page-006',
+        reason: 'NO_CHECK_IN',
+        occurredAt: new Date('2026-06-08T15:32:00.000Z'),
+        booking: { id: 'booking-page-006' },
+        user: { name: '陈浩然', studentNo: 'stu_econ_01' },
+        room: { name: '理工自习室 201' },
+        seat: { code: 'A1' }
+      }
+    ]);
+
+    const page = await new PrismaAdminOverviewRepository(
+      prisma as unknown as PrismaService
+    ).listViolations({ page: 2, size: 5 });
+
+    expect(prisma.violation.count).toHaveBeenCalledWith();
+    expect(prisma.violation.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: { occurredAt: 'desc' },
+        skip: 5,
+        take: 5
+      })
+    );
+    expect(page).toEqual(
+      expect.objectContaining({
+        total: 19,
+        page: 2,
+        size: 5,
+        items: [
+          expect.objectContaining({
+            id: 'violation-page-006',
+            bookingId: 'booking-page-006',
+            student: '陈浩然',
+            reason: '未签到'
+          })
+        ]
+      })
+    );
   });
 });
 

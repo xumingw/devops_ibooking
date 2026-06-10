@@ -4,6 +4,8 @@ import { QRCode } from 'antd';
 import { F } from '@ibooking/design-tokens';
 import type {
   AdminAuditSnapshot,
+  AdminBookingRecord,
+  AdminBookingRecordPage,
   AdminBookingRecordsSnapshot,
   AdminDashboardSnapshot,
   AdminDynamicCodeSnapshot,
@@ -11,6 +13,8 @@ import type {
   AdminReportSnapshot,
   AdminScheduleSnapshot,
   AdminSystemParamSnapshot,
+  AdminViolationRecord,
+  AdminViolationRecordPage,
   AdminViolationSnapshot,
   RoomAvailabilitySummary,
   RoomCatalogItem
@@ -676,6 +680,88 @@ export const requestAdminOverview = async (
   } | null;
   if (!response.ok || payload?.code !== 'SUCCESS' || !payload.data) {
     throw new Error(payload?.message || '管理端数据加载失败');
+  }
+
+  return payload.data;
+};
+
+export const requestAdminBookingRecords = async (
+  accessToken: string,
+  query: { page: number; size: number },
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl(),
+  authOptions: AuthenticatedRequestOptions = {}
+): Promise<AdminBookingRecordPage> => {
+  const params = new URLSearchParams({
+    page: String(query.page),
+    size: String(query.size)
+  });
+  const response = await fetchWithSessionRefresh(
+    accessToken,
+    (nextAccessToken) =>
+      fetcher(`${apiBaseUrl}/api/v1/admin/bookings?${params.toString()}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${nextAccessToken}` }
+      }),
+    fetcher,
+    apiBaseUrl,
+    authOptions
+  );
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: AdminBookingRecordPage;
+  } | null;
+  if (
+    !response.ok ||
+    payload?.code !== 'SUCCESS' ||
+    !payload.data ||
+    !Array.isArray(payload.data.items) ||
+    typeof payload.data.total !== 'number'
+  ) {
+    throw new Error(payload?.message || '预约记录加载失败');
+  }
+
+  return payload.data;
+};
+
+export const requestAdminViolationRecords = async (
+  accessToken: string,
+  query: { page: number; size: number },
+  fetcher: typeof fetch = fetch,
+  apiBaseUrl = resolveApiBaseUrl(),
+  authOptions: AuthenticatedRequestOptions = {}
+): Promise<AdminViolationRecordPage> => {
+  const params = new URLSearchParams({
+    page: String(query.page),
+    size: String(query.size)
+  });
+  const response = await fetchWithSessionRefresh(
+    accessToken,
+    (nextAccessToken) =>
+      fetcher(`${apiBaseUrl}/api/v1/admin/violations?${params.toString()}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${nextAccessToken}` }
+      }),
+    fetcher,
+    apiBaseUrl,
+    authOptions
+  );
+  const payload = (await response.json().catch(() => null)) as {
+    code?: string;
+    message?: string;
+    data?: AdminViolationRecordPage;
+  } | null;
+  if (
+    !response.ok ||
+    payload?.code !== 'SUCCESS' ||
+    !payload.data ||
+    !Array.isArray(payload.data.items) ||
+    typeof payload.data.total !== 'number'
+  ) {
+    throw new Error(payload?.message || '违约记录加载失败');
   }
 
   return payload.data;
@@ -2206,23 +2292,36 @@ type FloorSeatRow = {
   label: string;
   seats: AdminSeat[];
 };
+type FloorEditorToolId =
+  | 'select'
+  | 'add'
+  | 'delete'
+  | 'annotate'
+  | 'grid'
+  | 'refresh'
+  | 'info'
+  | 'export';
 
 const FLOOR_EDITOR_TOOLS: Array<{
+  id: FloorEditorToolId;
   icon: DashboardIconName;
   label: string;
-  active?: boolean;
 }> = [
-  { icon: 'move', label: '选择', active: true },
-  { icon: 'plus', label: '添加座位' },
-  { icon: 'trash', label: '删除' },
-  { icon: 'edit', label: '标注属性' },
-  { icon: 'grid', label: '吸附网格' },
-  { icon: 'refresh', label: '撤销' }
+  { id: 'select', icon: 'move', label: '选择' },
+  { id: 'add', icon: 'plus', label: '添加座位' },
+  { id: 'delete', icon: 'trash', label: '删除' },
+  { id: 'annotate', icon: 'edit', label: '标注属性' },
+  { id: 'grid', icon: 'grid', label: '吸附网格' },
+  { id: 'refresh', icon: 'refresh', label: '撤销' }
 ];
 
-const FLOOR_EDITOR_SUPPORT_TOOLS: Array<{ icon: DashboardIconName; label: string }> = [
-  { icon: 'info', label: '说明' },
-  { icon: 'download', label: '导出' }
+const FLOOR_EDITOR_SUPPORT_TOOLS: Array<{
+  id: FloorEditorToolId;
+  icon: DashboardIconName;
+  label: string;
+}> = [
+  { id: 'info', icon: 'info', label: '说明' },
+  { id: 'export', icon: 'download', label: '导出' }
 ];
 
 const FLOOR_STATUS_LABELS: Record<FloorSeatStatus, string> = {
@@ -2231,6 +2330,46 @@ const FLOOR_STATUS_LABELS: Record<FloorSeatStatus, string> = {
   taken: '已预约',
   selected: '已选择',
   disabled: '停用'
+};
+
+const createDraftFloorSeat = (room: AdminRoom, existingSeats: AdminSeat[]): AdminSeat => {
+  const occupiedCodes = new Set(existingSeats.map((seat) => seat.code.toUpperCase()));
+  for (let rowIndex = 0; rowIndex < 26; rowIndex += 1) {
+    const row = String.fromCharCode(65 + rowIndex);
+    for (let column = 1; column <= 12; column += 1) {
+      const code = `${row}${column}`;
+      if (!occupiedCodes.has(code)) {
+        return {
+          id: `draft-${room.id}-${code.toLowerCase()}-${Date.now()}`,
+          roomId: room.id,
+          roomName: room.name,
+          code,
+          x: column,
+          y: rowIndex + 1,
+          hasPower: false,
+          nearWindow: false,
+          quietZone: false,
+          status: 'ACTIVE',
+          updatedAt: '草稿'
+        };
+      }
+    }
+  }
+
+  const nextIndex = existingSeats.length + 1;
+  return {
+    id: `draft-${room.id}-seat-${nextIndex}-${Date.now()}`,
+    roomId: room.id,
+    roomName: room.name,
+    code: `新座位${nextIndex}`,
+    x: (nextIndex % 12) + 1,
+    y: Math.floor(nextIndex / 12) + 1,
+    hasPower: false,
+    nearWindow: false,
+    quietZone: false,
+    status: 'ACTIVE',
+    updatedAt: '草稿'
+  };
 };
 
 export const formatAdminDateLabel = (date: Date = new Date()) =>
@@ -2252,6 +2391,18 @@ const ADMIN_BOOKING_STATUS_META = {
 } as const;
 
 const ADMIN_BOOKING_FILTERS = ['今日', '本周', '全部状态'] as const;
+const ADMIN_BOOKING_PAGE_SIZE = 10;
+
+const resolveAdminBookingPage = (
+  page: AdminBookingRecordPage | undefined,
+  records: AdminBookingRecord[]
+): AdminBookingRecordPage =>
+  page ?? {
+    items: records,
+    total: records.length,
+    page: 1,
+    size: ADMIN_BOOKING_PAGE_SIZE
+  };
 
 const ADMIN_VIOLATION_STATUS_META = {
   confirmed: { label: '已记录', variant: 'red' },
@@ -2262,6 +2413,18 @@ const ADMIN_VIOLATION_STATUS_META = {
 } as const;
 
 const ADMIN_VIOLATION_FILTERS = ['今日', '全部原因', '全部状态'] as const;
+const ADMIN_VIOLATION_PAGE_SIZE = 10;
+
+const resolveAdminViolationPage = (
+  page: AdminViolationRecordPage | undefined,
+  records: AdminViolationRecord[]
+): AdminViolationRecordPage =>
+  page ?? {
+    items: records,
+    total: records.length,
+    page: 1,
+    size: ADMIN_VIOLATION_PAGE_SIZE
+  };
 
 const formatAdminRecordCode = (value: string) => {
   const normalized = value.trim();
@@ -2554,7 +2717,127 @@ const ADMIN_AUDIT_STATUS_META = {
 
 const ADMIN_AUDIT_FILTERS = ['全部模块', '全部结果', '最近 24 小时'] as const;
 
-const ADMIN_REPORT_FILTERS = [ADMIN_DEMO_MONTH_LABEL, '全校范围', '按月统计'] as const;
+const ADMIN_REPORT_FILTER_OPTIONS = {
+  month: [ADMIN_DEMO_MONTH_LABEL, '近 30 天', '本周'],
+  scope: ['全校范围', '普通自习室', '院系自习室'],
+  granularity: ['按月统计', '按周统计', '按日统计']
+} as const;
+
+type AdminReportExportFormat = 'csv' | 'excel';
+type AdminReportFilterKey = keyof typeof ADMIN_REPORT_FILTER_OPTIONS;
+type AdminReportFilterState = Record<AdminReportFilterKey, number>;
+type AdminReportExportSignal = {
+  format: AdminReportExportFormat;
+  nonce: number;
+};
+
+const DEFAULT_ADMIN_REPORT_FILTER_STATE: AdminReportFilterState = {
+  month: 0,
+  scope: 0,
+  granularity: 0
+};
+
+const getAdminReportFilterLabel = (
+  filters: AdminReportFilterState,
+  key: AdminReportFilterKey
+) => {
+  const options = ADMIN_REPORT_FILTER_OPTIONS[key];
+  return options[filters[key] % options.length];
+};
+
+const getAdminReportFilterSummary = (filters: AdminReportFilterState) =>
+  [
+    getAdminReportFilterLabel(filters, 'month'),
+    getAdminReportFilterLabel(filters, 'scope'),
+    getAdminReportFilterLabel(filters, 'granularity')
+  ].join(' / ');
+
+const escapeCsvCell = (value: string | number) => {
+  const text = String(value);
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
+
+const escapeHtmlCell = (value: string | number) =>
+  String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const buildAdminReportRows = (
+  overview: AdminReportSnapshot,
+  filters: AdminReportFilterState
+): string[][] => [
+  ['筛选条件', getAdminReportFilterSummary(filters)],
+  ['数据来源', '后端聚合：预约、签到、座位、用户和角色数据'],
+  [],
+  ['关键指标', '数值', '说明'],
+  ...overview.summary.map((item) => [item.label, item.value, item.note]),
+  [],
+  ['本周每日预约量', '预约量'],
+  ...overview.weeklyBookings.map(([day, value]) => [day, String(value)]),
+  [],
+  ['热门自习室', '预约次数', '占比'],
+  ...overview.topRooms.map((room) => [room.name, String(room.count), `${room.pct}%`]),
+  [],
+  ['热门座位', '自习室', '使用次数', '特征'],
+  ...overview.topSeats,
+  [],
+  ['低利用率时段', '利用率', '建议'],
+  ...overview.lowPeriods
+];
+
+export const buildAdminReportExportContent = (
+  overview: AdminReportSnapshot,
+  filters: AdminReportFilterState,
+  format: AdminReportExportFormat
+) => {
+  const rows = buildAdminReportRows(overview, filters);
+  if (format === 'excel') {
+    const tableRows = rows
+      .map((row) =>
+        `<tr>${(row.length > 0 ? row : [''])
+          .map((cell) => `<td>${escapeHtmlCell(cell)}</td>`)
+          .join('')}</tr>`
+      )
+      .join('');
+    return `<!doctype html><html><head><meta charset="utf-8"></head><body><table>${tableRows}</table></body></html>`;
+  }
+
+  return `\uFEFF${rows.map((row) => row.map(escapeCsvCell).join(',')).join('\n')}`;
+};
+
+const downloadAdminReport = (
+  overview: AdminReportSnapshot,
+  filters: AdminReportFilterState,
+  format: AdminReportExportFormat
+) => {
+  if (
+    typeof document === 'undefined' ||
+    typeof URL === 'undefined' ||
+    typeof URL.createObjectURL !== 'function'
+  ) {
+    return false;
+  }
+
+  const content = buildAdminReportExportContent(overview, filters, format);
+  const extension = format === 'excel' ? 'xls' : 'csv';
+  const mime =
+    format === 'excel'
+      ? 'application/vnd.ms-excel;charset=utf-8'
+      : 'text/csv;charset=utf-8';
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `ibooking-report-${getAdminReportFilterLabel(filters, 'month').replace(/\s+/g, '-')}.${extension}`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  return true;
+};
 
 const STUDENT_MENU_GROUPS: Array<{ label: string; items: StudentMenuItem[] }> = [
   {
@@ -4631,6 +4914,17 @@ export function AdminDashboard({
   );
   const [adminOverviewLoading, setAdminOverviewLoading] = useState(false);
   const [adminOverviewError, setAdminOverviewError] = useState('');
+  const [bookingPageNumber, setBookingPageNumber] = useState(1);
+  const [bookingPage, setBookingPage] = useState<AdminBookingRecordPage | undefined>();
+  const [bookingPageLoading, setBookingPageLoading] = useState(false);
+  const [bookingPageError, setBookingPageError] = useState('');
+  const [violationPageNumber, setViolationPageNumber] = useState(1);
+  const [violationPage, setViolationPage] = useState<AdminViolationRecordPage | undefined>();
+  const [violationPageLoading, setViolationPageLoading] = useState(false);
+  const [violationPageError, setViolationPageError] = useState('');
+  const [reportExportSignal, setReportExportSignal] = useState<AdminReportExportSignal | null>(
+    null
+  );
   useEffect(() => {
     if (!authorizedMenuSet.has(activeMenu)) {
       setActiveMenu(getDefaultAdminMenu(authorizedMenuIds));
@@ -4671,6 +4965,100 @@ export function AdminDashboard({
     };
   }, [accessToken, onSessionExpired, onSessionRefresh]);
   useEffect(() => {
+    let alive = true;
+    if (activeMenu !== 'bookings') return () => {
+      alive = false;
+    };
+    if (!accessToken) {
+      setBookingPage(undefined);
+      setBookingPageLoading(false);
+      setBookingPageError(adminOverviewError || '请先使用管理账号登录');
+      return () => {
+        alive = false;
+      };
+    }
+
+    setBookingPageLoading(true);
+    requestAdminBookingRecords(
+      accessToken,
+      { page: bookingPageNumber, size: ADMIN_BOOKING_PAGE_SIZE },
+      fetch,
+      resolveApiBaseUrl(),
+      { onSessionExpired, onSessionRefresh }
+    )
+      .then((page) => {
+        if (!alive) return;
+        setBookingPage(page);
+        setBookingPageError('');
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setBookingPage(undefined);
+        setBookingPageError(error instanceof Error ? error.message : '预约记录加载失败');
+      })
+      .finally(() => {
+        if (alive) setBookingPageLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [
+    accessToken,
+    activeMenu,
+    adminOverviewError,
+    bookingPageNumber,
+    onSessionExpired,
+    onSessionRefresh
+  ]);
+  useEffect(() => {
+    let alive = true;
+    if (activeMenu !== 'violations') return () => {
+      alive = false;
+    };
+    if (!accessToken) {
+      setViolationPage(undefined);
+      setViolationPageLoading(false);
+      setViolationPageError(adminOverviewError || '请先使用管理账号登录');
+      return () => {
+        alive = false;
+      };
+    }
+
+    setViolationPageLoading(true);
+    requestAdminViolationRecords(
+      accessToken,
+      { page: violationPageNumber, size: ADMIN_VIOLATION_PAGE_SIZE },
+      fetch,
+      resolveApiBaseUrl(),
+      { onSessionExpired, onSessionRefresh }
+    )
+      .then((page) => {
+        if (!alive) return;
+        setViolationPage(page);
+        setViolationPageError('');
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setViolationPage(undefined);
+        setViolationPageError(error instanceof Error ? error.message : '违约记录加载失败');
+      })
+      .finally(() => {
+        if (alive) setViolationPageLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [
+    accessToken,
+    activeMenu,
+    adminOverviewError,
+    onSessionExpired,
+    onSessionRefresh,
+    violationPageNumber
+  ]);
+  useEffect(() => {
     if (typeof window === 'undefined' || !window.location.pathname.startsWith('/dashboard')) {
       return;
     }
@@ -4698,6 +5086,12 @@ export function AdminDashboard({
     }
     if (action.id === 'create-seat') {
       setSeatCreateSignal((current) => current + 1);
+    }
+    if (activeMenu === 'reports' && action.label === '导出 CSV') {
+      setReportExportSignal({ format: 'csv', nonce: Date.now() });
+    }
+    if (activeMenu === 'reports' && action.label === '导出 Excel') {
+      setReportExportSignal({ format: 'excel', nonce: Date.now() });
     }
   };
 
@@ -4808,12 +5202,20 @@ export function AdminDashboard({
             loading={adminOverviewLoading}
             overview={adminOverview?.bookings}
             error={adminOverviewError}
+            page={bookingPage}
+            pageError={bookingPageError}
+            pageLoading={bookingPageLoading}
+            onPageChange={setBookingPageNumber}
           />
         ) : activeMenu === 'violations' ? (
           <ViolationRecordsPanel
             loading={adminOverviewLoading}
             overview={adminOverview?.violations}
             error={adminOverviewError}
+            page={violationPage}
+            pageError={violationPageError}
+            pageLoading={violationPageLoading}
+            onPageChange={setViolationPageNumber}
           />
         ) : activeMenu === 'qrcode' ? (
           <DynamicCodePanel
@@ -4850,6 +5252,7 @@ export function AdminDashboard({
             loading={adminOverviewLoading}
             overview={adminOverview?.reports}
             error={adminOverviewError}
+            exportSignal={reportExportSignal}
           />
         ) : (
           <AdminModulePanel meta={activeMeta} />
@@ -5756,15 +6159,20 @@ function FloorEditorPanel({
 }) {
   const [rooms, setRooms] = useState<AdminRoom[]>([]);
   const [seats, setSeats] = useState<AdminSeat[]>([]);
+  const [draftSeats, setDraftSeats] = useState<AdminSeat[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState('');
   const [selectedSeatId, setSelectedSeatId] = useState('');
   const [loadError, setLoadError] = useState('');
+  const [activeTool, setActiveTool] = useState<FloorEditorToolId>('select');
+  const [gridEnabled, setGridEnabled] = useState(true);
+  const [editorNotice, setEditorNotice] = useState('选择工具后可新增、删除或标注座位。');
 
   useEffect(() => {
     let alive = true;
     if (!accessToken) {
       setRooms([]);
       setSeats([]);
+      setDraftSeats([]);
       setLoadError('请先使用管理账号登录');
       return () => {
         alive = false;
@@ -5779,7 +6187,9 @@ function FloorEditorPanel({
         if (!alive) return;
         setRooms(nextRooms);
         setSeats(nextSeats);
+        setDraftSeats(nextSeats);
         setLoadError('');
+        setEditorNotice('平面图数据已加载，可直接编辑草稿布局。');
         setSelectedRoomId((currentRoomId) =>
           nextRooms.some((room) => room.id === currentRoomId)
             ? currentRoomId
@@ -5790,6 +6200,7 @@ function FloorEditorPanel({
         if (!alive) return;
         setRooms([]);
         setSeats([]);
+        setDraftSeats([]);
         setLoadError(error instanceof Error ? error.message : '平面图资源加载失败');
       });
 
@@ -5800,7 +6211,7 @@ function FloorEditorPanel({
 
   const selectedRoom = rooms.find((room) => room.id === selectedRoomId) ?? rooms[0];
   const selectedRoomSeats = selectedRoom
-    ? seats.filter((seat) => seat.roomId === selectedRoom.id)
+    ? draftSeats.filter((seat) => seat.roomId === selectedRoom.id)
     : [];
 
   useEffect(() => {
@@ -5809,7 +6220,7 @@ function FloorEditorPanel({
         ? currentSeatId
         : selectedRoomSeats[0]?.id ?? ''
     );
-  }, [selectedRoom?.id, seats]);
+  }, [selectedRoom?.id, draftSeats]);
 
   if (!selectedRoom) {
     return <AdminDataState error={loadError} loading={!loadError} label="座位平面图编辑器" />;
@@ -5820,6 +6231,97 @@ function FloorEditorPanel({
   const floorRows = buildFloorSeatRows(selectedRoomSeats);
   const selectedSeat = selectedRoomSeats.find((seat) => seat.id === selectedSeatId);
   const selectedSeatTags = selectedSeat ? getSeatTags(selectedSeat) : [];
+
+  const addDraftSeat = () => {
+    const nextSeat = createDraftFloorSeat(selectedRoom, selectedRoomSeats);
+    setDraftSeats((currentSeats) => [...currentSeats, nextSeat]);
+    setSelectedSeatId(nextSeat.id);
+    setActiveTool('add');
+    setEditorNotice(`已新增 ${nextSeat.code}，当前为草稿布局，保存后生效。`);
+  };
+
+  const deleteSelectedSeat = () => {
+    if (!selectedSeat) {
+      setEditorNotice('请先选择一个座位，再执行删除。');
+      return;
+    }
+    const nextSelectedSeatId =
+      selectedRoomSeats.find((seat) => seat.id !== selectedSeat.id)?.id ?? '';
+    setDraftSeats((currentSeats) => currentSeats.filter((seat) => seat.id !== selectedSeat.id));
+    setSelectedSeatId(nextSelectedSeatId);
+    setActiveTool('delete');
+    setEditorNotice(`已从草稿中删除 ${selectedSeat.code}。`);
+  };
+
+  const toggleSelectedSeatPower = () => {
+    if (!selectedSeat) {
+      setEditorNotice('请先选择一个座位，再标注属性。');
+      return;
+    }
+    const nextHasPower = !selectedSeat.hasPower;
+    setDraftSeats((currentSeats) =>
+      currentSeats.map((seat) =>
+        seat.id === selectedSeat.id
+          ? { ...seat, hasPower: nextHasPower, updatedAt: '草稿' }
+          : seat
+      )
+    );
+    setActiveTool('annotate');
+    setEditorNotice(
+      `${selectedSeat.code} 已${nextHasPower ? '标注为带插座座位' : '取消插座标注'}。`
+    );
+  };
+
+  const resetDraftSeats = () => {
+    setDraftSeats(seats);
+    setActiveTool('refresh');
+    setEditorNotice('已撤销未保存的平面图草稿。');
+  };
+
+  const handleFloorToolClick = (toolId: FloorEditorToolId) => {
+    if (toolId === 'add') {
+      addDraftSeat();
+      return;
+    }
+    if (toolId === 'delete') {
+      deleteSelectedSeat();
+      return;
+    }
+    if (toolId === 'annotate') {
+      toggleSelectedSeatPower();
+      return;
+    }
+    if (toolId === 'grid') {
+      setGridEnabled((current) => {
+        const next = !current;
+        setEditorNotice(next ? '已开启吸附网格。' : '已隐藏吸附网格。');
+        return next;
+      });
+      setActiveTool('grid');
+      return;
+    }
+    if (toolId === 'refresh') {
+      resetDraftSeats();
+      return;
+    }
+    if (toolId === 'info') {
+      setActiveTool('info');
+      setEditorNotice('编辑器支持选择、添加座位、删除座位、标注插座和撤销草稿。');
+      return;
+    }
+    if (toolId === 'export') {
+      setActiveTool('export');
+      setEditorNotice(`已准备导出 ${selectedRoom.name} 的当前平面图草稿。`);
+      return;
+    }
+    setActiveTool('select');
+    setEditorNotice('选择工具已启用，可点击座位查看属性。');
+  };
+
+  const saveDraftSeats = () => {
+    setSeats(draftSeats);
+    setEditorNotice('布局草稿已保存到当前页面状态。');
+  };
 
   return (
     <section className="floor-editor-panel" aria-label="座位平面图编辑器">
@@ -5845,15 +6347,19 @@ function FloorEditorPanel({
           {loadError && <div className="floor-load-error">{loadError}</div>}
         </div>
         <div className="floor-editor-head-actions">
-          <button type="button">
+          <button type="button" onClick={() => handleFloorToolClick('export')}>
             <DashboardIcon name="eye" size={13} />
             预览
           </button>
-          <button className="floor-primary-action" type="button">
+          <button className="floor-primary-action" type="button" onClick={saveDraftSeats}>
             <DashboardIcon name="check" size={13} />
             保存布局
           </button>
         </div>
+      </div>
+      <div className="floor-editor-notice" role="status">
+        <DashboardIcon name="info" size={13} />
+        {editorNotice}
       </div>
 
       <div className="floor-editor-workbench">
@@ -5861,23 +6367,34 @@ function FloorEditorPanel({
           {FLOOR_EDITOR_TOOLS.map((tool) => (
             <button
               aria-label={tool.label}
-              className={tool.active ? 'is-active' : ''}
+              className={activeTool === tool.id ? 'is-active' : ''}
               key={tool.label}
               title={tool.label}
               type="button"
+              onClick={() => handleFloorToolClick(tool.id)}
             >
               <DashboardIcon name={tool.icon} size={16} />
             </button>
           ))}
           <div className="floor-toolbar-spacer" />
           {FLOOR_EDITOR_SUPPORT_TOOLS.map((tool) => (
-            <button aria-label={tool.label} key={tool.label} title={tool.label} type="button">
+            <button
+              aria-label={tool.label}
+              className={activeTool === tool.id ? 'is-active' : ''}
+              key={tool.label}
+              title={tool.label}
+              type="button"
+              onClick={() => handleFloorToolClick(tool.id)}
+            >
               <DashboardIcon name={tool.icon} size={15} />
             </button>
           ))}
         </aside>
 
-        <div className="floor-canvas" aria-label="座位平面图画布">
+        <div
+          className={`floor-canvas${gridEnabled ? '' : ' is-grid-off'}`}
+          aria-label="座位平面图画布"
+        >
           <div className="floor-canvas-card">
             <div className="floor-canvas-room-label">
               <strong>{selectedRoom.name}</strong>
@@ -5977,10 +6494,10 @@ function FloorEditorPanel({
             </div>
           </div>
           <div className="floor-property-actions">
-            <button className="floor-primary-action" type="button">
+            <button className="floor-primary-action" type="button" onClick={toggleSelectedSeatPower}>
               应用更改
             </button>
-            <button className="floor-danger-action" type="button">
+            <button className="floor-danger-action" type="button" onClick={deleteSelectedSeat}>
               <DashboardIcon name="trash" size={13} />
               删除座位
             </button>
@@ -6171,14 +6688,29 @@ function ScheduleManagementPanel({
   );
 }
 
+type BookingRecordsPanelProps = AdminDataPanelProps<AdminBookingRecordsSnapshot> & {
+  page?: AdminBookingRecordPage;
+  pageError?: string;
+  pageLoading?: boolean;
+  onPageChange?: (page: number) => void;
+};
+
 function BookingRecordsPanel({
   error,
   loading,
-  overview
-}: AdminDataPanelProps<AdminBookingRecordsSnapshot>) {
+  onPageChange,
+  overview,
+  page,
+  pageError = '',
+  pageLoading = false
+}: BookingRecordsPanelProps) {
   if (!overview) {
     return <AdminDataState error={error} loading={loading} label="预约记录管理" />;
   }
+  const resolvedPage = resolveAdminBookingPage(page, overview.records);
+  const totalPages = Math.max(1, Math.ceil(resolvedPage.total / Math.max(1, resolvedPage.size)));
+  const canGoPrev = resolvedPage.page > 1 && !pageLoading;
+  const canGoNext = resolvedPage.page < totalPages && !pageLoading;
 
   return (
     <section className="booking-records-panel" aria-label="预约记录管理">
@@ -6237,7 +6769,7 @@ function BookingRecordsPanel({
                 <span key={`${head}-${index}`}>{head}</span>
               ))}
             </div>
-            {overview.records.map((record) => {
+            {resolvedPage.items.map((record) => {
               const status = ADMIN_BOOKING_STATUS_META[record.status];
               return (
                 <div className="booking-records-table-row" key={record.id}>
@@ -6273,6 +6805,30 @@ function BookingRecordsPanel({
               );
             })}
           </div>
+          <div className="admin-record-pagination" aria-label="预约记录分页">
+            <span>
+              {pageError ||
+                (pageLoading
+                  ? '正在加载预约记录...'
+                  : `第 ${resolvedPage.page} / ${totalPages} 页 · 共 ${resolvedPage.total} 条`)}
+            </span>
+            <div>
+              <button
+                disabled={!canGoPrev}
+                type="button"
+                onClick={() => onPageChange?.(Math.max(1, resolvedPage.page - 1))}
+              >
+                上一页
+              </button>
+              <button
+                disabled={!canGoNext}
+                type="button"
+                onClick={() => onPageChange?.(Math.min(totalPages, resolvedPage.page + 1))}
+              >
+                下一页
+              </button>
+            </div>
+          </div>
         </section>
 
         <aside className="dashboard-card booking-operation-card">
@@ -6297,14 +6853,29 @@ function BookingRecordsPanel({
   );
 }
 
+type ViolationRecordsPanelProps = AdminDataPanelProps<AdminViolationSnapshot> & {
+  page?: AdminViolationRecordPage;
+  pageError?: string;
+  pageLoading?: boolean;
+  onPageChange?: (page: number) => void;
+};
+
 function ViolationRecordsPanel({
   error,
   loading,
-  overview
-}: AdminDataPanelProps<AdminViolationSnapshot>) {
+  onPageChange,
+  overview,
+  page,
+  pageError = '',
+  pageLoading = false
+}: ViolationRecordsPanelProps) {
   if (!overview) {
     return <AdminDataState error={error} loading={loading} label="违约记录管理" />;
   }
+  const resolvedPage = resolveAdminViolationPage(page, overview.records);
+  const totalPages = Math.max(1, Math.ceil(resolvedPage.total / Math.max(1, resolvedPage.size)));
+  const canGoPrev = resolvedPage.page > 1 && !pageLoading;
+  const canGoNext = resolvedPage.page < totalPages && !pageLoading;
 
   return (
     <section className="violation-records-panel" aria-label="违约记录管理">
@@ -6372,7 +6943,7 @@ function ViolationRecordsPanel({
                 <span key={head}>{head}</span>
               ))}
             </div>
-            {overview.records.map((record) => {
+            {resolvedPage.items.map((record) => {
               const status = ADMIN_VIOLATION_STATUS_META[record.status];
               return (
                 <div className="violation-records-table-row" key={record.id}>
@@ -6425,6 +6996,30 @@ function ViolationRecordsPanel({
                 </div>
               );
             })}
+          </div>
+          <div className="admin-record-pagination" aria-label="违约记录分页">
+            <span>
+              {pageError ||
+                (pageLoading
+                  ? '正在加载违约记录...'
+                  : `第 ${resolvedPage.page} / ${totalPages} 页 · 共 ${resolvedPage.total} 条`)}
+            </span>
+            <div>
+              <button
+                disabled={!canGoPrev}
+                type="button"
+                onClick={() => onPageChange?.(Math.max(1, resolvedPage.page - 1))}
+              >
+                上一页
+              </button>
+              <button
+                disabled={!canGoNext}
+                type="button"
+                onClick={() => onPageChange?.(Math.min(totalPages, resolvedPage.page + 1))}
+              >
+                下一页
+              </button>
+            </div>
           </div>
         </section>
 
@@ -7312,14 +7907,56 @@ function AuditLogPanel({
 
 function DataReportsPanel({
   error,
+  exportSignal,
   loading,
   overview
-}: AdminDataPanelProps<AdminReportSnapshot>) {
+}: AdminDataPanelProps<AdminReportSnapshot> & {
+  exportSignal?: AdminReportExportSignal | null;
+}) {
+  const [filters, setFilters] = useState<AdminReportFilterState>(
+    DEFAULT_ADMIN_REPORT_FILTER_STATE
+  );
+  const [reportNotice, setReportNotice] = useState(
+    '报表数据来自后端聚合，可按筛选条件导出。'
+  );
+
+  const handleReportExport = (format: AdminReportExportFormat) => {
+    if (!overview) return;
+    const downloaded = downloadAdminReport(overview, filters, format);
+    setReportNotice(
+      downloaded
+        ? `已导出 ${format === 'excel' ? 'Excel' : 'CSV'}：${getAdminReportFilterSummary(filters)}。`
+        : `已生成 ${format === 'excel' ? 'Excel' : 'CSV'} 导出内容，当前环境不支持自动下载。`
+    );
+  };
+
+  useEffect(() => {
+    if (!exportSignal || !overview) return;
+    handleReportExport(exportSignal.format);
+  }, [exportSignal?.nonce]);
+
   if (!overview) {
     return <AdminDataState error={error} loading={loading} label="数据报表" />;
   }
 
   const maxWeeklyBookings = Math.max(...overview.weeklyBookings.map(([, value]) => value), 1);
+  const filterEntries: Array<[AdminReportFilterKey, string]> = [
+    ['month', '统计月份'],
+    ['scope', '统计范围'],
+    ['granularity', '统计粒度']
+  ];
+
+  const cycleFilter = (key: AdminReportFilterKey, label: string) => {
+    setFilters((current) => {
+      const options = ADMIN_REPORT_FILTER_OPTIONS[key];
+      const next = {
+        ...current,
+        [key]: (current[key] + 1) % options.length
+      };
+      setReportNotice(`已切换${label}：${getAdminReportFilterLabel(next, key)}。`);
+      return next;
+    });
+  };
 
   return (
     <section className="data-reports-panel" aria-label="数据报表">
@@ -7339,20 +7976,29 @@ function DataReportsPanel({
       </div>
 
       <div className="data-reports-toolbar">
-        {ADMIN_REPORT_FILTERS.map((filter) => (
-          <button key={filter} type="button">
-            {filter}
+        {filterEntries.map(([key, label]) => (
+          <button
+            aria-label={label}
+            key={key}
+            type="button"
+            onClick={() => cycleFilter(key, label)}
+          >
+            {getAdminReportFilterLabel(filters, key)}
             <DashboardIcon name="chevron-down" size={12} />
           </button>
         ))}
-        <button className="data-reports-primary" type="button">
+        <button className="data-reports-primary" type="button" onClick={() => handleReportExport('csv')}>
           <DashboardIcon name="download" size={13} />
           导出 CSV
         </button>
-        <button type="button">
+        <button type="button" onClick={() => handleReportExport('excel')}>
           <DashboardIcon name="download" size={13} />
           导出 Excel
         </button>
+      </div>
+      <div className="data-reports-notice" role="status" aria-live="polite">
+        <DashboardIcon name="info" size={13} />
+        {reportNotice}
       </div>
 
       <div className="data-reports-layout">
@@ -7362,7 +8008,7 @@ function DataReportsPanel({
               <span>近一周趋势</span>
               <h2>本周每日预约量</h2>
             </div>
-            <small>按有效预约统计，暂无数据的日期显示为空柱。</small>
+            <small>来自后端近 30 天有效预约聚合，按本周日期归档。</small>
           </header>
 
           <div className="data-reports-bar-chart" aria-label="本周每日预约量柱状图">
@@ -7385,6 +8031,7 @@ function DataReportsPanel({
               <span>空间排行</span>
               <h2>热门自习室 Top 5</h2>
             </div>
+            <small>按后端近 30 天有效预约量排序。</small>
           </header>
           <div className="data-reports-room-list">
             {overview.topRooms.map((room, index) => (
@@ -7410,7 +8057,7 @@ function DataReportsPanel({
               <span>座位分析</span>
               <h2>热门座位</h2>
             </div>
-            <small>按使用次数和实际使用时长综合排序。</small>
+            <small>按后端近 30 天有效预约使用次数排序。</small>
           </header>
           <div className="data-reports-table">
             <div className="data-reports-table-head">

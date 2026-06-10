@@ -1,4 +1,4 @@
-import { Controller, ForbiddenException, Get, Req, UseGuards } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, Query, Req, UseGuards } from '@nestjs/common';
 import { ErrorCode } from '@ibooking/shared-types';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { AdminOverviewService } from './admin-overview.service';
@@ -19,6 +19,32 @@ export class AdminOverviewController {
   getOverview(@Req() request: AuthenticatedRequest) {
     assertAdminRole(request);
     return this.service.getSnapshot();
+  }
+
+  @Get('/api/v1/admin/bookings')
+  listBookings(
+    @Req() request: AuthenticatedRequest,
+    @Query('page') page?: string,
+    @Query('size') size?: string
+  ) {
+    assertAdminRole(request);
+    return this.service.listBookings({
+      page: Number(page),
+      size: Number(size)
+    });
+  }
+
+  @Get('/api/v1/admin/violations')
+  listViolations(
+    @Req() request: AuthenticatedRequest,
+    @Query('page') page?: string,
+    @Query('size') size?: string
+  ) {
+    assertAdminRole(request);
+    return this.service.listViolations({
+      page: Number(page),
+      size: Number(size)
+    });
   }
 }
 

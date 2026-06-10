@@ -389,6 +389,13 @@ export interface AdminBookingRecord {
   status: 'active' | 'pending' | 'done' | 'violation' | 'cancelled';
 }
 
+export interface AdminBookingRecordPage {
+  items: AdminBookingRecord[];
+  total: number;
+  page: number;
+  size: number;
+}
+
 export interface AdminBookingRecordsSnapshot {
   records: AdminBookingRecord[];
   operationRules: Array<[string, string]>;
@@ -405,6 +412,13 @@ export interface AdminViolationRecord {
   action: string;
   occurred: string;
   status: 'confirmed' | 'restricted' | 'appeal';
+}
+
+export interface AdminViolationRecordPage {
+  items: AdminViolationRecord[];
+  total: number;
+  page: number;
+  size: number;
 }
 
 export interface AdminViolationSnapshot {

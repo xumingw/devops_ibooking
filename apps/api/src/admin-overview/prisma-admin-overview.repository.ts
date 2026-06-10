@@ -2,12 +2,16 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
   AdminAuditRecord,
+  AdminBookingRecord,
+  AdminBookingRecordPage,
   AdminDashboardRecentBooking,
   AdminDashboardRoomStatus,
   AdminDynamicCodeRecord,
   AdminMetric,
   AdminOverviewSnapshot,
   AdminReportTopRoom,
+  AdminViolationRecord,
+  AdminViolationRecordPage,
   BookingStatus
 } from '@ibooking/shared-types';
 import { PrismaService } from '../database/prisma.service';
@@ -90,6 +94,57 @@ type OccupiedSlotRow = {
 export class PrismaAdminOverviewRepository implements AdminOverviewRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  async listBookings(query: { page: number; size: number }): Promise<AdminBookingRecordPage> {
+    const skip = (query.page - 1) * query.size;
+    const [total, bookings] = await Promise.all([
+      this.prisma.booking.count(),
+      this.prisma.booking.findMany({
+        include: {
+          user: true,
+          room: true,
+          seat: true,
+          reminderLogs: true,
+          violation: true
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: query.size
+      })
+    ]);
+
+    return {
+      items: bookings.map(toAdminBookingRecord),
+      total,
+      page: query.page,
+      size: query.size
+    };
+  }
+
+  async listViolations(query: { page: number; size: number }): Promise<AdminViolationRecordPage> {
+    const skip = (query.page - 1) * query.size;
+    const [total, violations] = await Promise.all([
+      this.prisma.violation.count(),
+      this.prisma.violation.findMany({
+        include: {
+          booking: true,
+          user: true,
+          room: true,
+          seat: true
+        },
+        orderBy: { occurredAt: 'desc' },
+        skip,
+        take: query.size
+      })
+    ]);
+
+    return {
+      items: violations.map(toAdminViolationRecord),
+      total,
+      page: query.page,
+      size: query.size
+    };
+  }
+
   async getSnapshot(now = new Date()): Promise<AdminOverviewSnapshot> {
     const todayStart = getShanghaiDayStart(now);
     const tomorrowStart = new Date(todayStart.getTime() + DAY_MS);
@@ -170,8 +225,8 @@ export class PrismaAdminOverviewRepository implements AdminOverviewRepository {
       }),
       this.prisma.booking.findMany({
         where: {
-          startAt: { gte: weekStart, lt: weekEnd },
-          status: { in: REPORT_BOOKING_STATUSES }
+          startAt: { gte: monthStart, lt: tomorrowStart },
+          status: { in: VALID_BOOKING_STATUSES }
         },
         include: {
           user: true,
@@ -388,7 +443,7 @@ function toDashboardBooking(row: BookingWithRelations): AdminDashboardRecentBook
   };
 }
 
-function toAdminBookingRecord(row: BookingWithRelations) {
+function toAdminBookingRecord(row: BookingWithRelations): AdminBookingRecord {
   const checkInLog = row.reminderLogs.find((log) => log.type === 'CHECK_IN_SUCCESS');
   return {
     id: row.id,
@@ -403,7 +458,7 @@ function toAdminBookingRecord(row: BookingWithRelations) {
   };
 }
 
-function toAdminViolationRecord(row: ViolationWithRelations) {
+function toAdminViolationRecord(row: ViolationWithRelations): AdminViolationRecord {
   return {
     id: row.id,
     bookingId: row.booking.id,
