@@ -31,6 +31,39 @@ class MemoryUserRepository implements UserRepository {
       })
       .map((user) => ({ ...user, roles: user.roles?.map((role) => ({ ...role })) }));
   }
+
+  async create(input: Parameters<UserRepository['create']>[0]): Promise<User> {
+    const user = userFixture({
+      id: `user-${input.studentNo}`,
+      studentNo: input.studentNo,
+      name: input.name,
+      email: `${input.studentNo}@fudan.edu.cn`,
+      departmentId: input.departmentName ? `dept-${input.departmentName}` : null,
+      departmentName: input.departmentName ?? null,
+      status: input.status,
+      roles: [{ id: `role-${input.roleName}`, code: input.roleName, name: input.roleName }]
+    });
+    this.users.push(user);
+    return { ...user, roles: user.roles?.map((role) => ({ ...role })) };
+  }
+
+  async createMany(inputs: Parameters<UserRepository['createMany']>[0]): Promise<User[]> {
+    const users: User[] = [];
+    for (const input of inputs) {
+      users.push(await this.create(input));
+    }
+    return users;
+  }
+
+  async assignRole(
+    userId: string,
+    input: Parameters<UserRepository['assignRole']>[1]
+  ): Promise<User> {
+    const target = this.users.find((user) => user.id === userId);
+    if (!target) throw new Error('not found');
+    target.roles = [{ id: `role-${input.roleName}`, code: input.roleName, name: input.roleName }];
+    return { ...target, roles: target.roles.map((role) => ({ ...role })) };
+  }
 }
 
 describe('UsersService', () => {
@@ -111,6 +144,34 @@ describe('UsersService', () => {
     await expect(service.listUsers({ status: 'LOCKED' })).rejects.toMatchObject({
       response: expect.objectContaining({ code: ErrorCode.VALIDATION_FAILED })
     });
+  });
+
+  it('创建、导入和分配角色时会归一化输入并返回用户', async () => {
+    const created = await service.createUser({
+      name: '  赵新雨  ',
+      studentNo: ' stu_new_01 ',
+      departmentName: ' 新闻学院 ',
+      roleName: ' 学生 ',
+      status: 'ACTIVE'
+    });
+
+    expect(created).toMatchObject({
+      studentNo: 'stu_new_01',
+      name: '赵新雨',
+      departmentName: '新闻学院',
+      roles: [{ name: '学生' }]
+    });
+
+    const imported = await service.importUsers([
+      { name: '钱导入', studentNo: 'stu_import_01', roleName: '学生' },
+      { name: '孙审计', studentNo: 'audit_import', roleName: '数据审计员' }
+    ]);
+    expect(imported.map((user) => user.studentNo)).toEqual(['audit_import', 'stu_import_01']);
+
+    const updated = await service.assignUserRole('user-stu-cse-01', {
+      roleName: ' 数据审计员 '
+    });
+    expect(updated.roles).toEqual([{ id: 'role-数据审计员', code: '数据审计员', name: '数据审计员' }]);
   });
 });
 

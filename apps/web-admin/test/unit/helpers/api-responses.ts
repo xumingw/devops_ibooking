@@ -1,3 +1,293 @@
+import type { AdminOverviewSnapshot, RoomCatalogItem } from '@ibooking/shared-types';
+
+export const adminOverviewFixture = (): AdminOverviewSnapshot => ({
+  dashboard: {
+    kpis: [
+      {
+        label: '今日预约总数',
+        value: '3',
+        note: '来自预约订单',
+        icon: 'calendar',
+        tone: '#0F3D32',
+        trend: '今日有预约'
+      },
+      {
+        label: '当前在座人数',
+        value: '1',
+        note: '共 112 个可用座位',
+        icon: 'users',
+        tone: '#3A6FA8',
+        trend: '实时'
+      }
+    ],
+    heatmapDays: ['周一', '周二'],
+    heatmapHours: ['8时', '9时'],
+    heatmapData: [
+      [0.2, 0.5],
+      [0.1, 0.3]
+    ],
+    roomStatuses: [
+      {
+        name: '经管自习室 301',
+        pct: 50,
+        totalSeats: 2,
+        occupiedSeats: 1,
+        availableSeats: 1,
+        status: 'mid'
+      },
+      {
+        name: '理工自习室 201',
+        pct: 0,
+        totalSeats: 2,
+        occupiedSeats: 0,
+        availableSeats: 2,
+        status: 'low'
+      }
+    ],
+    recentBookings: [
+      {
+        id: 'seed-admin-booking-now',
+        user: '林晓明',
+        room: '经管301',
+        seat: 'C3',
+        time: '20:00–22:00',
+        status: 'active'
+      }
+    ]
+  },
+  schedule: {
+    summary: [
+      {
+        label: '开放自习室',
+        value: '2',
+        note: '当前启用资源',
+        icon: 'building',
+        tone: '#2F9B5F'
+      }
+    ],
+    rules: [
+      {
+        room: '经管自习室 301',
+        scope: '工作日',
+        time: '08:00–22:00',
+        type: '常规开放',
+        status: '已生效',
+        note: '光华楼 A座 3楼 · 48 座'
+      }
+    ],
+    specialRules: [
+      {
+        title: '理工自习室 201 跨天开放',
+        date: '当前',
+        target: '理科楼 2楼',
+        time: '00:00–24:00',
+        desc: '结束时间早于开始时间时按次日计算'
+      }
+    ],
+    roomOptions: ['经管自习室 301', '理工自习室 201'],
+    options: [
+      { label: '分钟级时段', desc: '预约搜索按开始、结束时间过滤可用座位', enabled: true },
+      { label: '跨天开放', desc: '夜间自习室结束时间早于开始时间时按次日计算', enabled: true }
+    ],
+    priorities: [
+      { order: '1', title: '自习室独立规则', desc: '单个房间的开放状态和开放时段优先生效' },
+      { order: '2', title: '系统参数默认值', desc: '未配置独立规则时使用系统参数中的全校默认规则' }
+    ]
+  },
+  bookings: {
+    records: [
+      {
+        id: 'seed-admin-booking-now',
+        uid: 'stu_cse_01',
+        user: '林晓明',
+        room: '经管自习室 301',
+        seat: 'C3',
+        date: '6/9',
+        time: '20:00–22:00',
+        checkin: '20:05',
+        status: 'active'
+      }
+    ],
+    operationRules: [
+      ['完整校验', '代预约仍遵守开放时间、冲突、时长、权限规则'],
+      ['审计留痕', '记录操作者、目标学生、座位与提交结果']
+    ]
+  },
+  violations: {
+    summary: [
+      {
+        label: '本月违约',
+        value: '1',
+        note: '近 30 天记录',
+        icon: 'alert',
+        tone: '#C84040'
+      }
+    ],
+    records: [
+      {
+        id: 'seed-violation-admin-no-show',
+        bookingId: 'seed-admin-booking-no-show',
+        student: '陈浩然',
+        uid: 'stu_econ_01',
+        room: '理工自习室 201',
+        seat: 'A1',
+        reason: '未签到',
+        action: '自动取消并释放座位',
+        occurred: '6/8 22:15',
+        status: 'confirmed'
+      }
+    ],
+    rules: [
+      ['开始后 15 分钟自动取消', '释放座位，生成违约记录并进入复核队列'],
+      ['连续 3 次违约限制预约', '限制期内仅管理员可人工解除限制']
+    ]
+  },
+  dynamicCodes: {
+    summary: [
+      {
+        label: '今日有效码',
+        value: '3',
+        note: '按自习室生成',
+        icon: 'qr',
+        tone: '#2F9B5F'
+      }
+    ],
+    records: [
+      {
+        room: '经管自习室 301',
+        building: '光华楼 A座',
+        webCode: '739214',
+        qrStatus: '可打印',
+        refresh: '每日更新',
+        updatedAt: '6/9 08:00',
+        status: 'active'
+      }
+    ],
+    preview: {
+      room: '经管自习室 301',
+      building: '光华楼 A座',
+      webCode: '739214',
+      qrStatus: '可打印',
+      refresh: '每日更新',
+      updatedAt: '6/9 08:00',
+      status: 'active'
+    },
+    rules: [
+      ['每日 00:00 自动更新', '每间自习室生成当日签到凭证'],
+      ['截图复用拦截', '同一图片重复提交会进入异常上报']
+    ]
+  },
+  params: {
+    summary: [
+      {
+        label: '单次最长',
+        value: '4 小时',
+        note: '预约时长限制',
+        icon: 'settings',
+        tone: '#2F9B5F'
+      }
+    ],
+    records: [
+      {
+        name: '最大预约时长',
+        value: '4 小时',
+        defaultValue: '4 小时',
+        scope: '全校',
+        type: '数字',
+        status: 'active',
+        note: '单次预约最长时长'
+      }
+    ],
+    timeline: [
+      ['预约前', '开始前提醒', '提前 15 分钟推送通知'],
+      ['未签到', '自动取消', '超过 15 分钟自动释放座位']
+    ],
+    scopes: [
+      ['全校默认', '所有普通自习室共用的基础规则'],
+      ['院系范围', '院系自习室仍需校验学生归属']
+    ],
+    rules: [
+      ['参数变更需审批发布', '待发布变更不会立即影响预约规则'],
+      ['配置变更需审计留痕', '保存、恢复默认和发布都会进入审计日志'],
+      ['违约策略联动签到记录', '自动取消后同步释放座位并生成违约记录']
+    ]
+  },
+  audit: {
+    summary: [
+      {
+        label: '审计日志',
+        value: '4',
+        note: '最近操作记录',
+        icon: 'eye',
+        tone: '#3A6FA8'
+      }
+    ],
+    records: [
+      {
+        time: '6/9 20:30',
+        operator: '系统管理员',
+        module: '自习室管理',
+        action: '更新开放时间',
+        target: 'room-gm-301',
+        ip: '127.0.0.1',
+        result: 'success',
+        detail: '经管自习室 301 开放时间同步'
+      }
+    ],
+    risks: [
+      ['失败操作', '0 条', '需确认是否存在越权或重复操作'],
+      ['待复核变更', '1 条', '高风险权限或参数变更需要审批']
+    ],
+    rules: [
+      ['关键操作全量留痕', '登录、资源变更、权限调整、代操作均进入审计日志'],
+      ['高风险变更需复核', '角色权限和系统参数变更需要审批后生效']
+    ]
+  },
+  reports: {
+    summary: [
+      {
+        label: '平均签到率',
+        value: '75%',
+        note: '近 30 天',
+        icon: 'check-circle',
+        tone: '#2F9B5F'
+      },
+      {
+        label: '预约总量',
+        value: '4',
+        note: '近 30 天有效预约',
+        icon: 'calendar',
+        tone: '#3A6FA8'
+      }
+    ],
+    weeklyBookings: [
+      ['一', 2],
+      ['二', 1],
+      ['三', 0]
+    ],
+    topRooms: [{ name: '经管自习室 301', count: 3, pct: 100 }],
+    topSeats: [['C3', '经管自习室 301', '3', '插座、安静区']],
+    lowPeriods: [['8时', '3%', '低峰']],
+    rules: [
+      ['报表只读后端聚合', '图表、排行和摘要均基于预约、签到和座位表计算'],
+      ['低利用率辅助调度', '管理员可据此调整开放范围或维护计划']
+    ]
+  }
+});
+
+export const successfulAdminOverviewResponse = () =>
+  new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: adminOverviewFixture()
+    }),
+    {
+      headers: { 'Content-Type': 'application/json' },
+      status: 200
+    }
+  );
+
 export const successfulLoginResponse = () =>
   new Response(
     JSON.stringify({
@@ -358,6 +648,83 @@ export const successfulStudentRoomAvailabilityResponse = () =>
       headers: { 'Content-Type': 'application/json' },
       status: 200
     }
+  );
+
+export const successfulRoomCatalogResponse = (rooms: RoomCatalogItem[] = [
+  {
+    id: 'room-gm-301',
+    name: '经管自习室 301',
+    building: '光华楼 A座',
+    floor: '3楼',
+    capacity: 37,
+    hours: '08:00–22:00',
+    scope: '全校开放',
+    tags: ['插座', '靠窗', '安静区'],
+    resourceStatus: 'ACTIVE'
+  },
+  {
+    id: 'room-science-201',
+    name: '理工自习室 201',
+    building: '理科楼',
+    floor: '2楼',
+    capacity: 38,
+    hours: '00:00–24:00',
+    scope: '全校开放',
+    tags: ['24小时', '插座'],
+    resourceStatus: 'ACTIVE'
+  },
+  {
+    id: 'room-humanities-a',
+    name: '文史馆阅览室 A',
+    building: '文史馆',
+    floor: '1楼',
+    capacity: 38,
+    hours: '08:00–21:00',
+    scope: '全校开放',
+    tags: ['靠窗', '低噪音'],
+    resourceStatus: 'ACTIVE'
+  },
+  {
+    id: 'room-news-seminar',
+    name: '新闻学院研讨室',
+    building: '新闻学院楼',
+    floor: '4楼',
+    capacity: 37,
+    hours: '09:00–20:00',
+    scope: '全校开放',
+    tags: ['白板', '投影'],
+    resourceStatus: 'ACTIVE'
+  },
+  {
+    id: 'room-science-403',
+    name: '理工自习室 403',
+    building: '逸夫楼',
+    floor: '4楼',
+    capacity: 37,
+    hours: '08:00–23:00',
+    scope: '全校开放',
+    tags: ['插座', '安静区'],
+    resourceStatus: 'ACTIVE'
+  },
+  {
+    id: 'room-library-zone',
+    name: '图书馆自习区',
+    building: '李兆基图书馆',
+    floor: '2楼',
+    capacity: 37,
+    hours: '08:00–22:00',
+    scope: '全校开放',
+    tags: ['插座', '靠窗', '安静区'],
+    resourceStatus: 'ACTIVE'
+  }
+]) =>
+  new Response(
+    JSON.stringify({
+      code: 'SUCCESS',
+      message: 'success',
+      data: rooms
+    }),
+    { headers: { 'Content-Type': 'application/json' }, status: 200 }
   );
 
 export const successfulStudentBookingsResponse = () =>

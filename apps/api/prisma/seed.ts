@@ -3,16 +3,29 @@ import { PasswordHasher } from '../src/auth/password-hasher';
 import { createStudentRoomSeatFixtures } from './seed-seat-fixtures';
 import { STUDENT_PERMISSION_CODES } from './seed-permissions';
 import { createStudentStudyHistoryBookings } from './seed-study-history';
+import { seedAdminRecords } from './seed-admin-records';
 
 const prisma = new PrismaClient();
 const hasher = new PasswordHasher();
 
 async function main() {
-  const cs = await prisma.department.upsert({
-    where: { code: 'CS' },
-    update: { name: '计算机学院' },
-    create: { id: 'dept-cs', code: 'CS', name: '计算机学院' }
-  });
+  const [cs, economics, journalism] = await Promise.all([
+    prisma.department.upsert({
+      where: { code: 'CS' },
+      update: { name: '计算机学院' },
+      create: { id: 'dept-cs', code: 'CS', name: '计算机学院' }
+    }),
+    prisma.department.upsert({
+      where: { code: 'ECON' },
+      update: { name: '经济学院' },
+      create: { id: 'dept-economics', code: 'ECON', name: '经济学院' }
+    }),
+    prisma.department.upsert({
+      where: { code: 'JOUR' },
+      update: { name: '新闻学院' },
+      create: { id: 'dept-journalism', code: 'JOUR', name: '新闻学院' }
+    })
+  ]);
 
   const roles = await Promise.all([
     upsertRole('role-student', 'ROLE_STUDENT', '学生'),
@@ -84,6 +97,61 @@ async function main() {
   });
 
   await upsertUser({
+    id: 'user-stu-cse-02',
+    studentNo: 'stu_cse_02',
+    name: '张子涵',
+    email: 'stu_cse_02@fudan.edu.cn',
+    password: 'Pass123!',
+    departmentId: cs.id,
+    status: 'ACTIVE',
+    roleIds: [studentRole.id]
+  });
+
+  await upsertUser({
+    id: 'user-stu-economics-01',
+    studentNo: 'stu_econ_01',
+    name: '陈浩然',
+    email: 'stu_econ_01@fudan.edu.cn',
+    password: 'Pass123!',
+    departmentId: economics.id,
+    status: 'ACTIVE',
+    roleIds: [studentRole.id]
+  });
+
+  await upsertUser({
+    id: 'user-stu-journalism-01',
+    studentNo: 'stu_news_01',
+    name: '王芳',
+    email: 'stu_news_01@fudan.edu.cn',
+    password: 'Pass123!',
+    departmentId: journalism.id,
+    status: 'ACTIVE',
+    roleIds: [studentRole.id]
+  });
+
+  const generatedStudentIds: string[] = [];
+  const generatedStudentNames = Array.from(
+    { length: 160 },
+    (_, index) => `演示学生${String(index + 1).padStart(3, '0')}`
+  );
+  const generatedDepartments = [cs.id, economics.id, journalism.id];
+  for (const [index, name] of generatedStudentNames.entries()) {
+    const order = index + 1;
+    const id = `user-stu-seed-${String(order).padStart(2, '0')}`;
+    generatedStudentIds.push(id);
+    await upsertUser({
+      id,
+      studentNo: `stu_seed_${String(order).padStart(2, '0')}`,
+      name,
+      email: `stu_seed_${String(order).padStart(2, '0')}@fudan.edu.cn`,
+      password: 'Pass123!',
+      departmentId: generatedDepartments[index % generatedDepartments.length],
+      status: 'ACTIVE',
+      roleIds: [studentRole.id]
+    });
+  }
+
+  await upsertUser({
     id: 'user-admin-full',
     studentNo: 'admin_full',
     name: '王建华',
@@ -132,7 +200,7 @@ async function main() {
     name: '经管自习室 301',
     building: '光华楼 A座',
     floor: 3,
-    capacity: 48,
+    capacity: 37,
     scopeType: 'SCHOOL',
     departmentId: null,
     openHour: 8,
@@ -145,7 +213,7 @@ async function main() {
     name: '理工自习室 201',
     building: '理科楼',
     floor: 2,
-    capacity: 36,
+    capacity: 38,
     scopeType: 'SCHOOL',
     departmentId: null,
     openHour: 0,
@@ -158,7 +226,7 @@ async function main() {
     name: '文史馆阅览室 A',
     building: '文史馆',
     floor: 1,
-    capacity: 72,
+    capacity: 38,
     scopeType: 'SCHOOL',
     departmentId: null,
     openHour: 9,
@@ -171,7 +239,7 @@ async function main() {
     name: '计算机学院自习室 B',
     building: '计算机楼',
     floor: 4,
-    capacity: 24,
+    capacity: 37,
     scopeType: 'DEPARTMENT',
     departmentId: cs.id,
     openHour: 22,
@@ -184,7 +252,7 @@ async function main() {
     name: '新闻学院研讨室',
     building: '新闻学院楼',
     floor: 4,
-    capacity: 20,
+    capacity: 37,
     scopeType: 'SCHOOL',
     departmentId: null,
     openHour: 9,
@@ -197,7 +265,7 @@ async function main() {
     name: '理工自习室 403',
     building: '逸夫楼',
     floor: 4,
-    capacity: 56,
+    capacity: 37,
     scopeType: 'SCHOOL',
     departmentId: null,
     openHour: 8,
@@ -210,7 +278,7 @@ async function main() {
     name: '图书馆自习区',
     building: '李兆基图书馆',
     floor: 2,
-    capacity: 120,
+    capacity: 37,
     scopeType: 'SCHOOL',
     departmentId: null,
     openHour: 8,
@@ -218,10 +286,13 @@ async function main() {
     overnight: false
   });
 
+  await normalizeLegacyDemoRooms();
+
   const studentRoomIds = [
     'room-gm-301',
     'room-science-201',
     'room-humanities-a',
+    'room-cs-lab-b',
     'room-news-seminar',
     'room-science-403',
     'room-library-zone'
@@ -261,6 +332,7 @@ async function main() {
   );
 
   await Promise.all([...seatFixturesByRoomAndCode.values()].map((fixture) => upsertSeat(fixture)));
+  await ensureActiveRoomSeatCoverage();
 
   await Promise.all([
     upsertFavorite('favorite-stu-gm-301', 'user-stu-cse-01', 'room-gm-301'),
@@ -269,6 +341,16 @@ async function main() {
   ]);
 
   await seedStudentStudyHistory('user-stu-cse-01');
+  await seedAdminRecords(prisma, {
+    adminUserId: 'user-admin-full',
+    studentUserIds: [
+      'user-stu-cse-01',
+      'user-stu-cse-02',
+      'user-stu-economics-01',
+      'user-stu-journalism-01',
+      ...generatedStudentIds
+    ]
+  });
 }
 
 async function upsertRole(id: string, code: string, name: string) {
@@ -392,6 +474,72 @@ async function upsertSeat(input: {
       status: 'ACTIVE'
     }
   });
+}
+
+async function normalizeLegacyDemoRooms() {
+  const legacyLawRoom = await prisma.room.findUnique({ where: { name: 'Law Room 501' } });
+  if (!legacyLawRoom) return;
+
+  const normalizedName = '法学院自习室 501';
+  const existingNormalizedRoom = await prisma.room.findUnique({ where: { name: normalizedName } });
+  if (existingNormalizedRoom && existingNormalizedRoom.id !== legacyLawRoom.id) {
+    await prisma.room.update({
+      where: { id: legacyLawRoom.id },
+      data: { status: 'INACTIVE' }
+    });
+    return;
+  }
+
+  await prisma.room.update({
+    where: { id: legacyLawRoom.id },
+    data: {
+      name: normalizedName,
+      building: '法学院楼',
+      floor: 5,
+      scopeType: 'SCHOOL',
+      departmentId: null,
+      openHour: 8,
+      closeHour: 22,
+      overnight: false,
+      status: 'ACTIVE'
+    }
+  });
+}
+
+async function ensureActiveRoomSeatCoverage() {
+  const activeRooms = await prisma.room.findMany({
+    where: { status: 'ACTIVE' },
+    include: {
+      seats: {
+        where: { status: 'ACTIVE' },
+        select: { id: true }
+      }
+    }
+  });
+
+  for (const room of activeRooms) {
+    if (room.seats.length > 0) continue;
+    await Promise.all(createStudentRoomSeatFixtures([room.id]).map((fixture) => upsertSeat(fixture)));
+  }
+
+  const refreshedRooms = await prisma.room.findMany({
+    where: { status: 'ACTIVE' },
+    include: {
+      seats: {
+        where: { status: 'ACTIVE' },
+        select: { id: true }
+      }
+    }
+  });
+
+  await Promise.all(
+    refreshedRooms.map((room) =>
+      prisma.room.update({
+        where: { id: room.id },
+        data: { capacity: room.seats.length }
+      })
+    )
+  );
 }
 
 async function upsertFavorite(id: string, userId: string, roomId: string) {
