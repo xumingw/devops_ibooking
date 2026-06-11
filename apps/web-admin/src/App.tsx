@@ -3136,6 +3136,44 @@ const downloadAdminDashboardReport = (overview?: AdminDashboardSnapshot) => {
   return true;
 };
 
+const downloadAdminTableExport = (
+  filenameBase: string,
+  rows: Array<Array<string | number>>,
+  format: AdminReportExportFormat = 'csv'
+) => {
+  if (
+    typeof document === 'undefined' ||
+    typeof URL === 'undefined' ||
+    typeof URL.createObjectURL !== 'function'
+  ) {
+    return false;
+  }
+
+  const content =
+    format === 'excel'
+      ? `<!doctype html><html><head><meta charset="utf-8"></head><body><table>${rows
+          .map((row) => `<tr>${row.map((cell) => `<td>${escapeHtmlCell(cell)}</td>`).join('')}</tr>`)
+          .join('')}</table></body></html>`
+      : `\uFEFF${rows.map((row) => row.map(escapeCsvCell).join(',')).join('\n')}`;
+  const extension = format === 'excel' ? 'xls' : 'csv';
+  const mime =
+    format === 'excel'
+      ? 'application/vnd.ms-excel;charset=utf-8'
+      : 'text/csv;charset=utf-8';
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${filenameBase}-${new Date().toISOString().slice(0, 10)}.${extension}`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  return true;
+};
+
+const generateAdminDynamicCode = () => String(Math.floor(100000 + Math.random() * 900000));
+
 const STUDENT_MENU_GROUPS: Array<{ label: string; items: StudentMenuItem[] }> = [
   {
     label: '学习空间',
@@ -5385,6 +5423,64 @@ export function AdminDashboard({
       downloadAdminDashboardReport(adminOverview?.dashboard);
       return;
     }
+    if (activeMenu === 'bookings' && action.label === '导出 Excel') {
+      const records = adminOverview?.bookings.records ?? [];
+      downloadAdminTableExport(
+        'ibooking-bookings',
+        [
+          ['预约ID', '学号', '姓名', '自习室', '座位', '日期', '时间段', '签到时间', '状态'],
+          ...records.map((record) => [
+            record.id,
+            record.uid,
+            record.user,
+            record.room,
+            record.seat,
+            record.date,
+            record.time,
+            record.checkin,
+            ADMIN_BOOKING_STATUS_META[record.status].label
+          ])
+        ],
+        'excel'
+      );
+      return;
+    }
+    if (activeMenu === 'violations' && action.label === '导出违约') {
+      const records = adminOverview?.violations.records ?? [];
+      downloadAdminTableExport('ibooking-violations', [
+        ['违约ID', '预约编号', '学生', '学号', '自习室', '座位', '原因', '处理动作', '发生时间', '状态'],
+        ...records.map((record) => [
+          record.id,
+          record.bookingId,
+          record.student,
+          record.uid,
+          record.room,
+          record.seat,
+          record.reason,
+          record.action,
+          record.occurred,
+          ADMIN_VIOLATION_STATUS_META[record.status].label
+        ])
+      ]);
+      return;
+    }
+    if (activeMenu === 'audit' && action.label === '导出日志') {
+      const records = adminOverview?.audit.records ?? [];
+      downloadAdminTableExport('ibooking-audit-logs', [
+        ['时间', '操作者', '模块', '动作', '对象', '来源 IP', '结果', '详情'],
+        ...records.map((record) => [
+          record.time,
+          record.operator,
+          record.module,
+          record.action,
+          record.target,
+          record.ip,
+          ADMIN_AUDIT_STATUS_META[record.result].label,
+          record.detail
+        ])
+      ]);
+      return;
+    }
     if (action.id === 'create-room') {
       setRoomCreateSignal((current) => current + 1);
     }
@@ -5746,7 +5842,6 @@ function DashboardOverview({
 }
 
 function AdminModulePanel({ meta }: { meta: AdminMenuMeta }) {
-  const [actionNotice, setActionNotice] = useState('');
   const tableColumns = `minmax(150px, 1.35fr) repeat(${Math.max(
     meta.tableHead.length - 1,
     1
@@ -5765,7 +5860,6 @@ function AdminModulePanel({ meta }: { meta: AdminMenuMeta }) {
             <button
               key={action.label}
               type="button"
-              onClick={() => setActionNotice(`${meta.title}：${action.label}已触发。`)}
             >
               <DashboardIcon name={action.icon} size={13} />
               {action.label}
@@ -5773,8 +5867,6 @@ function AdminModulePanel({ meta }: { meta: AdminMenuMeta }) {
           ))}
         </div>
       </section>
-
-      <AdminActionNotice message={actionNotice} />
 
       <section className="dashboard-kpi-row dashboard-module-metrics" aria-label={`${meta.title}关键指标`}>
         {meta.metrics.map((metric) => (
@@ -5818,7 +5910,6 @@ function AdminModulePanel({ meta }: { meta: AdminMenuMeta }) {
 
 function RoomManagementPanel({
   accessToken,
-  actionSignal,
   createSignal,
   onSessionExpired,
   onSessionRefresh,
@@ -5841,11 +5932,6 @@ function RoomManagementPanel({
   const [form, setForm] = useState<AdminRoomFormState>(() => newRoomForm());
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
-  const [actionNotice, setActionNotice] = useState('');
-
-  const announceRoomAction = (message: string) => {
-    setActionNotice(`自习室管理：${message}`);
-  };
 
   useEffect(() => {
     let alive = true;
@@ -5884,21 +5970,7 @@ function RoomManagementPanel({
     setEditor({ mode: 'create', room: null });
     setForm(newRoomForm());
     setFormError('');
-    announceRoomAction('已打开新增自习室表单。');
   }, [createSignal]);
-
-  useEffect(() => {
-    if (actionSignal?.menu !== 'rooms') return;
-    if (actionSignal.label === '资源状态同步') {
-      announceRoomAction('已重新同步资源状态。');
-      return;
-    }
-    if (actionSignal.label === '新增自习室') {
-      announceRoomAction('已打开新增自习室表单。');
-      return;
-    }
-    announceRoomAction(`${actionSignal.label}已触发。`);
-  }, [actionSignal?.label, actionSignal?.menu, actionSignal?.nonce]);
 
   const filteredRooms = rooms.filter((room) => {
     const keyword = query.trim().toLowerCase();
@@ -5992,10 +6064,7 @@ function RoomManagementPanel({
           <select
             aria-label="自习室状态筛选"
             value={roomStatusFilter}
-            onChange={(event) => {
-              setRoomStatusFilter(event.target.value);
-              announceRoomAction(`已按状态筛选：${event.target.value}。`);
-            }}
+            onChange={(event) => setRoomStatusFilter(event.target.value)}
           >
             {roomStatusOptions.map((status) => (
               <option key={status} value={status}>
@@ -6009,10 +6078,7 @@ function RoomManagementPanel({
           <select
             aria-label="自习室楼栋筛选"
             value={roomBuildingFilter}
-            onChange={(event) => {
-              setRoomBuildingFilter(event.target.value);
-              announceRoomAction(`已按楼栋筛选：${event.target.value}。`);
-            }}
+            onChange={(event) => setRoomBuildingFilter(event.target.value)}
           >
             {roomBuildingOptions.map((building) => (
               <option key={building} value={building}>
@@ -6025,7 +6091,21 @@ function RoomManagementPanel({
         <button
           className="room-secondary-button"
           type="button"
-          onClick={() => announceRoomAction(`已导出 ${filteredRooms.length} 间自习室。`)}
+          onClick={() =>
+            downloadAdminTableExport('ibooking-rooms', [
+              ['编号', '自习室名称', '楼栋', '楼层', '容量', '开放对象', '状态', '开放时间'],
+              ...filteredRooms.map((room) => [
+                room.code,
+                room.name,
+                room.building,
+                room.floor,
+                room.capacity,
+                room.departmentLabel,
+                room.statusLabel,
+                room.hours
+              ])
+            ])
+          }
         >
           <DashboardIcon name="download" size={13} />
           导出
@@ -6035,8 +6115,6 @@ function RoomManagementPanel({
           新增自习室
         </button>
       </div>
-
-      <AdminActionNotice message={actionNotice} />
 
       {(loading || loadError) && (
         <div className={`room-message ${loadError ? 'is-error' : ''}`}>
@@ -6078,7 +6156,6 @@ function RoomManagementPanel({
               </button>
               <button
                 type="button"
-                onClick={() => announceRoomAction(`已定位到${room.name}的平面图入口。`)}
               >
                 <DashboardIcon name="move" size={12} />
                 平面图
@@ -6086,7 +6163,6 @@ function RoomManagementPanel({
               <button
                 aria-label={`${room.name} 更多操作`}
                 type="button"
-                onClick={() => announceRoomAction(`已展开${room.name}的更多操作。`)}
               >
                 <DashboardIcon name="more-v" size={12} />
               </button>
@@ -6238,7 +6314,6 @@ function RoomFormField({
 
 function SeatManagementPanel({
   accessToken,
-  actionSignal,
   createSignal,
   onSessionExpired,
   onSessionRefresh
@@ -6260,11 +6335,6 @@ function SeatManagementPanel({
   const [form, setForm] = useState<AdminSeatFormState>(() => newSeatForm());
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
-  const [actionNotice, setActionNotice] = useState('');
-
-  const announceSeatAction = (message: string) => {
-    setActionNotice(`座位管理：${message}`);
-  };
 
   useEffect(() => {
     let alive = true;
@@ -6303,21 +6373,7 @@ function SeatManagementPanel({
     setEditor({ mode: 'create', seat: null });
     setForm(newSeatForm());
     setFormError('');
-    announceSeatAction('已打开新增座位表单。');
   }, [createSignal]);
-
-  useEffect(() => {
-    if (actionSignal?.menu !== 'seats') return;
-    if (actionSignal.label === '新增座位') {
-      announceSeatAction('已打开新增座位表单。');
-      return;
-    }
-    if (actionSignal.label === '批量导入') {
-      announceSeatAction('已准备座位批量导入流程。');
-      return;
-    }
-    announceSeatAction(`${actionSignal.label}已触发。`);
-  }, [actionSignal?.label, actionSignal?.menu, actionSignal?.nonce]);
 
   const roomOptions = useMemo(() => {
     const options = new Map<string, string>();
@@ -6429,10 +6485,7 @@ function SeatManagementPanel({
           <select
             aria-label="座位自习室筛选"
             value={seatRoomFilter}
-            onChange={(event) => {
-              setSeatRoomFilter(event.target.value);
-              announceSeatAction(`已按自习室筛选：${event.target.value}。`);
-            }}
+            onChange={(event) => setSeatRoomFilter(event.target.value)}
           >
             {seatRoomOptions.map((room) => (
               <option key={room} value={room}>
@@ -6446,10 +6499,7 @@ function SeatManagementPanel({
           <select
             aria-label="座位标签筛选"
             value={seatTagFilter}
-            onChange={(event) => {
-              setSeatTagFilter(event.target.value);
-              announceSeatAction(`已按标签筛选：${event.target.value}。`);
-            }}
+            onChange={(event) => setSeatTagFilter(event.target.value)}
           >
             {seatTagOptions.map((tag) => (
               <option key={tag} value={tag}>
@@ -6463,10 +6513,7 @@ function SeatManagementPanel({
           <select
             aria-label="座位状态筛选"
             value={seatStatusFilter}
-            onChange={(event) => {
-              setSeatStatusFilter(event.target.value);
-              announceSeatAction(`已按状态筛选：${event.target.value}。`);
-            }}
+            onChange={(event) => setSeatStatusFilter(event.target.value)}
           >
             {['全部状态', '可预约', '禁用'].map((status) => (
               <option key={status} value={status}>
@@ -6480,13 +6527,11 @@ function SeatManagementPanel({
           <DashboardIcon name="plus" size={13} />
           新增座位
         </button>
-        <button type="button" onClick={() => announceSeatAction('已进入批量维护流程。')}>
+        <button type="button">
           <DashboardIcon name="settings" size={13} />
           批量维护
         </button>
       </div>
-
-      <AdminActionNotice message={actionNotice} />
 
       {(loading || loadError) && (
         <div className={`room-message ${loadError ? 'is-error' : ''}`}>
@@ -6528,7 +6573,6 @@ function SeatManagementPanel({
               </button>
               <button
                 type="button"
-                onClick={() => announceSeatAction(`已定位${seat.roomName} ${seat.code}。`)}
               >
                 <DashboardIcon name="move" size={12} />
                 定位
@@ -6804,7 +6848,17 @@ function FloorEditorPanel({
     }
     if (toolId === 'export') {
       setActiveTool('export');
-      setEditorNotice(`已准备导出 ${selectedRoom.name} 的当前平面图草稿。`);
+      downloadAdminTableExport('ibooking-floor-plan', [
+        ['自习室', '座位', 'X 坐标', 'Y 坐标', '插座', '状态'],
+        ...selectedRoomSeats.map((seat) => [
+          selectedRoom.name,
+          seat.code,
+          seat.x,
+          seat.y,
+          seat.hasPower ? '是' : '否',
+          seat.status
+        ])
+      ]);
       return;
     }
     setActiveTool('select');
@@ -7036,37 +7090,16 @@ function FloorSeatCell({
 }
 
 function ScheduleManagementPanel({
-  actionSignal,
   error,
   loading,
   overview
 }: AdminDataPanelProps<AdminScheduleSnapshot>) {
-  const [actionNotice, setActionNotice] = useState('');
-  const announceScheduleAction = (message: string) => {
-    setActionNotice(`开放时间管理：${message}`);
-  };
-
-  useEffect(() => {
-    if (actionSignal?.menu !== 'schedule') return;
-    if (actionSignal.label === '新增开放规则') {
-      announceScheduleAction('已打开新增开放规则表单。');
-      return;
-    }
-    if (actionSignal.label === '同步节假日') {
-      announceScheduleAction('已同步节假日特殊规则。');
-      return;
-    }
-    announceScheduleAction(`${actionSignal.label}已触发。`);
-  }, [actionSignal?.label, actionSignal?.menu, actionSignal?.nonce]);
-
   if (!overview) {
     return <AdminDataState error={error} loading={loading} label="开放时间管理" />;
   }
 
   return (
     <section className="schedule-management-panel" aria-label="开放时间管理">
-      <AdminActionNotice message={actionNotice} />
-
       <div className="schedule-summary-grid" aria-label="开放时间关键指标">
         {overview.summary.map((item) => (
           <article className="dashboard-card schedule-summary-card" key={item.label}>
@@ -7090,7 +7123,6 @@ function ScheduleManagementPanel({
             <button
               className="schedule-primary-action"
               type="button"
-              onClick={() => announceScheduleAction('已保存为待审批开放时间变更。')}
             >
               <DashboardIcon name="check" size={13} />
               保存开放时间
@@ -7162,7 +7194,7 @@ function ScheduleManagementPanel({
               <span>开放规则</span>
               <h2>房间时段配置</h2>
             </div>
-            <button type="button" onClick={() => announceScheduleAction('已打开新增开放规则表单。')}>
+            <button type="button">
               <DashboardIcon name="plus" size={13} />
               新增开放规则
             </button>
@@ -7196,7 +7228,7 @@ function ScheduleManagementPanel({
               <span>特殊日期</span>
               <h2>节假日特殊规则</h2>
             </div>
-            <button type="button" onClick={() => announceScheduleAction('已同步节假日特殊规则。')}>
+            <button type="button">
               <DashboardIcon name="refresh" size={13} />
               同步节假日
             </button>
@@ -7225,7 +7257,6 @@ type BookingRecordsPanelProps = AdminDataPanelProps<AdminBookingRecordsSnapshot>
 };
 
 function BookingRecordsPanel({
-  actionSignal,
   error,
   loading,
   onPageChange,
@@ -7237,23 +7268,6 @@ function BookingRecordsPanel({
   const [bookingQuery, setBookingQuery] = useState('');
   const [bookingDateFilter, setBookingDateFilter] = useState('全部日期');
   const [bookingStatusFilter, setBookingStatusFilter] = useState('全部状态');
-  const [actionNotice, setActionNotice] = useState('');
-  const announceBookingAction = (message: string) => {
-    setActionNotice(`预约记录管理：${message}`);
-  };
-
-  useEffect(() => {
-    if (actionSignal?.menu !== 'bookings') return;
-    if (actionSignal.label === '代预约') {
-      announceBookingAction('已打开管理员代预约流程。');
-      return;
-    }
-    if (actionSignal.label === '导出 Excel') {
-      announceBookingAction('已生成当前筛选结果的 Excel 导出任务。');
-      return;
-    }
-    announceBookingAction(`${actionSignal.label}已触发。`);
-  }, [actionSignal?.label, actionSignal?.menu, actionSignal?.nonce]);
 
   if (!overview) {
     return <AdminDataState error={error} loading={loading} label="预约记录管理" />;
@@ -7302,10 +7316,7 @@ function BookingRecordsPanel({
           <select
             aria-label="预约日期筛选"
             value={bookingDateFilter}
-            onChange={(event) => {
-              setBookingDateFilter(event.target.value);
-              announceBookingAction(`已按日期筛选：${event.target.value}。`);
-            }}
+            onChange={(event) => setBookingDateFilter(event.target.value)}
           >
             {bookingDateOptions.map((date) => (
               <option key={date} value={date}>
@@ -7319,10 +7330,7 @@ function BookingRecordsPanel({
           <select
             aria-label="预约状态筛选"
             value={bookingStatusFilter}
-            onChange={(event) => {
-              setBookingStatusFilter(event.target.value);
-              announceBookingAction(`已按状态筛选：${event.target.value}。`);
-            }}
+            onChange={(event) => setBookingStatusFilter(event.target.value)}
           >
             {bookingStatusOptions.map((status) => (
               <option key={status} value={status}>
@@ -7336,14 +7344,11 @@ function BookingRecordsPanel({
         <button
           className="booking-records-danger"
           type="button"
-          onClick={() => announceBookingAction('当前未选中预约记录，无法批量取消。')}
         >
           <DashboardIcon name="trash" size={13} />
           批量取消
         </button>
       </div>
-
-      <AdminActionNotice message={actionNotice} />
 
       <div className="booking-records-layout">
         <section className="dashboard-card booking-records-table-card">
@@ -7353,13 +7358,32 @@ function BookingRecordsPanel({
               <h2>预约记录管理</h2>
             </div>
             <div className="booking-records-head-actions">
-              <button type="button" onClick={() => announceBookingAction('已打开管理员代预约流程。')}>
+              <button type="button">
                 <DashboardIcon name="plus" size={13} />
                 代预约
               </button>
               <button
                 type="button"
-                onClick={() => announceBookingAction('已生成当前筛选结果的 Excel 导出任务。')}
+                onClick={() =>
+                  downloadAdminTableExport(
+                    'ibooking-bookings',
+                    [
+                      ['预约ID', '学号', '姓名', '自习室', '座位', '日期', '时间段', '签到时间', '状态'],
+                      ...displayedBookingRecords.map((record) => [
+                        record.id,
+                        record.uid,
+                        record.user,
+                        record.room,
+                        record.seat,
+                        record.date,
+                        record.time,
+                        record.checkin,
+                        ADMIN_BOOKING_STATUS_META[record.status].label
+                      ])
+                    ],
+                    'excel'
+                  )
+                }
               >
                 <DashboardIcon name="download" size={13} />
                 导出 Excel
@@ -7408,7 +7432,6 @@ function BookingRecordsPanel({
                   <span className="booking-records-actions">
                     <button
                       type="button"
-                      onClick={() => announceBookingAction(`已打开预约 ${formatAdminRecordCode(record.id)} 详情。`)}
                     >
                       <DashboardIcon name="eye" size={12} />
                       详情
@@ -7417,7 +7440,6 @@ function BookingRecordsPanel({
                       <button
                         className="is-danger"
                         type="button"
-                        onClick={() => announceBookingAction(`已提交预约 ${formatAdminRecordCode(record.id)} 的取消复核。`)}
                       >
                         <DashboardIcon name="x" size={12} />
                         取消
@@ -7485,7 +7507,6 @@ type ViolationRecordsPanelProps = AdminDataPanelProps<AdminViolationSnapshot> & 
 };
 
 function ViolationRecordsPanel({
-  actionSignal,
   error,
   loading,
   onPageChange,
@@ -7497,23 +7518,6 @@ function ViolationRecordsPanel({
   const [violationQuery, setViolationQuery] = useState('');
   const [violationReasonFilter, setViolationReasonFilter] = useState('全部原因');
   const [violationStatusFilter, setViolationStatusFilter] = useState('全部状态');
-  const [actionNotice, setActionNotice] = useState('');
-  const announceViolationAction = (message: string) => {
-    setActionNotice(`违约记录管理：${message}`);
-  };
-
-  useEffect(() => {
-    if (actionSignal?.menu !== 'violations') return;
-    if (actionSignal.label === '处理申诉') {
-      announceViolationAction('已打开申诉处理队列。');
-      return;
-    }
-    if (actionSignal.label === '导出违约') {
-      announceViolationAction('已生成违约记录导出任务。');
-      return;
-    }
-    announceViolationAction(`${actionSignal.label}已触发。`);
-  }, [actionSignal?.label, actionSignal?.menu, actionSignal?.nonce]);
 
   if (!overview) {
     return <AdminDataState error={error} loading={loading} label="违约记录管理" />;
@@ -7580,10 +7584,7 @@ function ViolationRecordsPanel({
           <select
             aria-label="违约原因筛选"
             value={violationReasonFilter}
-            onChange={(event) => {
-              setViolationReasonFilter(event.target.value);
-              announceViolationAction(`已按原因筛选：${event.target.value}。`);
-            }}
+            onChange={(event) => setViolationReasonFilter(event.target.value)}
           >
             {violationReasonOptions.map((reason) => (
               <option key={reason} value={reason}>
@@ -7597,10 +7598,7 @@ function ViolationRecordsPanel({
           <select
             aria-label="违约状态筛选"
             value={violationStatusFilter}
-            onChange={(event) => {
-              setViolationStatusFilter(event.target.value);
-              announceViolationAction(`已按状态筛选：${event.target.value}。`);
-            }}
+            onChange={(event) => setViolationStatusFilter(event.target.value)}
           >
             {violationStatusOptions.map((status) => (
               <option key={status} value={status}>
@@ -7613,18 +7611,34 @@ function ViolationRecordsPanel({
         <button
           className="violation-records-primary"
           type="button"
-          onClick={() => announceViolationAction('已打开申诉处理队列。')}
         >
           <DashboardIcon name="alert" size={13} />
           处理申诉
         </button>
-        <button type="button" onClick={() => announceViolationAction('已生成违约记录导出任务。')}>
+        <button
+          type="button"
+          onClick={() =>
+            downloadAdminTableExport('ibooking-violations', [
+              ['违约ID', '预约编号', '学生', '学号', '自习室', '座位', '原因', '处理动作', '发生时间', '状态'],
+              ...displayedViolationRecords.map((record) => [
+                record.id,
+                record.bookingId,
+                record.student,
+                record.uid,
+                record.room,
+                record.seat,
+                record.reason,
+                record.action,
+                record.occurred,
+                ADMIN_VIOLATION_STATUS_META[record.status].label
+              ])
+            ])
+          }
+        >
           <DashboardIcon name="download" size={13} />
           导出违约
         </button>
       </div>
-
-      <AdminActionNotice message={actionNotice} />
 
       <div className="violation-records-layout">
         <section className="dashboard-card violation-records-table-card">
@@ -7691,14 +7705,12 @@ function ViolationRecordsPanel({
                   <span className="violation-records-actions">
                     <button
                       type="button"
-                      onClick={() => announceViolationAction(`已打开违约 ${formatAdminRecordCode(record.id)} 详情。`)}
                     >
                       <DashboardIcon name="eye" size={12} />
                       详情
                     </button>
                     <button
                       type="button"
-                      onClick={() => announceViolationAction(`已为违约 ${formatAdminRecordCode(record.id)} 打开备注编辑。`)}
                     >
                       <DashboardIcon name="edit" size={12} />
                       追加备注
@@ -7707,7 +7719,6 @@ function ViolationRecordsPanel({
                       <button
                         className="is-release"
                         type="button"
-                        onClick={() => announceViolationAction(`已提交解除 ${record.student} 预约限制的复核。`)}
                       >
                         <DashboardIcon name="check-circle" size={12} />
                         解除限制
@@ -7777,33 +7788,49 @@ function DynamicCodePanel({
   const [codeBuildingFilter, setCodeBuildingFilter] = useState('全部楼栋');
   const [codeStatusFilter, setCodeStatusFilter] = useState('全部状态');
   const [codeRefreshFilter, setCodeRefreshFilter] = useState('刷新策略');
-  const [actionNotice, setActionNotice] = useState('');
-  const announceDynamicCodeAction = (message: string) => {
-    setActionNotice(`动态码管理：${message}`);
+  const [generatedCodes, setGeneratedCodes] = useState<Record<string, string>>({});
+  const regenerateCodeForRoom = (room: string) => {
+    setGeneratedCodes((current) => ({ ...current, [room]: generateAdminDynamicCode() }));
+  };
+  const regenerateAllCodes = () => {
+    if (!overview) return;
+    setGeneratedCodes((current) => ({
+      ...current,
+      ...Object.fromEntries(overview.records.map((record) => [record.room, generateAdminDynamicCode()]))
+    }));
+  };
+  const printDynamicCodes = () => {
+    if (typeof window !== 'undefined' && typeof window.print === 'function') window.print();
   };
 
   useEffect(() => {
     if (actionSignal?.menu !== 'qrcode') return;
     if (actionSignal.label === '生成动态码') {
-      announceDynamicCodeAction('已重新生成今日动态码任务。');
+      regenerateAllCodes();
       return;
     }
     if (actionSignal.label === '打印签到码') {
-      announceDynamicCodeAction('已准备当前动态码打印任务。');
-      return;
+      printDynamicCodes();
     }
-    announceDynamicCodeAction(`${actionSignal.label}已触发。`);
-  }, [actionSignal?.label, actionSignal?.menu, actionSignal?.nonce]);
+  }, [actionSignal?.label, actionSignal?.menu, actionSignal?.nonce, overview]);
 
   if (!overview) {
     return <AdminDataState error={error} loading={loading} label="动态码管理" />;
   }
-  const previewQrValue = formatDynamicCodeQrValue(overview.preview);
+  const previewRecord = overview.preview
+    ? {
+        ...overview.preview,
+        webCode: generatedCodes[overview.preview.room] ?? overview.preview.webCode
+      }
+    : overview.preview;
+  const previewQrValue = formatDynamicCodeQrValue(previewRecord);
+  const getDynamicCode = (record: AdminDynamicCodeSnapshot['records'][number]) =>
+    generatedCodes[record.room] ?? record.webCode;
   const displayedCodeRecords = overview.records.filter((record) => {
     const keyword = codeQuery.trim().toLowerCase();
     const matchesKeyword =
       !keyword ||
-      [record.room, record.building, record.webCode, record.qrStatus].some((field) =>
+      [record.room, record.building, getDynamicCode(record), record.qrStatus].some((field) =>
         field.toLowerCase().includes(keyword)
       );
     const statusLabel = ADMIN_DYNAMIC_CODE_STATUS_META[record.status].label;
@@ -7859,10 +7886,7 @@ function DynamicCodePanel({
           <select
             aria-label="动态码楼栋筛选"
             value={codeBuildingFilter}
-            onChange={(event) => {
-              setCodeBuildingFilter(event.target.value);
-              announceDynamicCodeAction(`已按楼栋筛选：${event.target.value}。`);
-            }}
+            onChange={(event) => setCodeBuildingFilter(event.target.value)}
           >
             {codeBuildingOptions.map((building) => (
               <option key={building} value={building}>
@@ -7876,10 +7900,7 @@ function DynamicCodePanel({
           <select
             aria-label="动态码状态筛选"
             value={codeStatusFilter}
-            onChange={(event) => {
-              setCodeStatusFilter(event.target.value);
-              announceDynamicCodeAction(`已按状态筛选：${event.target.value}。`);
-            }}
+            onChange={(event) => setCodeStatusFilter(event.target.value)}
           >
             {codeStatusOptions.map((status) => (
               <option key={status} value={status}>
@@ -7893,10 +7914,7 @@ function DynamicCodePanel({
           <select
             aria-label="动态码刷新策略筛选"
             value={codeRefreshFilter}
-            onChange={(event) => {
-              setCodeRefreshFilter(event.target.value);
-              announceDynamicCodeAction(`已按刷新策略筛选：${event.target.value}。`);
-            }}
+            onChange={(event) => setCodeRefreshFilter(event.target.value)}
           >
             {codeRefreshOptions.map((refresh) => (
               <option key={refresh} value={refresh}>
@@ -7909,18 +7927,16 @@ function DynamicCodePanel({
         <button
           className="dynamic-code-primary"
           type="button"
-          onClick={() => announceDynamicCodeAction('已重新生成今日动态码任务。')}
+          onClick={regenerateAllCodes}
         >
           <DashboardIcon name="qr" size={13} />
           生成动态码
         </button>
-        <button type="button" onClick={() => announceDynamicCodeAction('已准备当前动态码打印任务。')}>
+        <button type="button" onClick={printDynamicCodes}>
           <DashboardIcon name="download" size={13} />
           打印签到码
         </button>
       </div>
-
-      <AdminActionNotice message={actionNotice} />
 
       <div className="dynamic-code-layout">
         <section className="dashboard-card dynamic-code-table-card">
@@ -7953,7 +7969,7 @@ function DynamicCodePanel({
                 <div className="dynamic-code-table-row" key={record.room}>
                   <strong>{record.room}</strong>
                   <span>{record.building}</span>
-                  <code>{record.webCode}</code>
+                  <code>{getDynamicCode(record)}</code>
                   <span>{record.qrStatus}</span>
                   <span>{record.refresh}</span>
                   <span>
@@ -7963,21 +7979,20 @@ function DynamicCodePanel({
                   <span className="dynamic-code-actions">
                     <button
                       type="button"
-                      onClick={() => announceDynamicCodeAction(`已重新生成${record.room}动态码。`)}
+                      onClick={() => regenerateCodeForRoom(record.room)}
                     >
                       <DashboardIcon name="refresh" size={12} />
                       重新生成
                     </button>
                     <button
                       type="button"
-                      onClick={() => announceDynamicCodeAction(`已准备打印${record.room}签到码。`)}
+                      onClick={printDynamicCodes}
                     >
                       <DashboardIcon name="download" size={12} />
                       打印
                     </button>
                     <button
                       type="button"
-                      onClick={() => announceDynamicCodeAction(`已打开${record.room}动态码日志。`)}
                     >
                       <DashboardIcon name="eye" size={12} />
                       查看日志
@@ -8011,7 +8026,7 @@ function DynamicCodePanel({
                 value={previewQrValue}
               />
             </div>
-            <strong>{overview.preview?.webCode ?? '—'}</strong>
+            <strong>{previewRecord?.webCode ?? '—'}</strong>
             <span>网页动态码 · 小程序二维码</span>
           </div>
           {overview.rules.map(([title, desc]) => (
@@ -8080,7 +8095,6 @@ function UserManagementPanel({
       openImportUserDialog();
       return;
     }
-    announceUserAction(`${actionSignal.label}已触发。`);
   }, [actionSignal?.label, actionSignal?.menu, actionSignal?.nonce]);
 
   useEffect(() => {
@@ -8361,10 +8375,7 @@ function UserManagementPanel({
           <select
             aria-label="院系筛选"
             value={departmentFilter}
-            onChange={(event) => {
-              setDepartmentFilter(event.target.value);
-              announceUserAction(`已按院系筛选：${event.target.value}。`);
-            }}
+            onChange={(event) => setDepartmentFilter(event.target.value)}
           >
             {departmentOptions.map((department) => (
               <option key={department} value={department}>
@@ -8378,10 +8389,7 @@ function UserManagementPanel({
           <select
             aria-label="角色筛选"
             value={roleFilter}
-            onChange={(event) => {
-              setRoleFilter(event.target.value);
-              announceUserAction(`已按角色筛选：${event.target.value}。`);
-            }}
+            onChange={(event) => setRoleFilter(event.target.value)}
           >
             {roleOptions.map((role) => (
               <option key={role} value={role}>
@@ -8395,10 +8403,7 @@ function UserManagementPanel({
           <select
             aria-label="账号状态筛选"
             value={statusFilter}
-            onChange={(event) => {
-              setStatusFilter(event.target.value);
-              announceUserAction(`已按账号状态筛选：${event.target.value}。`);
-            }}
+            onChange={(event) => setStatusFilter(event.target.value)}
           >
             {['账号状态', '正常', '停用'].map((status) => (
               <option key={status} value={status}>
@@ -8470,7 +8475,6 @@ function UserManagementPanel({
                     </button>
                     <button
                       type="button"
-                      onClick={() => announceUserAction(`已生成${user.name}的密码重置任务。`)}
                     >
                       <DashboardIcon name="settings" size={12} />
                       重置密码
@@ -8775,7 +8779,6 @@ function RoleManagementPanel({
       openPermissionDialog();
       return;
     }
-    announceRoleAction(`${actionSignal.label}已触发。`);
   }, [actionSignal?.label, actionSignal?.menu, actionSignal?.nonce]);
 
   useEffect(() => {
@@ -9017,10 +9020,7 @@ function RoleManagementPanel({
           <select
             aria-label="角色筛选"
             value={roleNameFilter}
-            onChange={(event) => {
-              setRoleNameFilter(event.target.value);
-              announceRoleAction(`已按角色筛选：${event.target.value}。`);
-            }}
+            onChange={(event) => setRoleNameFilter(event.target.value)}
           >
             {roleNameOptions.map((role) => (
               <option key={role} value={role}>
@@ -9034,10 +9034,7 @@ function RoleManagementPanel({
           <select
             aria-label="权限范围筛选"
             value={roleScopeFilter}
-            onChange={(event) => {
-              setRoleScopeFilter(event.target.value);
-              announceRoleAction(`已按权限范围筛选：${event.target.value}。`);
-            }}
+            onChange={(event) => setRoleScopeFilter(event.target.value)}
           >
             {roleScopeOptions.map((scope) => (
               <option key={scope} value={scope}>
@@ -9051,10 +9048,7 @@ function RoleManagementPanel({
           <select
             aria-label="审批状态筛选"
             value={roleStatusFilter}
-            onChange={(event) => {
-              setRoleStatusFilter(event.target.value);
-              announceRoleAction(`已按审批状态筛选：${event.target.value}。`);
-            }}
+            onChange={(event) => setRoleStatusFilter(event.target.value)}
           >
             {['审批状态', '启用', '待审批', '禁用'].map((status) => (
               <option key={status} value={status}>
@@ -9174,7 +9168,6 @@ function RoleManagementPanel({
                 <mark>{item.scope}</mark>
                 <button
                   type="button"
-                  onClick={() => announceRoleAction(`已定位${item.title}的菜单权限。`)}
                 >
                   {item.checked}
                 </button>
@@ -9346,7 +9339,6 @@ function RoleManagementPanel({
 }
 
 function SystemParameterPanel({
-  actionSignal,
   error,
   loading,
   overview
@@ -9354,23 +9346,11 @@ function SystemParameterPanel({
   const [paramQuery, setParamQuery] = useState('');
   const [paramScopeFilter, setParamScopeFilter] = useState('生效范围');
   const [paramStatusFilter, setParamStatusFilter] = useState('发布状态');
-  const [actionNotice, setActionNotice] = useState('');
-  const announceParamAction = (message: string) => {
-    setActionNotice(`系统参数管理：${message}`);
+  const resetParamFilters = () => {
+    setParamQuery('');
+    setParamScopeFilter('生效范围');
+    setParamStatusFilter('发布状态');
   };
-
-  useEffect(() => {
-    if (actionSignal?.menu !== 'params') return;
-    if (actionSignal.label === '保存参数') {
-      announceParamAction('已保存参数变更为待审批草稿。');
-      return;
-    }
-    if (actionSignal.label === '恢复默认') {
-      announceParamAction('已恢复当前筛选参数默认值预览。');
-      return;
-    }
-    announceParamAction(`${actionSignal.label}已触发。`);
-  }, [actionSignal?.label, actionSignal?.menu, actionSignal?.nonce]);
 
   if (!overview) {
     return <AdminDataState error={error} loading={loading} label="系统参数管理" />;
@@ -9400,8 +9380,6 @@ function SystemParameterPanel({
 
   return (
     <section className="system-parameter-panel" aria-label="系统参数管理">
-      <AdminActionNotice message={actionNotice} />
-
       <div className="system-parameter-summary-grid" aria-label="系统参数关键指标">
         {overview.summary.map((item) => (
           <article className="dashboard-card system-parameter-summary-card" key={item.label}>
@@ -9431,10 +9409,7 @@ function SystemParameterPanel({
           <select
             aria-label="参数范围筛选"
             value={paramScopeFilter}
-            onChange={(event) => {
-              setParamScopeFilter(event.target.value);
-              announceParamAction(`已按生效范围筛选：${event.target.value}。`);
-            }}
+            onChange={(event) => setParamScopeFilter(event.target.value)}
           >
             {paramScopeOptions.map((scope) => (
               <option key={scope} value={scope}>
@@ -9448,10 +9423,7 @@ function SystemParameterPanel({
           <select
             aria-label="参数状态筛选"
             value={paramStatusFilter}
-            onChange={(event) => {
-              setParamStatusFilter(event.target.value);
-              announceParamAction(`已按发布状态筛选：${event.target.value}。`);
-            }}
+            onChange={(event) => setParamStatusFilter(event.target.value)}
           >
             {paramStatusOptions.map((status) => (
               <option key={status} value={status}>
@@ -9464,12 +9436,11 @@ function SystemParameterPanel({
         <button
           className="system-parameter-primary"
           type="button"
-          onClick={() => announceParamAction('已保存参数变更为待审批草稿。')}
         >
           <DashboardIcon name="settings" size={13} />
           保存参数
         </button>
-        <button type="button" onClick={() => announceParamAction('已恢复当前筛选参数默认值预览。')}>
+        <button type="button" onClick={resetParamFilters}>
           <DashboardIcon name="refresh" size={13} />
           恢复默认
         </button>
@@ -9556,7 +9527,6 @@ function SystemParameterPanel({
 }
 
 function AuditLogPanel({
-  actionSignal,
   error,
   loading,
   overview
@@ -9564,23 +9534,6 @@ function AuditLogPanel({
   const [auditQuery, setAuditQuery] = useState('');
   const [auditModuleFilter, setAuditModuleFilter] = useState('全部模块');
   const [auditResultFilter, setAuditResultFilter] = useState('全部结果');
-  const [actionNotice, setActionNotice] = useState('');
-  const announceAuditAction = (message: string) => {
-    setActionNotice(`审计日志管理：${message}`);
-  };
-
-  useEffect(() => {
-    if (actionSignal?.menu !== 'audit') return;
-    if (actionSignal.label === '筛选模块') {
-      announceAuditAction('已打开模块筛选面板。');
-      return;
-    }
-    if (actionSignal.label === '导出日志') {
-      announceAuditAction('已生成审计日志导出任务。');
-      return;
-    }
-    announceAuditAction(`${actionSignal.label}已触发。`);
-  }, [actionSignal?.label, actionSignal?.menu, actionSignal?.nonce]);
 
   if (!overview) {
     return <AdminDataState error={error} loading={loading} label="审计日志管理" />;
@@ -9616,8 +9569,6 @@ function AuditLogPanel({
 
   return (
     <section className="audit-log-panel" aria-label="审计日志管理">
-      <AdminActionNotice message={actionNotice} />
-
       <div className="audit-log-summary-grid" aria-label="审计日志关键指标">
         {overview.summary.map((item) => (
           <article className="dashboard-card audit-log-summary-card" key={item.label}>
@@ -9647,10 +9598,7 @@ function AuditLogPanel({
           <select
             aria-label="审计模块筛选"
             value={auditModuleFilter}
-            onChange={(event) => {
-              setAuditModuleFilter(event.target.value);
-              announceAuditAction(`已按模块筛选：${event.target.value}。`);
-            }}
+            onChange={(event) => setAuditModuleFilter(event.target.value)}
           >
             {auditModuleOptions.map((module) => (
               <option key={module} value={module}>
@@ -9664,10 +9612,7 @@ function AuditLogPanel({
           <select
             aria-label="审计结果筛选"
             value={auditResultFilter}
-            onChange={(event) => {
-              setAuditResultFilter(event.target.value);
-              announceAuditAction(`已按结果筛选：${event.target.value}。`);
-            }}
+            onChange={(event) => setAuditResultFilter(event.target.value)}
           >
             {auditResultOptions.map((result) => (
               <option key={result} value={result}>
@@ -9680,12 +9625,28 @@ function AuditLogPanel({
         <button
           className="audit-log-primary"
           type="button"
-          onClick={() => announceAuditAction('已打开模块筛选面板。')}
         >
           <DashboardIcon name="eye" size={13} />
           筛选模块
         </button>
-        <button type="button" onClick={() => announceAuditAction('已生成审计日志导出任务。')}>
+        <button
+          type="button"
+          onClick={() =>
+            downloadAdminTableExport('ibooking-audit-logs', [
+              ['时间', '操作者', '模块', '动作', '对象', '来源 IP', '结果', '详情'],
+              ...displayedAuditRecords.map((record) => [
+                record.time,
+                record.operator,
+                record.module,
+                record.action,
+                record.target,
+                record.ip,
+                ADMIN_AUDIT_STATUS_META[record.result].label,
+                record.detail
+              ])
+            ])
+          }
+        >
           <DashboardIcon name="download" size={13} />
           导出日志
         </button>

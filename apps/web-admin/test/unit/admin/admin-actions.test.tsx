@@ -37,34 +37,57 @@ describe('admin action buttons', () => {
     cleanup();
     window.history.pushState(null, '', '/');
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
-  it('只读管理页工具栏按钮会显示动作反馈', async () => {
+  it('只读管理页按钮不会弹出占位动作提示', async () => {
     await mountDashboard('schedule');
     await clickButton('保存开放时间');
-    expect(container?.textContent).toContain('开放时间管理：已保存为待审批开放时间变更。');
+    expectNoPlaceholderActionNotice();
 
     await mountDashboard('bookings');
     await clickButton('代预约');
-    expect(container?.textContent).toContain('预约记录管理：已打开管理员代预约流程。');
+    expectNoPlaceholderActionNotice();
     await clickButton('详情');
-    expect(container?.textContent).toContain('预约记录管理：已打开预约 booking-action-001 详情。');
+    expectNoPlaceholderActionNotice();
 
     await mountDashboard('violations');
     await clickButton('处理申诉');
-    expect(container?.textContent).toContain('违约记录管理：已打开申诉处理队列。');
+    expectNoPlaceholderActionNotice();
 
     await mountDashboard('qrcode');
     await clickButton('生成动态码');
-    expect(container?.textContent).toContain('动态码管理：已重新生成今日动态码任务。');
+    expectNoPlaceholderActionNotice();
 
     await mountDashboard('params');
     await clickButton('保存参数');
-    expect(container?.textContent).toContain('系统参数管理：已保存参数变更为待审批草稿。');
+    expectNoPlaceholderActionNotice();
 
     await mountDashboard('audit');
     await clickButton('导出日志');
-    expect(container?.textContent).toContain('审计日志管理：已生成审计日志导出任务。');
+    expectNoPlaceholderActionNotice();
+  });
+
+  it('预约、违约和审计顶栏导出会触发真实下载', async () => {
+    const createObjectUrl = vi.fn(() => 'blob:admin-export');
+    const revokeObjectUrl = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectUrl });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectUrl });
+    const anchorClick = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined);
+
+    await mountDashboard('bookings');
+    await clickButton('导出 Excel');
+    await mountDashboard('violations');
+    await clickButton('导出违约');
+    await mountDashboard('audit');
+    await clickButton('导出日志');
+
+    expect(createObjectUrl).toHaveBeenCalledTimes(3);
+    expect(anchorClick).toHaveBeenCalledTimes(3);
+    expect(revokeObjectUrl).toHaveBeenCalledTimes(3);
+    expectNoPlaceholderActionNotice();
   });
 
   it('角色行内禁用按钮会更新当前表格状态', async () => {
@@ -193,6 +216,13 @@ describe('admin action buttons', () => {
       checkbox!.click();
       await Promise.resolve();
     });
+  }
+
+  function expectNoPlaceholderActionNotice() {
+    const noticeText = Array.from(container?.querySelectorAll('.admin-action-notice') ?? [])
+      .map((notice) => notice.textContent ?? '')
+      .join('\n');
+    expect(noticeText).not.toMatch(/已触发|已打开|已生成|已准备|已重新生成|已同步|已保存为/);
   }
 
   function cleanup() {
