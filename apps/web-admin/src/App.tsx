@@ -3102,6 +3102,40 @@ const downloadAdminReport = (
   return true;
 };
 
+const buildAdminDashboardReportContent = (overview?: AdminDashboardSnapshot) =>
+  JSON.stringify(
+    {
+      generatedAt: new Date().toISOString(),
+      source: 'admin-dashboard-overview',
+      dashboard: overview ?? null
+    },
+    null,
+    2
+  );
+
+const downloadAdminDashboardReport = (overview?: AdminDashboardSnapshot) => {
+  if (
+    typeof document === 'undefined' ||
+    typeof URL === 'undefined' ||
+    typeof URL.createObjectURL !== 'function'
+  ) {
+    return false;
+  }
+
+  const blob = new Blob([buildAdminDashboardReportContent(overview)], {
+    type: 'application/json;charset=utf-8'
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `ibooking-dashboard-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  return true;
+};
+
 const STUDENT_MENU_GROUPS: Array<{ label: string; items: StudentMenuItem[] }> = [
   {
     label: '学习空间',
@@ -5172,6 +5206,7 @@ export function AdminDashboard({
   const [roomCreateSignal, setRoomCreateSignal] = useState(0);
   const [roomRefreshSignal, setRoomRefreshSignal] = useState(0);
   const [seatCreateSignal, setSeatCreateSignal] = useState(0);
+  const [adminOverviewRefreshSignal, setAdminOverviewRefreshSignal] = useState(0);
   const [adminOverview, setAdminOverview] = useState<AdminOverviewSnapshot | undefined>(
     initialAdminOverview
   );
@@ -5227,7 +5262,7 @@ export function AdminDashboard({
     return () => {
       alive = false;
     };
-  }, [accessToken, onSessionExpired, onSessionRefresh]);
+  }, [accessToken, adminOverviewRefreshSignal, onSessionExpired, onSessionRefresh]);
   useEffect(() => {
     let alive = true;
     if (activeMenu !== 'bookings') return () => {
@@ -5342,6 +5377,14 @@ export function AdminDashboard({
   };
 
   const handleTopbarAction = (action: AdminMenuAction) => {
+    if (activeMenu === 'dashboard' && action.label === '刷新') {
+      setAdminOverviewRefreshSignal((current) => current + 1);
+      return;
+    }
+    if (activeMenu === 'dashboard' && action.label === '导出报告') {
+      downloadAdminDashboardReport(adminOverview?.dashboard);
+      return;
+    }
     if (action.id === 'create-room') {
       setRoomCreateSignal((current) => current + 1);
     }
@@ -5428,7 +5471,6 @@ export function AdminDashboard({
 
         {activeMenu === 'dashboard' ? (
           <DashboardOverview
-            actionSignal={adminActionSignal}
             loading={adminOverviewLoading}
             overview={adminOverview?.dashboard}
             error={adminOverviewError}
@@ -5578,31 +5620,17 @@ type DashboardOverviewProps = AdminDataPanelProps<AdminDashboardSnapshot> & {
 };
 
 function DashboardOverview({
-  actionSignal,
   error,
   loading,
   onViewAllBookings,
   overview
 }: DashboardOverviewProps) {
-  const [actionNotice, setActionNotice] = useState('');
-
-  useEffect(() => {
-    if (actionSignal?.menu !== 'dashboard') return;
-    setActionNotice(
-      actionSignal.label === '导出报告'
-        ? '管理仪表盘：已生成当前概览报告。'
-        : `管理仪表盘：${actionSignal.label}已触发。`
-    );
-  }, [actionSignal?.label, actionSignal?.menu, actionSignal?.nonce]);
-
   if (!overview) {
     return <AdminDataState error={error} loading={loading} label="管理仪表盘" />;
   }
 
   return (
     <>
-        <AdminActionNotice message={actionNotice} />
-
         <section className="dashboard-kpi-row" aria-label="自习室运行概览">
           {overview.kpis.map((kpi) => (
             <article className="dashboard-card dashboard-kpi-card" key={kpi.label}>
