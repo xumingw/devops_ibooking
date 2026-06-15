@@ -11,6 +11,9 @@ describe('PrismaAssistantRepository', () => {
     booking: {
       findMany: jest.Mock;
     };
+    room: {
+      findMany: jest.Mock;
+    };
   };
   let repository: PrismaAssistantRepository;
 
@@ -21,6 +24,9 @@ describe('PrismaAssistantRepository', () => {
         findMany: jest.fn()
       },
       booking: {
+        findMany: jest.fn()
+      },
+      room: {
         findMany: jest.fn()
       }
     };
@@ -196,7 +202,7 @@ describe('PrismaAssistantRepository', () => {
         room: '经管自习室 301',
         seat: 'C3',
         status: 'upcoming',
-        actions: ['CHECK_IN', 'DETAIL']
+        actions: ['CHECK_IN', 'CANCEL', 'DETAIL']
       }),
       expect.objectContaining({
         bookingId: 'booking-future',
@@ -212,6 +218,66 @@ describe('PrismaAssistantRepository', () => {
             lt: expect.any(Date)
           })
         })
+      })
+    );
+  });
+
+  it('查询自习室开放时间时按关键词和可访问范围返回当天日程', async () => {
+    prisma.room.findMany.mockResolvedValue([
+      {
+        id: 'room-library-zone',
+        name: '图书馆自习区',
+        building: '李兆基图书馆',
+        floor: 2,
+        capacity: 120,
+        scopeType: 'SCHOOL',
+        departmentId: null,
+        openHour: 8,
+        closeHour: 22,
+        overnight: false,
+        status: 'ACTIVE',
+        createdAt: new Date('2026-05-30T05:00:00.000Z'),
+        updatedAt: new Date('2026-05-30T05:00:00.000Z'),
+        schedules: []
+      }
+    ]);
+
+    const rooms = await repository.findRoomHours({
+      departmentId: 'dept-cs',
+      keyword: '图书馆',
+      targetDate: new Date('2026-05-30T10:00:00.000Z')
+    });
+
+    expect(rooms).toEqual([
+      {
+        room: '图书馆自习区',
+        location: '李兆基图书馆 2楼',
+        openHour: 8,
+        closeHour: 22,
+        overnight: false,
+        closed: false
+      }
+    ]);
+    expect(prisma.room.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: 'ACTIVE',
+          OR: [{ scopeType: 'SCHOOL' }, { scopeType: 'DEPARTMENT', departmentId: 'dept-cs' }],
+          AND: [
+            {
+              OR: [
+                { name: { contains: '图书馆' } },
+                { building: { contains: '图书馆' } }
+              ]
+            }
+          ]
+        }),
+        include: {
+          schedules: expect.objectContaining({
+            take: 1
+          })
+        },
+        take: 5
       })
     );
   });

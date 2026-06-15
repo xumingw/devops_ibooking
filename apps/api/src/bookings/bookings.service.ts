@@ -3,6 +3,7 @@ import { ErrorCode, StudentBookingRecord, StudentBookingSummary } from '@ibookin
 
 export const BOOKING_REPOSITORY = 'BOOKING_REPOSITORY';
 const MAX_BOOKING_HOURS = 4;
+const BOOKING_SLOT_MINUTES = 30;
 
 export type CreateStudentBookingInput = {
   roomId: string;
@@ -48,6 +49,8 @@ export class BookingsService {
     const endAt = this.parseBookingDate(input.endAt);
     const durationMs = endAt.getTime() - startAt.getTime();
     const hourMs = 60 * 60 * 1000;
+    const slotMs = BOOKING_SLOT_MINUTES * 60 * 1000;
+    const currentSlotStartAt = Math.floor(Date.now() / slotMs) * slotMs;
 
     if (durationMs <= 0) {
       throw new BadRequestException({
@@ -55,16 +58,16 @@ export class BookingsService {
         message: '预约结束时间必须晚于开始时间'
       });
     }
-    if (startAt.getTime() <= Date.now()) {
+    if (!this.isHalfHourSlot(startAt) || !this.isHalfHourSlot(endAt)) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: '预约时间必须按 30 分钟粒度选择'
+      });
+    }
+    if (startAt.getTime() < currentSlotStartAt) {
       throw new BadRequestException({
         code: ErrorCode.VALIDATION_FAILED,
         message: '不能预约已过去的时段'
-      });
-    }
-    if (!this.isHalfHourBoundary(startAt) || !this.isHalfHourBoundary(endAt)) {
-      throw new BadRequestException({
-        code: ErrorCode.VALIDATION_FAILED,
-        message: '预约必须按 30 分钟粒度开始和结束'
       });
     }
     if (durationMs > MAX_BOOKING_HOURS * hourMs) {
@@ -77,6 +80,14 @@ export class BookingsService {
     return this.repository.createByUserId(userId, input);
   }
 
+  private isHalfHourSlot(date: Date): boolean {
+    return (
+      date.getUTCMinutes() % BOOKING_SLOT_MINUTES === 0 &&
+      date.getUTCSeconds() === 0 &&
+      date.getUTCMilliseconds() === 0
+    );
+  }
+
   private parseBookingDate(value: string): Date {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) {
@@ -86,13 +97,5 @@ export class BookingsService {
       });
     }
     return date;
-  }
-
-  private isHalfHourBoundary(date: Date): boolean {
-    return (
-      (date.getMinutes() === 0 || date.getMinutes() === 30) &&
-      date.getSeconds() === 0 &&
-      date.getMilliseconds() === 0
-    );
   }
 }

@@ -5,7 +5,8 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
-      "@ibooking/design-tokens": ["../../packages/design-tokens/src/index.ts"]
+      "@ibooking/design-tokens": ["../../packages/design-tokens/src/index.ts"],
+      "@ibooking/shared-types": ["../../packages/shared-types/src/index.ts"]
     },
     "types": ["vite/client"],
     "noEmit": true

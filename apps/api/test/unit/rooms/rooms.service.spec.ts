@@ -2,7 +2,13 @@
 // @tc TC-US2.1.1-01
 // @tc TC-US2.1.1-02
 import { NotFoundException } from '@nestjs/common';
-import { ErrorCode, Room, RoomScopeType } from '@ibooking/shared-types';
+import {
+  ErrorCode,
+  Room,
+  RoomCatalogItem,
+  RoomScopeType,
+  RoomAvailabilitySummary
+} from '@ibooking/shared-types';
 import {
   RoomRepository,
   RoomsService,
@@ -19,6 +25,44 @@ class MemoryRoomRepository implements RoomRepository {
 
   async list(): Promise<Room[]> {
     return Array.from(this.rooms.values()).map((room) => ({ ...room }));
+  }
+
+  async listCatalog(): Promise<RoomCatalogItem[]> {
+    return [
+      {
+        id: 'room-gm-301',
+        name: '经管自习室 301',
+        building: '光华楼 A座',
+        floor: '3楼',
+        capacity: 2,
+        hours: '08:00–22:00',
+        scope: '全校开放',
+        tags: ['插座', '靠窗', '安静区'],
+        resourceStatus: 'ACTIVE'
+      },
+      {
+        id: 'room-cs-lab-b',
+        name: '计算机学院自习室 B',
+        building: '计算机楼',
+        floor: '4楼',
+        capacity: 1,
+        hours: '22:00–07:00（跨天）',
+        scope: '仅计算机学院',
+        tags: ['24小时', '插座'],
+        resourceStatus: 'ACTIVE'
+      }
+    ];
+  }
+
+  async getAvailability(): Promise<RoomAvailabilitySummary> {
+    return {
+      totalSeats: 3,
+      availableSeats: 1,
+      rooms: [
+        { roomId: 'room-gm-301', totalSeats: 2, availableSeats: 1 },
+        { roomId: 'room-cs-lab-b', totalSeats: 1, availableSeats: 0 }
+      ]
+    };
   }
 
   async findById(id: string): Promise<Room | null> {
@@ -78,6 +122,38 @@ describe('RoomsService', () => {
     const rooms = await service.listRooms();
 
     expect(rooms.map((room) => room.name)).toEqual(['经管自习室 301', '理工自习室 201']);
+  });
+
+  it('返回统一自习室目录，学生端和管理端共用同一套数据库房间', async () => {
+    await expect(service.listRoomCatalog()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'room-gm-301',
+        capacity: 2,
+        scope: '全校开放',
+        tags: expect.arrayContaining(['插座', '靠窗'])
+      }),
+      expect.objectContaining({
+        id: 'room-cs-lab-b',
+        hours: '22:00–07:00（跨天）',
+        scope: '仅计算机学院'
+      })
+    ]);
+  });
+
+  it('返回统一余位统计，按指定预约时段给所有端复用', async () => {
+    await expect(
+      service.getRoomAvailability({
+        startAt: '2026-06-09T15:00:00.000Z',
+        endAt: '2026-06-09T18:00:00.000Z'
+      })
+    ).resolves.toEqual({
+      totalSeats: 3,
+      availableSeats: 1,
+      rooms: [
+        { roomId: 'room-gm-301', totalSeats: 2, availableSeats: 1 },
+        { roomId: 'room-cs-lab-b', totalSeats: 1, availableSeats: 0 }
+      ]
+    });
   });
 
   it('新增自习室时写入基础信息和默认开放规则', async () => {

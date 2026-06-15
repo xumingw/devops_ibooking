@@ -129,15 +129,13 @@ describe('rooms', () => {
     );
 
     expect(html).toContain('自习室管理');
-    expect(html).toContain('共 48 个自习室');
+    expect(html).toContain('资源配置与开放范围');
     expect(html).toContain('新增自习室');
     expect(html).toContain('资源状态同步');
     expect(html).toContain('搜索自习室名称、楼栋');
     expect(html).toContain('自习室名称');
-    expect(html).toContain('R001');
-    expect(html).toContain('08:00–22:00');
-    expect(html).toContain('编辑');
-    expect(html).toContain('平面图');
+    expect(html).toContain('没有匹配的自习室');
+    expect(html).not.toContain('R001');
     expect(html).not.toContain('管理模块');
     expect(html).not.toContain('本周座位利用率热力图');
   });

@@ -10,7 +10,7 @@ describe('student activity pages', () => {
     );
 
     expect(html).toContain('我的预约');
-    expect(html).toContain('本学期共 5 次预约 · 2 次完成');
+    expect(html).toContain('本学期共 0 次预约 · 0 次完成');
     expect(html).toContain('筛选状态');
     expect(html).toContain('导出记录');
     expect(html).toContain('全部');
@@ -19,17 +19,11 @@ describe('student activity pages', () => {
     expect(html).toContain('已完成');
     expect(html).toContain('已取消');
     expect(html).toContain('违约');
-    expect(html).toContain('今日 14:00–17:00');
-    expect(html).toContain('C3');
-    expect(html).toContain('经管自习室 301');
-    expect(html).toContain('光华楼 A座');
-    expect(html).toContain('立即签到');
-    expect(html).toContain('取消');
-    expect(html).toContain('F12');
-    expect(html).toContain('再次预约');
-    expect(html).toContain('D8');
-    expect(html).toContain('查看原因');
-    expect(html).toContain('B3');
+    expect(html).toContain('暂无预约记录，完成选座后会在这里展示。');
+    expect(html).not.toContain('今日 14:00–17:00');
+    expect(html).not.toContain('立即签到');
+    expect(html).not.toContain('再次预约');
+    expect(html).not.toContain('查看原因');
     expect(html).not.toContain('下一场预约');
   });
 
@@ -62,7 +56,7 @@ describe('student activity pages', () => {
     expect(html).toContain('今天下午有空位吗？我想要有插座的座位');
     expect(html).toContain('根据您的偏好，今天下午（14:00 后）共找到 3 个合适选项');
     expect(html).toContain('经管自习室 301 · C3');
-    expect(html).toContain('图书馆自习区 · B22');
+    expect(html).toContain('图书馆自习区 · B6');
     expect(html).toContain('立即预约');
     expect(html).toContain('帮我预约第一个，时间 14:00 到 17:00');
     expect(html).toContain('确认预约');

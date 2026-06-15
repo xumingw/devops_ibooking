@@ -5,7 +5,13 @@ import {
   Injectable,
   NotFoundException
 } from '@nestjs/common';
-import { ErrorCode, Room, RoomScopeType } from '@ibooking/shared-types';
+import {
+  ErrorCode,
+  Room,
+  RoomAvailabilitySummary,
+  RoomCatalogItem,
+  RoomScopeType
+} from '@ibooking/shared-types';
 
 export const ROOM_REPOSITORY = 'ROOM_REPOSITORY';
 
@@ -26,6 +32,8 @@ export type NormalizedRoomInput = Required<RoomWriteInput>;
 
 export interface RoomRepository {
   list(): Promise<Room[]>;
+  listCatalog(): Promise<RoomCatalogItem[]>;
+  getAvailability(startAt: Date, endAt: Date): Promise<RoomAvailabilitySummary>;
   findById(id: string): Promise<Room | null>;
   findByName(name: string): Promise<Room | null>;
   create(input: NormalizedRoomInput): Promise<Room>;
@@ -39,6 +47,29 @@ export class RoomsService {
   async listRooms(): Promise<Room[]> {
     const rooms = await this.repository.list();
     return rooms.sort((left, right) => left.name.localeCompare(right.name, 'zh-Hans-CN'));
+  }
+
+  async listRoomCatalog(): Promise<RoomCatalogItem[]> {
+    const rooms = await this.repository.listCatalog();
+    return rooms.sort((left, right) => {
+      const buildingOrder = left.building.localeCompare(right.building, 'zh-Hans-CN');
+      if (buildingOrder !== 0) return buildingOrder;
+      const floorOrder = Number.parseInt(left.floor, 10) - Number.parseInt(right.floor, 10);
+      if (floorOrder !== 0) return floorOrder;
+      return left.name.localeCompare(right.name, 'zh-Hans-CN');
+    });
+  }
+
+  getRoomAvailability(input: { startAt: string; endAt: string }): Promise<RoomAvailabilitySummary> {
+    const startAt = this.parseDate(input.startAt, '开始时间');
+    const endAt = this.parseDate(input.endAt, '结束时间');
+    if (endAt <= startAt) {
+      throw new BadRequestException({
+        code: ErrorCode.PARAM_INVALID_RELATION,
+        message: '结束时间必须晚于开始时间'
+      });
+    }
+    return this.repository.getAvailability(startAt, endAt);
   }
 
   async createRoom(input: RoomWriteInput): Promise<Room> {
@@ -134,6 +165,17 @@ export class RoomsService {
       });
     }
     return value;
+  }
+
+  private parseDate(value: string, label: string): Date {
+    const date = new Date(value);
+    if (!value || Number.isNaN(date.getTime())) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_FAILED,
+        message: `${label}无效`
+      });
+    }
+    return date;
   }
 
   private normalizeDepartment(scopeType: RoomScopeType, departmentId: string | null): string | null {

@@ -18,6 +18,8 @@ import { BookingsModule } from './bookings/bookings.module';
 import { CheckInsModule } from './checkins/checkins.module';
 import { AssistantModule } from './assistant/assistant.module';
 import { FavoritesModule } from './favorites/favorites.module';
+import { StudentHomeModule } from './student-home/student-home.module';
+import { AdminOverviewModule } from './admin-overview/admin-overview.module';
 
 @Module({
   imports: [
@@ -42,7 +44,9 @@ import { FavoritesModule } from './favorites/favorites.module';
     BookingsModule,
     CheckInsModule,
     AssistantModule,
-    FavoritesModule
+    FavoritesModule,
+    StudentHomeModule,
+    AdminOverviewModule
   ],
   controllers: [HealthController],
   providers: [

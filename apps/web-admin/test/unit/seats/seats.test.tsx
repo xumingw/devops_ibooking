@@ -113,12 +113,11 @@ describe('seats', () => {
     expect(html).toContain('座位管理');
     expect(html).toContain('搜索座位编号、自习室');
     expect(html).toContain('座位编号');
-    expect(html).toContain('经管自习室 301');
-    expect(html).toContain('带插座');
-    expect(html).toContain('靠窗');
+    expect(html).toContain('座位总数');
     expect(html).toContain('禁用');
     expect(html).toContain('批量维护');
-    expect(html).toContain('定位');
+    expect(html).toContain('没有匹配的座位');
+    expect(html).not.toContain('经管自习室 301');
     expect(html).not.toContain('管理模块');
   });
 
@@ -128,24 +127,9 @@ describe('seats', () => {
     );
 
     expect(html).toContain('座位平面图编辑器');
-    expect(html).toContain('经管自习室 301 · 光华楼 A座 3楼');
-    expect(html).toContain('编辑自习室');
-    expect(html).toContain('选择平面图自习室');
-    expect(html).toContain('理工自习室 201 · 理科楼 2楼');
-    expect(html).toContain('当前自习室');
-    expect(html).toContain('48 座 · 08:00–22:00');
-    expect(html).toContain('已配置座位');
-    expect(html).toContain('登记容量');
-    expect(html).toContain('开放时间');
-    expect(html).toContain('保存布局');
-    expect(html).toContain('预览');
-    expect(html).toContain('选择');
-    expect(html).toContain('添加座位');
-    expect(html).toContain('吸附网格');
-    expect(html).toContain('入 口');
-    expect(html).toContain('C4');
-    expect(html).toContain('属性面板');
-    expect(html).toContain('应用更改');
+    expect(html).toContain('正在加载座位平面图编辑器数据');
+    expect(html).toContain('管理端业务数据由后端接口提供');
+    expect(html).not.toContain('经管自习室 301 · 光华楼 A座 3楼');
     expect(html).not.toContain('管理模块');
   });
 });

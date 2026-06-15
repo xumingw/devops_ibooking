@@ -25,6 +25,9 @@ describe('PrismaBookingsRepository', () => {
       createMany: jest.Mock;
       deleteMany: jest.Mock;
     };
+    violation: {
+      findMany: jest.Mock;
+    };
     $transaction: jest.Mock;
   };
   let repository: PrismaBookingsRepository;
@@ -52,8 +55,12 @@ describe('PrismaBookingsRepository', () => {
         createMany: jest.fn(),
         deleteMany: jest.fn(),
       },
+      violation: {
+        findMany: jest.fn(),
+      },
       $transaction: jest.fn((callback) => callback(prisma)),
     };
+    prisma.violation.findMany.mockResolvedValue([]);
     repository = new PrismaBookingsRepository(prisma as unknown as PrismaService);
   });
 
@@ -91,6 +98,77 @@ describe('PrismaBookingsRepository', () => {
     );
   });
 
+  it('我的预约按订单创建时间倒序查询', async () => {
+    prisma.booking.findMany.mockResolvedValue([]);
+
+    await repository.listByUserId('user-stu-cse-01');
+
+    expect(prisma.booking.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: 'user-stu-cse-01' },
+        orderBy: { createdAt: 'desc' },
+      }),
+    );
+  });
+
+  it('当前 slot 预约按订单创建时间计算签到截止', async () => {
+    prisma.booking.findMany.mockResolvedValue([
+      bookingRowFixture({
+        id: 'booking-current-slot',
+        startAt: new Date('2026-05-30T05:30:00.000Z'),
+        endAt: new Date('2026-05-30T08:00:00.000Z'),
+        createdAt: new Date('2026-05-30T05:55:00.000Z'),
+      }),
+    ]);
+
+    const records = await repository.listByUserId('user-stu-cse-01');
+
+    expect(records[0]).toMatchObject({
+      id: 'booking-current-slot',
+      status: 'upcoming',
+      canCheckIn: true,
+      canCancel: true,
+      createdAt: '2026-05-30T05:55:00.000Z',
+      checkInDeadlineAt: '2026-05-30T06:10:00.000Z',
+    });
+  });
+
+  it('我的预约按当前时间派生过期状态', async () => {
+    prisma.booking.findMany.mockResolvedValue([
+      bookingRowFixture({
+        id: 'booking-ended-checked-in',
+        startAt: new Date('2026-05-30T03:00:00.000Z'),
+        endAt: new Date('2026-05-30T05:00:00.000Z'),
+        status: 'CHECKED_IN',
+      }),
+      bookingRowFixture({
+        id: 'booking-no-show',
+        startAt: new Date('2026-05-30T05:30:00.000Z'),
+        endAt: new Date('2026-05-30T08:00:00.000Z'),
+        status: 'PENDING_CHECKIN',
+      }),
+    ]);
+
+    const records = await repository.listByUserId('user-stu-cse-01');
+
+    expect(records).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'booking-ended-checked-in',
+          status: 'completed',
+          canCheckIn: false,
+          canCancel: false,
+        }),
+        expect.objectContaining({
+          id: 'booking-no-show',
+          status: 'violation',
+          canCheckIn: false,
+          canCancel: false,
+        }),
+      ]),
+    );
+  });
+
   it('开始前取消当前用户预约并返回取消后的记录', async () => {
     const current = bookingRowFixture({
       id: 'booking-future',
@@ -111,7 +189,11 @@ describe('PrismaBookingsRepository', () => {
           id: 'booking-future',
           userId: 'user-stu-cse-01',
           status: 'PENDING_CHECKIN',
-          startAt: { gt: NOW },
+          endAt: { gt: NOW },
+          OR: [
+            { startAt: { gt: new Date('2026-05-30T05:45:00.000Z') } },
+            { createdAt: { gt: new Date('2026-05-30T05:45:00.000Z') } },
+          ],
         }),
         data: { status: 'CANCELLED_BY_USER' },
       }),
@@ -126,11 +208,47 @@ describe('PrismaBookingsRepository', () => {
     });
   });
 
-  it('创建预约时写入预约和每半小时占位', async () => {
+  it('当前 slot 在签到截止前允许取消当前用户预约', async () => {
+    const current = bookingRowFixture({
+      id: 'booking-current-slot',
+      startAt: new Date('2026-05-30T05:30:00.000Z'),
+      endAt: new Date('2026-05-30T08:00:00.000Z'),
+      createdAt: new Date('2026-05-30T05:55:00.000Z'),
+    });
+    prisma.booking.updateMany.mockResolvedValue({ count: 1 });
+    prisma.booking.findUnique.mockResolvedValue({
+      ...current,
+      status: 'CANCELLED_BY_USER',
+    });
+
+    const record = await repository.cancelByUserId('user-stu-cse-01', 'booking-current-slot');
+
+    expect(prisma.booking.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'booking-current-slot',
+          userId: 'user-stu-cse-01',
+          status: 'PENDING_CHECKIN',
+          endAt: { gt: NOW },
+          OR: [
+            { startAt: { gt: new Date('2026-05-30T05:45:00.000Z') } },
+            { createdAt: { gt: new Date('2026-05-30T05:45:00.000Z') } },
+          ],
+        }),
+      }),
+    );
+    expect(record).toMatchObject({
+      id: 'booking-current-slot',
+      status: 'cancelled',
+      canCancel: false,
+    });
+  });
+
+  it('创建半小时粒度预约时写入预约、半小时占位并按区间检查同座冲突', async () => {
     const created = bookingRowFixture({
       id: 'booking-created',
-      startAt: new Date('2026-06-01T06:30:00.000Z'),
-      endAt: new Date('2026-06-01T08:00:00.000Z'),
+      startAt: new Date('2026-06-01T06:00:00.000Z'),
+      endAt: new Date('2026-06-01T07:30:00.000Z'),
     });
     prisma.user.findUnique.mockResolvedValue({ id: 'user-stu-cse-01', departmentId: 'dept-cs' });
     prisma.room.findUnique.mockResolvedValue(created.room);
@@ -142,8 +260,26 @@ describe('PrismaBookingsRepository', () => {
     const record = await repository.createByUserId('user-stu-cse-01', {
       roomId: 'room-gm-301',
       seatId: 'seat-gm-301-c3',
-      startAt: '2026-06-01T06:30:00.000Z',
-      endAt: '2026-06-01T08:00:00.000Z',
+      startAt: '2026-06-01T06:00:00.000Z',
+      endAt: '2026-06-01T07:30:00.000Z',
+    });
+    expect(prisma.booking.findFirst).toHaveBeenNthCalledWith(1, {
+      where: {
+        userId: 'user-stu-cse-01',
+        status: { in: ['PENDING_CHECKIN', 'CHECKED_IN'] },
+        startAt: { lt: new Date('2026-06-01T07:30:00.000Z') },
+        endAt: { gt: new Date('2026-06-01T06:00:00.000Z') },
+      },
+      select: { id: true },
+    });
+    expect(prisma.booking.findFirst).toHaveBeenNthCalledWith(2, {
+      where: {
+        seatId: 'seat-gm-301-c3',
+        status: { in: ['PENDING_CHECKIN', 'CHECKED_IN'] },
+        startAt: { lt: new Date('2026-06-01T07:30:00.000Z') },
+        endAt: { gt: new Date('2026-06-01T06:00:00.000Z') },
+      },
+      select: { id: true },
     });
 
     expect(prisma.booking.create).toHaveBeenCalledWith({
@@ -151,8 +287,8 @@ describe('PrismaBookingsRepository', () => {
         userId: 'user-stu-cse-01',
         roomId: 'room-gm-301',
         seatId: 'seat-gm-301-c3',
-        startAt: new Date('2026-06-01T06:30:00.000Z'),
-        endAt: new Date('2026-06-01T08:00:00.000Z'),
+        startAt: new Date('2026-06-01T06:00:00.000Z'),
+        endAt: new Date('2026-06-01T07:30:00.000Z'),
         status: 'PENDING_CHECKIN',
       },
       include: {
@@ -166,6 +302,12 @@ describe('PrismaBookingsRepository', () => {
           bookingId: 'booking-created',
           seatId: 'seat-gm-301-c3',
           userId: 'user-stu-cse-01',
+          slotStart: new Date('2026-06-01T06:00:00.000Z'),
+        },
+        {
+          bookingId: 'booking-created',
+          seatId: 'seat-gm-301-c3',
+          userId: 'user-stu-cse-01',
           slotStart: new Date('2026-06-01T06:30:00.000Z'),
         },
         {
@@ -173,12 +315,6 @@ describe('PrismaBookingsRepository', () => {
           seatId: 'seat-gm-301-c3',
           userId: 'user-stu-cse-01',
           slotStart: new Date('2026-06-01T07:00:00.000Z'),
-        },
-        {
-          bookingId: 'booking-created',
-          seatId: 'seat-gm-301-c3',
-          userId: 'user-stu-cse-01',
-          slotStart: new Date('2026-06-01T07:30:00.000Z'),
         },
       ],
     });
@@ -188,6 +324,144 @@ describe('PrismaBookingsRepository', () => {
       seat: 'C3',
       status: 'upcoming',
       canCancel: true,
+    });
+  });
+
+  it('学生违约达到 5 次且仍在 30 天限制期内时拒绝创建预约', async () => {
+    const created = bookingRowFixture({
+      id: 'booking-created',
+      startAt: new Date('2026-06-01T06:00:00.000Z'),
+      endAt: new Date('2026-06-01T07:30:00.000Z'),
+    });
+    prisma.user.findUnique.mockResolvedValue({ id: 'user-stu-cse-01', departmentId: 'dept-cs' });
+    prisma.room.findUnique.mockResolvedValue(created.room);
+    prisma.seat.findFirst.mockResolvedValue(created.seat);
+    prisma.violation.findMany.mockResolvedValue(
+      createViolationRows([
+        '2026-05-29T06:00:00.000Z',
+        '2026-05-28T06:00:00.000Z',
+        '2026-05-27T06:00:00.000Z',
+        '2026-05-26T06:00:00.000Z',
+        '2026-05-25T06:00:00.000Z',
+        '2026-05-24T06:00:00.000Z',
+      ]),
+    );
+    prisma.booking.findFirst.mockResolvedValue(null);
+    prisma.booking.create.mockResolvedValue(created);
+    prisma.bookingSlot.createMany.mockResolvedValue({ count: 3 });
+
+    await expect(
+      repository.createByUserId('user-stu-cse-01', {
+        roomId: 'room-gm-301',
+        seatId: 'seat-gm-301-c3',
+        startAt: '2026-06-01T06:00:00.000Z',
+        endAt: '2026-06-01T07:30:00.000Z',
+      }),
+    ).rejects.toThrow('当前违约记录已触发 30 天预约限制');
+
+    expect(prisma.violation.findMany).toHaveBeenCalledWith({
+      where: { userId: 'user-stu-cse-01' },
+      orderBy: { occurredAt: 'desc' },
+      select: { occurredAt: true },
+    });
+    expect(prisma.booking.create).not.toHaveBeenCalled();
+    expect(prisma.bookingSlot.createMany).not.toHaveBeenCalled();
+  });
+
+  it('违约限制期已过时允许重新预约', async () => {
+    const created = bookingRowFixture({
+      id: 'booking-created',
+      startAt: new Date('2026-06-01T06:00:00.000Z'),
+      endAt: new Date('2026-06-01T07:30:00.000Z'),
+    });
+    prisma.user.findUnique.mockResolvedValue({ id: 'user-stu-cse-01', departmentId: 'dept-cs' });
+    prisma.room.findUnique.mockResolvedValue(created.room);
+    prisma.seat.findFirst.mockResolvedValue(created.seat);
+    prisma.violation.findMany.mockResolvedValue(
+      createViolationRows([
+        '2026-04-20T06:00:00.000Z',
+        '2026-04-19T06:00:00.000Z',
+        '2026-04-18T06:00:00.000Z',
+      ]),
+    );
+    prisma.booking.findFirst.mockResolvedValue(null);
+    prisma.booking.create.mockResolvedValue(created);
+    prisma.bookingSlot.createMany.mockResolvedValue({ count: 3 });
+
+    await expect(
+      repository.createByUserId('user-stu-cse-01', {
+        roomId: 'room-gm-301',
+        seatId: 'seat-gm-301-c3',
+        startAt: '2026-06-01T06:00:00.000Z',
+        endAt: '2026-06-01T07:30:00.000Z',
+      }),
+    ).resolves.toMatchObject({ id: 'booking-created' });
+
+    expect(prisma.booking.create).toHaveBeenCalled();
+  });
+
+  it('拒绝同座位任意分钟重叠预约', async () => {
+    const row = bookingRowFixture({
+      id: 'booking-created',
+      startAt: new Date('2026-06-01T06:17:00.000Z'),
+      endAt: new Date('2026-06-01T06:20:00.000Z'),
+    });
+    prisma.user.findUnique.mockResolvedValue({ id: 'user-stu-cse-01', departmentId: 'dept-cs' });
+    prisma.room.findUnique.mockResolvedValue(row.room);
+    prisma.seat.findFirst.mockResolvedValue(row.seat);
+    prisma.booking.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'booking-overlap' });
+
+    await expect(
+      repository.createByUserId('user-stu-cse-01', {
+        roomId: 'room-gm-301',
+        seatId: 'seat-gm-301-c3',
+        startAt: '2026-06-01T06:17:00.000Z',
+        endAt: '2026-06-01T06:20:00.000Z',
+      }),
+    ).rejects.toThrow('该座位时段已被预约');
+
+    expect(prisma.booking.create).not.toHaveBeenCalled();
+    expect(prisma.bookingSlot.createMany).not.toHaveBeenCalled();
+  });
+
+  it('允许 24 小时自习室跨天预约', async () => {
+    const created = bookingRowFixture({
+      id: 'booking-24h-overnight',
+      startAt: new Date('2026-06-01T15:00:00.000Z'),
+      endAt: new Date('2026-06-01T18:00:00.000Z'),
+    });
+    prisma.user.findUnique.mockResolvedValue({ id: 'user-stu-cse-01', departmentId: 'dept-cs' });
+    prisma.room.findUnique.mockResolvedValue({
+      ...created.room,
+      openHour: 0,
+      closeHour: 24,
+      overnight: false,
+      schedules: [],
+    });
+    prisma.seat.findFirst.mockResolvedValue(created.seat);
+    prisma.booking.findFirst.mockResolvedValue(null);
+    prisma.booking.create.mockResolvedValue(created);
+    prisma.bookingSlot.createMany.mockResolvedValue({ count: 6 });
+
+    const record = await repository.createByUserId('user-stu-cse-01', {
+      roomId: 'room-science-201',
+      seatId: 'seat-science-201-f12',
+      startAt: '2026-06-01T15:00:00.000Z',
+      endAt: '2026-06-01T18:00:00.000Z',
+    });
+
+    expect(record).toMatchObject({
+      id: 'booking-24h-overnight',
+      status: 'upcoming',
+    });
+    expect(prisma.booking.create).toHaveBeenCalled();
+    expect(prisma.bookingSlot.createMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({ slotStart: new Date('2026-06-01T15:00:00.000Z') }),
+        expect.objectContaining({ slotStart: new Date('2026-06-01T17:30:00.000Z') }),
+      ]),
     });
   });
 
@@ -336,7 +610,13 @@ describe('PrismaBookingsRepository', () => {
   });
 });
 
-function bookingRowFixture(input: { id: string; startAt: Date; endAt: Date }) {
+function bookingRowFixture(input: {
+  id: string;
+  startAt: Date;
+  endAt: Date;
+  createdAt?: Date;
+  status?: 'PENDING_CHECKIN' | 'CHECKED_IN' | 'COMPLETED' | 'CANCELLED_AUTO_NO_CHECKIN' | 'CANCELLED_BY_USER' | 'CANCELLED_BY_ADMIN';
+}) {
   return {
     id: input.id,
     userId: 'user-stu-cse-01',
@@ -344,8 +624,8 @@ function bookingRowFixture(input: { id: string; startAt: Date; endAt: Date }) {
     seatId: 'seat-gm-301-c3',
     startAt: input.startAt,
     endAt: input.endAt,
-    status: 'PENDING_CHECKIN',
-    createdAt: new Date('2026-05-30T05:00:00.000Z'),
+    status: input.status ?? 'PENDING_CHECKIN',
+    createdAt: input.createdAt ?? new Date('2026-05-30T05:00:00.000Z'),
     updatedAt: new Date('2026-05-30T05:00:00.000Z'),
     room: {
       id: 'room-gm-301',
@@ -377,4 +657,8 @@ function bookingRowFixture(input: { id: string; startAt: Date; endAt: Date }) {
       updatedAt: new Date('2026-05-30T05:00:00.000Z'),
     },
   };
+}
+
+function createViolationRows(occurredAtValues: string[]) {
+  return occurredAtValues.map((occurredAt) => ({ occurredAt: new Date(occurredAt) }));
 }

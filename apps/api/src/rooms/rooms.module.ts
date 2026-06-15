@@ -16,6 +16,7 @@ import { RoomsController } from './rooms.controller';
       provide: ROOM_REPOSITORY,
       useExisting: PrismaRoomsRepository
     }
-  ]
+  ],
+  exports: [RoomsService]
 })
 export class RoomsModule {}

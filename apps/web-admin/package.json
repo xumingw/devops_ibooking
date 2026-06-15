@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ibooking/design-tokens": "workspace:*",
+    "@ibooking/shared-types": "workspace:*",
     "@vitejs/plugin-react": "^4.3.3",
     "antd": "^5.22.0",
     "react": "^18.3.1",
