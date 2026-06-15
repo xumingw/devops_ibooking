@@ -111,6 +111,15 @@ export type DemoViolationSummary = {
   records: DemoViolationRecord[];
 };
 
+export type UserPreferences = {
+  seatFeatures: string[];
+  reminderMethod: 'wechat' | 'email' | 'none';
+  startReminder: boolean;
+  checkinReminder: boolean;
+  aiRecommendation: boolean;
+  autoMatch: boolean;
+};
+
 export type ApiState = {
   source: 'backend' | 'mock';
   message: string;
